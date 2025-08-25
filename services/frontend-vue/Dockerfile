@@ -7,14 +7,17 @@ WORKDIR /app
 # Copier les fichiers de dépendances
 COPY package*.json ./
 
-# Installer les dépendances
-RUN npm ci --only=production
+# Installer toutes les dépendances (dev + prod pour le build)
+RUN npm install
 
 # Copier le code source
 COPY . .
 
 # Build de l'application Vue.js
 RUN npm run build
+
+# Nettoyer les node_modules après le build
+RUN rm -rf node_modules
 
 # Image finale avec Nginx
 FROM nginx:alpine
