@@ -137,24 +137,198 @@ git clone https://github.com/T-DAT-901/CryptoViz.git
 cd CryptoViz
 ```
 
-2. **Configuration**
+2. **Configuration initiale**
 ```bash
-cp .env.example .env
+make setup
 # Éditer .env avec vos clés API
 ```
 
 3. **Démarrage des services**
 ```bash
-docker-compose up -d
+make start
 ```
 
 4. **Vérification**
 ```bash
-# Vérifier que tous les services sont up
-docker-compose ps
+make status
+make health
 
 # Accéder à l'interface
 open http://localhost:3000
+```
+
+## 🛠️ Commandes Make
+
+CryptoViz utilise un Makefile complet pour simplifier la gestion du projet. Toutes les commandes sont organisées par catégorie pour une utilisation optimale.
+
+### Aide et Information
+```bash
+make help          # Afficher toutes les commandes disponibles
+make info          # Informations détaillées du projet
+```
+
+### 🚀 Gestion des Services
+
+#### Démarrage
+```bash
+make start          # Démarrer tous les services
+make start-infra    # Démarrer uniquement l'infrastructure (DB, Kafka, Redis)
+make start-services # Démarrer uniquement les microservices
+make start-app      # Démarrer uniquement l'application (backend + frontend)
+```
+
+#### Arrêt et Redémarrage
+```bash
+make stop           # Arrêter tous les services
+make stop-force     # Arrêt forcé de tous les services
+make restart        # Redémarrer tous les services
+make restart-service SERVICE=backend-go  # Redémarrer un service spécifique
+```
+
+### 🔧 Construction et Nettoyage
+
+```bash
+make build          # Construire toutes les images Docker
+make build-service SERVICE=backend-go    # Construire une image spécifique
+make clean          # Nettoyer les conteneurs, images et volumes
+make clean-images   # Supprimer toutes les images Docker du projet
+```
+
+### 📊 Monitoring et Logs
+
+```bash
+make logs           # Voir les logs de tous les services en temps réel
+make logs-service SERVICE=backend-go     # Logs d'un service spécifique
+make status         # Afficher l'état de tous les services
+make health         # Vérifier la santé des services
+make monitor        # Ouvrir les interfaces de monitoring
+```
+
+### 🗄️ Base de Données TimescaleDB
+
+```bash
+make db-connect     # Se connecter à la base de données
+make db-backup      # Créer une sauvegarde
+make db-restore BACKUP=fichier.sql      # Restaurer depuis une sauvegarde
+```
+
+### 📡 Gestion Kafka
+
+```bash
+make kafka-topics   # Lister tous les topics Kafka
+make kafka-create-topic TOPIC=nom_topic # Créer un nouveau topic
+make kafka-console-consumer TOPIC=crypto.raw.1s  # Écouter un topic
+```
+
+### 🧪 Développement
+
+#### Mode Développement
+```bash
+make dev-backend    # Démarrer le backend en mode développement
+make dev-frontend   # Démarrer le frontend en mode développement
+```
+
+#### Tests
+```bash
+make test           # Exécuter tous les tests
+make test-backend   # Tester le backend Go
+make test-python    # Tester les services Python
+make test-frontend  # Tester le frontend
+```
+
+#### Linting et Formatage
+```bash
+make lint           # Vérifier le code avec les linters
+make lint-backend   # Linter le code Go
+make lint-python    # Linter le code Python
+make lint-frontend  # Linter le code frontend
+
+make format         # Formater tout le code
+make format-backend # Formater le code Go
+make format-python  # Formater le code Python
+make format-frontend # Formater le code frontend
+```
+
+### 🔧 Utilitaires
+
+```bash
+make shell-service SERVICE=backend-go   # Ouvrir un shell dans un service
+make ps             # Afficher les processus Docker
+make top            # Afficher l'utilisation des ressources
+make update         # Mettre à jour les dépendances
+```
+
+### 🧪 Tests API
+
+```bash
+make api-test       # Tester l'API backend
+make api-crypto SYMBOL=BTCUSDT         # Tester l'endpoint crypto
+```
+
+### 🚀 Production
+
+```bash
+make prod-build     # Construire pour la production
+make prod-deploy    # Déployer en production
+```
+
+### 🧹 Maintenance
+
+```bash
+make prune          # Nettoyer Docker (images, conteneurs, volumes orphelins)
+make reset          # Reset complet du projet (⚠️ supprime toutes les données)
+```
+
+### Exemples d'Utilisation
+
+#### Démarrage complet du projet
+```bash
+# Configuration initiale (première fois)
+make setup
+# Éditer le fichier .env avec vos clés API
+
+# Démarrage
+make start
+make status
+```
+
+#### Développement d'un service spécifique
+```bash
+# Démarrer l'infrastructure
+make start-infra
+
+# Développer le backend
+make dev-backend
+
+# Dans un autre terminal, voir les logs
+make logs-service SERVICE=timescaledb
+```
+
+#### Debug et monitoring
+```bash
+# Voir les logs en temps réel
+make logs
+
+# Vérifier la santé des services
+make health
+
+# Se connecter à la base de données
+make db-connect
+
+# Écouter les messages Kafka
+make kafka-console-consumer TOPIC=crypto.raw.1s
+```
+
+#### Tests et qualité de code
+```bash
+# Tests complets
+make test
+
+# Vérification du code
+make lint
+
+# Formatage du code
+make format
 ```
 
 ## 📈 Gestion des Données
