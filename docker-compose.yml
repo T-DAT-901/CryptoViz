@@ -1,0 +1,278 @@
+version: '3.8'
+
+services:
+  # Base de données TimescaleDB
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: cryptoviz-timescaledb
+    environment:
+      POSTGRES_DB: ${TIMESCALE_DB:-cryptoviz}
+      POSTGRES_USER: ${TIMESCALE_USER:-postgres}
+      POSTGRES_PASSWORD: ${TIMESCALE_PASSWORD:-password}
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TIMESCALE_USER:-postgres} -d ${TIMESCALE_DB:-cryptoviz}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Zookeeper pour Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: cryptoviz-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+
+  # Apache Kafka
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: cryptoviz-kafka
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_NUM_PARTITIONS: 3
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis (optionnel pour cache)
+  redis:
+    image: redis:7-alpine
+    container_name: cryptoviz-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Data Collector Service
+  data-collector:
+    build:
+      context: ./services/data-collector
+      dockerfile: Dockerfile
+    container_name: cryptoviz-data-collector
+    depends_on:
+      kafka:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    environment:
+      BINANCE_API_KEY: ${BINANCE_API_KEY}
+      BINANCE_SECRET_KEY: ${BINANCE_SECRET_KEY}
+      KAFKA_BROKERS: kafka:29092
+      TIMESCALE_HOST: timescaledb
+      TIMESCALE_PORT: 5432
+      TIMESCALE_DB: ${TIMESCALE_DB:-cryptoviz}
+      TIMESCALE_USER: ${TIMESCALE_USER:-postgres}
+      TIMESCALE_PASSWORD: ${TIMESCALE_PASSWORD:-password}
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+    volumes:
+      - ./services/data-collector:/app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # News Scraper Service
+  news-scraper:
+    build:
+      context: ./services/news-scraper
+      dockerfile: Dockerfile
+    container_name: cryptoviz-news-scraper
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: kafka:29092
+      SCRAPING_INTERVAL: ${SCRAPING_INTERVAL:-300}
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+    volumes:
+      - ./services/news-scraper:/app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Indicators Calculator Service
+  indicators-calculator:
+    build:
+      context: ./services/indicators-calculator
+      dockerfile: Dockerfile
+    container_name: cryptoviz-indicators-calculator
+    depends_on:
+      kafka:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: kafka:29092
+      TIMESCALE_HOST: timescaledb
+      TIMESCALE_PORT: 5432
+      TIMESCALE_DB: ${TIMESCALE_DB:-cryptoviz}
+      TIMESCALE_USER: ${TIMESCALE_USER:-postgres}
+      TIMESCALE_PASSWORD: ${TIMESCALE_PASSWORD:-password}
+      RSI_PERIOD: ${RSI_PERIOD:-14}
+      MACD_FAST: ${MACD_FAST:-12}
+      MACD_SLOW: ${MACD_SLOW:-26}
+      MACD_SIGNAL: ${MACD_SIGNAL:-9}
+      BOLLINGER_PERIOD: ${BOLLINGER_PERIOD:-20}
+      BOLLINGER_STD: ${BOLLINGER_STD:-2}
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+    volumes:
+      - ./services/indicators-calculator:/app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Backend Go Service
+  backend-go:
+    build:
+      context: ./services/backend-go
+      dockerfile: Dockerfile
+    container_name: cryptoviz-backend-go
+    depends_on:
+      kafka:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      PORT: ${BACKEND_PORT:-8080}
+      KAFKA_BROKERS: kafka:29092
+      TIMESCALE_HOST: timescaledb
+      TIMESCALE_PORT: 5432
+      TIMESCALE_DB: ${TIMESCALE_DB:-cryptoviz}
+      TIMESCALE_USER: ${TIMESCALE_USER:-postgres}
+      TIMESCALE_PASSWORD: ${TIMESCALE_PASSWORD:-password}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      GIN_MODE: ${GIN_MODE:-release}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+    volumes:
+      - ./services/backend-go:/app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Frontend Vue.js Service
+  frontend-vue:
+    build:
+      context: ./services/frontend-vue
+      dockerfile: Dockerfile
+    container_name: cryptoviz-frontend-vue
+    depends_on:
+      - backend-go
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+    volumes:
+      - ./services/frontend-vue:/app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Kafka Topics Initializer
+  kafka-init:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: cryptoviz-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: |
+      bash -c "
+        echo 'Création des topics Kafka...'
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.raw.1s
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.5s
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.1m
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.15m
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.1h
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.indicators.rsi
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.indicators.macd
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.indicators.bollinger
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.indicators.momentum
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.news
+        echo 'Topics Kafka créés avec succès!'
+        kafka-topics --list --bootstrap-server kafka:29092
+      "
+    networks:
+      - cryptoviz-network
+
+volumes:
+  timescaledb_data:
+    driver: local
+  kafka_data:
+    driver: local
+  zookeeper_data:
+    driver: local
+  zookeeper_logs:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  cryptoviz-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
