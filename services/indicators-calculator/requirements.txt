@@ -5,7 +5,6 @@ pandas==2.1.4
 
 # Technical Analysis
 TA-Lib==0.4.28
-talib-binary==0.4.19
 
 # Kafka
 kafka-python==2.0.2
