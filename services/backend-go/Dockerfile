@@ -7,14 +7,12 @@ RUN apk add --no-cache git ca-certificates tzdata
 # Définir le répertoire de travail
 WORKDIR /app
 
-# Copier les fichiers de dépendances
-COPY go.mod go.sum ./
-
-# Télécharger les dépendances
-RUN go mod download
-
-# Copier le code source
+# Copier les fichiers de dépendances et le code source
+COPY go.mod go.sum* ./
 COPY . .
+
+# Télécharger et nettoyer les dépendances
+RUN go mod tidy
 
 # Compiler l'application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
