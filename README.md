@@ -439,11 +439,16 @@ docker-compose -f docker-compose.test.yml up
 ./scripts/integration-tests.sh
 ```
 
+## 📚 Documentation
+
+- **[Guide de Développement](DEV.md)** - Workflows optimisés pour les développeurs et étudiants
+- **[API Reference](docs/api.md)** - Documentation des endpoints
+- **[Wiki](https://github.com/T-DAT-901/CryptoViz/wiki)** - Documentation complète
+
 ## 📞 Support
 
 - **Issues**: [GitHub Issues](https://github.com/T-DAT-901/CryptoViz/issues)
-- **Documentation**: [Wiki](https://github.com/T-DAT-901/CryptoViz/wiki)
-- **API Reference**: `/docs/api.md`
+- **Guide Développeur**: [DEV.md](DEV.md) - Troubleshooting et bonnes pratiques
 
 ## 📄 Licence
 
