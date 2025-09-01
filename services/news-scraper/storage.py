@@ -9,8 +9,8 @@ STORAGE_FILE = "articles.csv"
 def load_articles():
     """Charge tous les articles stockés dans un DataFrame."""
     if os.path.exists(STORAGE_FILE):
-        return pd.read_csv(STORAGE_FILE)
-    return pd.DataFrame(columns=["title", "link", "published"])
+        return pd.read_csv(STORAGE_FILE).fillna("")
+    return pd.DataFrame(columns=["title", "link", "published", "sentiment"])
 
 
 def save_articles(new_articles):
