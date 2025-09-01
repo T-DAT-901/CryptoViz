@@ -229,9 +229,9 @@ monitor: ## Ouvrir les interfaces de monitoring
 	@echo "$(GREEN)Ouverture des interfaces de monitoring...$(NC)"
 	@echo "Frontend: http://localhost:3000"
 	@echo "Backend API: http://localhost:8080"
-	@echo "TimescaleDB: localhost:5432"
+	@echo "TimescaleDB: localhost:7432"
 	@echo "Kafka: localhost:9092"
-	@echo "Redis: localhost:6379"
+	@echo "Redis: localhost:7379"
 
 # Production
 prod-build: ## Construire pour la production
