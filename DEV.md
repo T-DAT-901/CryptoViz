@@ -467,13 +467,34 @@ make dev-frontend
 - **Frontend** : http://localhost:3000
 - **Backend API** : http://localhost:8080
 - **Health Check** : http://localhost:8080/health
-- **TimescaleDB** : localhost:5432 (user: postgres)
+- **TimescaleDB** : localhost:7432 (user: postgres) ⚠️ Port personnalisé
 - **Kafka** : localhost:9092
-- **Redis** : localhost:6379
+- **Redis** : localhost:7379 ⚠️ Port personnalisé
 
 ### 🔗 Liens Externes
 
 - **[Binance API Docs](https://binance-docs.github.io/apidocs/)**
+- **[Configuration des Ports](docs/ports-configuration.md)** - Guide détaillé des ports personnalisés
+
+### ⚠️ Ports Personnalisés
+
+**Important :** CryptoViz utilise des ports personnalisés pour éviter les conflits avec vos services locaux :
+
+- **TimescaleDB** : Port `7432` (au lieu de 5432)
+- **Redis** : Port `7379` (au lieu de 6379)
+
+**Connexions externes :**
+```bash
+# Base de données
+psql -h localhost -p 7432 -U postgres -d cryptoviz
+
+# Redis
+redis-cli -h localhost -p 7379
+```
+
+**Note :** Les services Docker communiquent entre eux via les ports standards internes. Ces ports personnalisés sont uniquement pour l'accès depuis votre machine hôte.
+
+Voir **[docs/ports-configuration.md](docs/ports-configuration.md)** pour plus de détails.
 
 ---
 

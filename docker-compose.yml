@@ -11,7 +11,7 @@ services:
       POSTGRES_PASSWORD: ${TIMESCALE_PASSWORD:-password}
       POSTGRES_HOST_AUTH_METHOD: trust
     ports:
-      - "5432:5432"
+      - "7432:5432"
     volumes:
       - timescaledb_data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -72,7 +72,7 @@ services:
     image: redis:7-alpine
     container_name: cryptoviz-redis
     ports:
-      - "6379:6379"
+      - "7379:6379"
     volumes:
       - redis_data:/data
     networks:
