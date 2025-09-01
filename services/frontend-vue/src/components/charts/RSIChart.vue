@@ -1,7 +1,12 @@
 <script setup lang="ts">
-import { Line } from "vue-chartjs";
+import { onMounted, ref, watch } from "vue";
+import { useMarketStore } from "@/stores/market";
+import { fetchRSI } from "@/services/indicators.api";
+import type { RSIPoint } from "@/types/market";
+
 import {
   Chart,
+  LineController,
   LineElement,
   PointElement,
   LinearScale,
@@ -9,15 +14,13 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
+import type { ChartData, ChartOptions } from "chart.js";
 import "chartjs-adapter-date-fns";
-import { onMounted, ref, watch } from "vue";
-import { fetchRSI } from "@/services/indicators.api";
-import { useMarketStore } from "@/stores/market";
-import { useIndicatorsStore } from "@/stores/indicators";
-import type { ChartOptions } from "chart.js";
 
+// register needed pieces once
 Chart.register(
   LineElement,
+  LineController,
   PointElement,
   LinearScale,
   TimeScale,
@@ -25,36 +28,146 @@ Chart.register(
   Legend
 );
 
-const props = defineProps<{ symbol: string }>();
 const market = useMarketStore();
-const ind = useIndicatorsStore();
 
-const dataRef = ref({
-  labels: [] as number[],
-  datasets: [{ label: "RSI", data: [] as number[] }],
+// canvas + chart instance
+const canvasEl = ref<HTMLCanvasElement | null>(null);
+let chart: Chart<"line"> | null = null;
+
+// data & options
+const dataRef = ref<ChartData<"line">>({
+  labels: [],
+  datasets: [
+    {
+      label: "RSI",
+      data: [], // numbers 0..100
+      borderColor: "#22c55e",
+      backgroundColor: "rgba(34,197,94,0.25)",
+      borderWidth: 1.5,
+      pointRadius: 0,
+      tension: 0.2,
+    },
+    // 70 band
+    {
+      label: "70",
+      data: [],
+      borderColor: "rgba(239,68,68,0.8)",
+      borderDash: [6, 6],
+      pointRadius: 0,
+      borderWidth: 1,
+    },
+    // 30 band
+    {
+      label: "30",
+      data: [],
+      borderColor: "rgba(34,197,94,0.8)",
+      borderDash: [6, 6],
+      pointRadius: 0,
+      borderWidth: 1,
+    },
+  ],
 });
+
 const options = ref<ChartOptions<"line">>({
   responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: { mode: "index", intersect: false },
+  },
   scales: {
     x: {
       type: "time",
+      grid: { color: "rgba(255,255,255,0.06)" },
+      ticks: { color: "rgba(255,255,255,0.55)" },
     },
     y: {
       min: 0,
       max: 100,
+      position: "right",
+      grid: { color: "rgba(255,255,255,0.06)" },
+      ticks: { color: "rgba(255,255,255,0.65)" },
     },
   },
 });
 
 async function load() {
-  const rows = await fetchRSI(props.symbol, market.interval, ind.rsiPeriod);
-  dataRef.value.labels = rows.map((r) => r.ts);
-  dataRef.value.datasets[0].data = rows.map((r) => r.value);
+  // read from mock via indicators.api
+  const rows: RSIPoint[] = await fetchRSI("BTC", market.interval, 14);
+  const xs = rows.map((r) => r.ts);
+  const ys = rows.map((r) => r.value);
+
+  dataRef.value.labels = xs;
+  dataRef.value.datasets[0].data = ys;
+  dataRef.value.datasets[1].data = xs.map(() => 70);
+  dataRef.value.datasets[2].data = xs.map(() => 30);
+
+  if (chart) chart.update();
 }
-watch(() => [market.interval, ind.rsiPeriod], load, { deep: true });
-onMounted(load);
+
+function build() {
+  if (!canvasEl.value) return;
+  if (chart) chart.destroy();
+  chart = new Chart(canvasEl.value, {
+    type: "line",
+    data: dataRef.value,
+    options: options.value,
+  });
+}
+
+onMounted(async () => {
+  await load();
+  build();
+});
+
+// reload when timeframe changes
+watch(
+  () => market.interval,
+  async () => {
+    await load();
+  }
+);
 </script>
 
 <template>
-  <Line :data="dataRef" :options="options" />
+  <section class="panel">
+    <div class="toolbar">
+      <div class="left">
+        <span class="title">RSI (14)</span>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <canvas ref="canvasEl"></canvas>
+    </div>
+  </section>
 </template>
+
+<style scoped>
+.panel {
+  background: #0b0e11;
+  color: #e5e7eb;
+  border-radius: 10px;
+  border: 1px solid #1a1f24;
+  padding: 12px;
+  margin-top: 12px;
+}
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #9ca3af;
+  font-size: 14px;
+}
+.left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.title {
+  font-weight: 700;
+  color: #e5e7eb;
+}
+.chart-wrap {
+  height: 220px;
+} /* typical RSI panel height */
+</style>

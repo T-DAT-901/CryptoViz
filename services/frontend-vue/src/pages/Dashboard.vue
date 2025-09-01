@@ -1,21 +1,31 @@
 <script setup lang="ts">
+import CandleChart from "@/components/charts/CandleChart.vue";
 import IndicatorsPanel from "@/components/IndicatorsPanel.vue";
+import { onMounted } from "vue";
+import { useMarketStore } from "@/stores/market";
+import { fetchCandles } from "@/services/markets.api";
 import RSIChart from "@/components/charts/RSIChart.vue";
-import MACDChart from "@/components/charts/MACDChart.vue";
-import BollingerChart from "@/components/charts/BollingerChart.vue";
-import MomentumChart from "@/components/charts/MomentumChart.vue";
-import { useIndicatorsStore } from "@/stores/indicators";
-const ind = useIndicatorsStore();
+
+const store = useMarketStore();
+
+// Preload initial candles so the chart has data immediately
+onMounted(async () => {
+  const rows = await fetchCandles("BTC", store.interval, 120);
+  store.setCandles?.("BTC", rows); // if your store has per-symbol
+  // If you switched to BTC-only store, use: store.candles = rows
+});
 </script>
 
 <template>
-  <!-- ... header + interval selector + price charts ... -->
-  <IndicatorsPanel />
+  <main style="padding: 16px; max-width: 1280px; margin: auto">
+    <!-- Top controls (you can add your header here if needed) -->
 
-  <section style="display: grid; gap: 16px; margin: 12px 0">
-    <RSIChart v-if="ind.showRSI" symbol="BTC" />
-    <MACDChart v-if="ind.showMACD" symbol="BTC" />
-    <BollingerChart v-if="ind.showBollinger" symbol="BTC" />
-    <MomentumChart v-if="ind.showMomentum" symbol="BTC" />
-  </section>
+    <!-- Main price chart (candlesticks) -->
+    <section style="margin-top: 12px">
+      <CandleChart />
+      <RSIChart />
+    </section>
+
+    <!-- You can render RSI/MACD/Bollinger/Momentum below when ready -->
+  </main>
 </template>
