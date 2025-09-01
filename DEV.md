@@ -103,16 +103,19 @@ make api-test
 ### Scénario 1 : "Je développe le Backend Go"
 
 ```bash
-# 1. Démarrer l'infrastructure
+# 1. Setup initial (si pas déjà fait)
+make setup  # Crée .env et .env.local
+
+# 2. Démarrer l'infrastructure
 make start-infra
 
-# 2. Mode développement backend (hot reload)
+# 3. Mode développement backend (utilise .env.local automatiquement)
 make dev-backend
 
-# 3. Dans un autre terminal, voir les logs de la DB
+# 4. Dans un autre terminal, voir les logs de la DB
 make logs-service SERVICE=timescaledb
 
-# 4. Tester l'API
+# 5. Tester l'API
 make api-test
 curl http://localhost:8080/health
 ```

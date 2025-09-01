@@ -142,7 +142,13 @@ kafka-console-consumer: ## Écouter un topic Kafka (usage: make kafka-console-co
 # Développement
 dev-backend: ## Démarrer le backend en mode développement
 	@echo "$(GREEN)Démarrage du backend en mode développement...$(NC)"
-	@cd services/backend-go && go run main.go
+	@if [ -f .env.local ]; then \
+		echo "$(YELLOW)Utilisation de .env.local pour le développement local$(NC)"; \
+		set -a && . ./.env.local && set +a && cd services/backend-go && go run main.go; \
+	else \
+		echo "$(RED)Fichier .env.local non trouvé. Exécutez 'make setup' d'abord.$(NC)"; \
+		exit 1; \
+	fi
 
 dev-frontend: ## Démarrer le frontend en mode développement
 	@echo "$(GREEN)Démarrage du frontend en mode développement...$(NC)"
@@ -215,6 +221,10 @@ setup: ## Configuration initiale du projet
 	@if [ ! -f .env ]; then \
 		cp .env.example .env; \
 		echo "$(YELLOW)Fichier .env créé. Veuillez le configurer avec vos clés API.$(NC)"; \
+	fi
+	@if [ ! -f .env.local ]; then \
+		cp .env.local.example .env.local; \
+		echo "$(YELLOW)Fichier .env.local créé pour le développement local.$(NC)"; \
 	fi
 	@chmod +x scripts/*.sh
 	@echo "$(GREEN)Configuration terminée!$(NC)"
