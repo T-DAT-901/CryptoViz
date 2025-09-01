@@ -39,12 +39,11 @@ func (sa *StringArray) Scan(value interface{}) error {
 
 // CryptoNews représente les actualités crypto
 type CryptoNews struct {
-	ID             uint        `json:"id" gorm:"primaryKey;autoIncrement"`
-	Time           time.Time   `json:"time" gorm:"column:time;index"`
+	Time           time.Time   `json:"time" gorm:"primaryKey;column:time;index"`
+	Source         string      `json:"source" gorm:"primaryKey;column:source;size:100;not null"`
+	URL            string      `json:"url" gorm:"primaryKey;column:url;size:1000;not null"`
 	Title          string      `json:"title" gorm:"column:title;size:500;not null"`
 	Content        string      `json:"content" gorm:"column:content;type:text"`
-	Source         string      `json:"source" gorm:"column:source;size:100"`
-	URL            string      `json:"url" gorm:"column:url;size:1000"`
 	SentimentScore *float64    `json:"sentiment_score" gorm:"column:sentiment_score;type:decimal(5,4)"`
 	Symbols        StringArray `json:"symbols" gorm:"column:symbols;type:jsonb"`
 	CreatedAt      time.Time   `json:"created_at" gorm:"autoCreateTime"`
@@ -72,9 +71,9 @@ type CryptoNewsRepository interface {
 	GetByTimeRange(start, end time.Time, limit int) ([]CryptoNews, error)
 	GetBySource(source string, limit int) ([]CryptoNews, error)
 	GetBySentiment(minScore, maxScore float64, limit int) ([]CryptoNews, error)
-	GetByID(id uint) (*CryptoNews, error)
+	GetByCompositeKey(time time.Time, source, url string) (*CryptoNews, error)
 	Update(news *CryptoNews) error
-	Delete(id uint) error
+	DeleteByCompositeKey(time time.Time, source, url string) error
 }
 
 // cryptoNewsRepository implémentation concrète du repository
@@ -142,10 +141,10 @@ func (r *cryptoNewsRepository) GetBySentiment(minScore, maxScore float64, limit 
 	return news, err
 }
 
-// GetByID récupère une actualité par son ID
-func (r *cryptoNewsRepository) GetByID(id uint) (*CryptoNews, error) {
+// GetByCompositeKey récupère une actualité par sa clé composite
+func (r *cryptoNewsRepository) GetByCompositeKey(time time.Time, source, url string) (*CryptoNews, error) {
 	var news CryptoNews
-	err := r.db.First(&news, id).Error
+	err := r.db.Where("time = ? AND source = ? AND url = ?", time, source, url).First(&news).Error
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +156,7 @@ func (r *cryptoNewsRepository) Update(news *CryptoNews) error {
 	return r.db.Save(news).Error
 }
 
-// Delete supprime une actualité
-func (r *cryptoNewsRepository) Delete(id uint) error {
-	return r.db.Delete(&CryptoNews{}, id).Error
+// DeleteByCompositeKey supprime une actualité par sa clé composite
+func (r *cryptoNewsRepository) DeleteByCompositeKey(time time.Time, source, url string) error {
+	return r.db.Where("time = ? AND source = ? AND url = ?", time, source, url).Delete(&CryptoNews{}).Error
 }

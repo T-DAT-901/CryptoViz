@@ -57,15 +57,15 @@ SELECT create_hypertable('crypto_indicators', 'time',
 
 -- Table pour les actualités crypto
 CREATE TABLE IF NOT EXISTS crypto_news (
-    id SERIAL PRIMARY KEY,
     time TIMESTAMPTZ NOT NULL,
     title TEXT NOT NULL,
     content TEXT,
-    source VARCHAR(100),
-    url TEXT,
+    source VARCHAR(100) NOT NULL,
+    url TEXT NOT NULL,
     sentiment_score DECIMAL(5,2), -- Score de sentiment entre -1 et 1
-    symbols TEXT[], -- Array des symboles mentionnés
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    symbols JSONB, -- Array des symboles mentionnés (JSON format)
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (time, source, url)
 );
 
 -- Créer l'hypertable pour les news
