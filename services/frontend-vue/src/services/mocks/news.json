@@ -1,0 +1,14 @@
+[
+  {
+    "id": "1",
+    "title": "Bitcoin breaks $68k barrier",
+    "url": "https://example.com/1",
+    "publishedAt": "2025-09-01T10:00:00Z"
+  },
+  {
+    "id": "2",
+    "title": "Ethereum gas fees drop",
+    "url": "https://example.com/2",
+    "publishedAt": "2025-09-01T09:45:00Z"
+  }
+]
