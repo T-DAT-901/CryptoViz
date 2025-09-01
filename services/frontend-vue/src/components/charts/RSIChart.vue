@@ -71,9 +71,14 @@ const dataRef = ref<ChartData<"line">>({
 const options = ref<ChartOptions<"line">>({
   responsive: true,
   maintainAspectRatio: false,
+  interaction: {
+    mode: "nearest",
+    intersect: false,
+    axis: "x",
+  },
   plugins: {
     legend: { display: false },
-    tooltip: { mode: "index", intersect: false },
+    tooltip: { enabled: false },
   },
   scales: {
     x: {
@@ -114,6 +119,104 @@ function build() {
     options: options.value,
   });
 }
+
+// Helper to draw rounded rectangles
+function roundRectPath(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number
+) {
+  const rr = Math.min(r, h / 2, w / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
+// Custom overlay: vertical guide + point + value bubble
+const rsiHoverOverlay = {
+  id: "rsiHoverOverlay",
+  afterDraw(chart: any) {
+    const active = chart.getActiveElements?.();
+    if (!active || active.length === 0) return;
+
+    const { ctx, chartArea } = chart;
+    const { datasetIndex, index } = active[0];
+    const meta = chart.getDatasetMeta(datasetIndex);
+    const pt = meta.data[index];
+    if (!pt) return;
+
+    // Values
+    const val = chart.data.datasets[datasetIndex].data[index] as number;
+    const label =
+      typeof val === "number" ? `RSI ${val.toFixed(2)}` : `RSI ${val}`;
+
+    // Neutral colors (adjust later if needed)
+    const guideColor = "rgba(220, 220, 220, 0.50)"; // soft gray
+    const dotColor = "#d1d5db"; // light gray
+    const bubbleBg = "#111827"; // dark slate
+    const bubbleText = "#e5e7eb"; // near-white
+    const bubbleBorder = "#94a3b8"; // muted border
+
+    // Vertical guide (thin line + soft column)
+    ctx.save();
+    ctx.fillStyle = "rgba(148,163,184,0.08)";
+    ctx.fillRect(
+      pt.x - 14,
+      chartArea.top,
+      28,
+      chartArea.bottom - chartArea.top
+    );
+    ctx.strokeStyle = guideColor;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pt.x, chartArea.top);
+    ctx.lineTo(pt.x, chartArea.bottom);
+    ctx.stroke();
+    ctx.restore();
+
+    // Point
+    ctx.save();
+    ctx.fillStyle = dotColor;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Bubble
+    ctx.save();
+    ctx.font = "12px ui-sans-serif, -apple-system, Segoe UI, Roboto, Ubuntu";
+    const padX = 10,
+      padY = 6,
+      h = 28;
+    const textW = ctx.measureText(label).width;
+    const w = textW + padX * 2;
+    const x = Math.min(
+      Math.max(pt.x - w / 2, chartArea.left + 6),
+      chartArea.right - w - 6
+    );
+    const y = pt.y - h - 10;
+
+    roundRectPath(ctx, x, y, w, h, 10);
+    ctx.fillStyle = bubbleBg;
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = bubbleBorder;
+    ctx.stroke();
+
+    ctx.fillStyle = bubbleText;
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, x + padX, y + h / 2);
+    ctx.restore();
+  },
+};
+Chart.register(rsiHoverOverlay);
 
 onMounted(async () => {
   await load();
