@@ -1,6 +1,6 @@
 # 🎓 Guide de Développement CryptoViz
 
-> **Guide pratique pour les étudiants** - Workflows optimisés, bonnes pratiques et troubleshooting
+> **Guide pratique** - Workflows optimisés, bonnes pratiques et troubleshooting
 
 ## 📋 Table des Matières
 
@@ -30,13 +30,10 @@ make setup
 
 ### Étape 2 : Configurer les Clés API
 
-Éditez le fichier `.env` créé :
+Le fichier `.env` a été créé par `make setup`. Éditez-le avec vos clés API :
 
 ```bash
-# Ouvrir avec votre éditeur préféré
-code .env
-# ou
-nano .env
+# Le fichier .env est déjà créé, il suffit de l'éditer
 ```
 
 **⚠️ Important :** Demandez les clés API à votre équipe ou créez un compte Binance (testnet pour le développement).
@@ -58,7 +55,7 @@ make health
 
 ## 💻 Développement Quotidien
 
-### 🌅 Routine du Matin (Démarrage Rapide)
+### 🌅 Routine (Démarrage Rapide)
 
 ```bash
 # 1. Vérifier l'état des services
@@ -133,7 +130,7 @@ make dev-frontend
 # 3. Ouvrir http://localhost:3000 dans le navigateur
 ```
 
-### Scénario 3 : "Je développe un Microservice Python"
+### Scénario 3 : "Je développe le Data Collector (Python)"
 
 ```bash
 # 1. Démarrer l'infrastructure
@@ -144,14 +141,66 @@ make start-infra
 # 3. Redémarrer le service
 make restart-service SERVICE=data-collector
 
-# 4. Voir les logs
+# 4. Voir les logs en temps réel
 make logs-service SERVICE=data-collector
 
-# 5. Tester avec Kafka
+# 5. Tester la production de données Kafka
 make kafka-console-consumer TOPIC=crypto.raw.1s
+
+# 6. Vérifier les données en base
+make db-connect
+# Puis: SELECT * FROM crypto_data ORDER BY time DESC LIMIT 10;
 ```
 
-### Scénario 4 : "Je teste une nouvelle fonctionnalité"
+### Scénario 4 : "Je développe le News Scraper (Python)"
+
+```bash
+# 1. Démarrer l'infrastructure
+make start-infra
+
+# 2. Modifier le code dans services/news-scraper/
+
+# 3. Redémarrer le service
+make restart-service SERVICE=news-scraper
+
+# 4. Voir les logs du scraper
+make logs-service SERVICE=news-scraper
+
+# 5. Tester la production de news Kafka
+make kafka-console-consumer TOPIC=crypto.news
+
+# 6. Vérifier les news en base
+make db-connect
+# Puis: SELECT * FROM crypto_news ORDER BY timestamp DESC LIMIT 5;
+```
+
+### Scénario 5 : "Je développe l'Indicators Calculator (Python)"
+
+```bash
+# 1. Démarrer l'infrastructure + data collector
+make start-infra
+make restart-service SERVICE=data-collector
+
+# 2. Modifier le code dans services/indicators-calculator/
+
+# 3. Redémarrer le service
+make restart-service SERVICE=indicators-calculator
+
+# 4. Voir les logs du calculateur
+make logs-service SERVICE=indicators-calculator
+
+# 5. Tester la consommation et production Kafka
+# Consommation (données brutes)
+make kafka-console-consumer TOPIC=crypto.raw.1s
+# Production (indicateurs calculés)
+make kafka-console-consumer TOPIC=crypto.indicators.rsi
+
+# 6. Vérifier les indicateurs en base
+make db-connect
+# Puis: SELECT * FROM crypto_indicators WHERE indicator_type='RSI' ORDER BY time DESC LIMIT 10;
+```
+
+### Scénario 6 : "Je teste une nouvelle fonctionnalité"
 
 ```bash
 # 1. Build et test complet
@@ -291,21 +340,31 @@ make prune
 make top
 ```
 
-### 🎯 Workflow Optimal par Rôle
+### 🎯 Workflow Optimal par Microservice
 
-**Backend Developer :**
+**Backend Go :**
 ```bash
 make start-infra → make dev-backend → make api-test
 ```
 
-**Frontend Developer :**
+**Frontend Vue.js :**
 ```bash
 make start-infra → make restart-service SERVICE=backend-go → make dev-frontend
 ```
 
-**DevOps/Full-Stack :**
+**Data Collector (Python) :**
 ```bash
-make start → make test → make monitor
+make start-infra → make restart-service SERVICE=data-collector → make kafka-console-consumer TOPIC=crypto.raw.1s
+```
+
+**News Scraper (Python) :**
+```bash
+make start-infra → make restart-service SERVICE=news-scraper → make kafka-console-consumer TOPIC=crypto.news
+```
+
+**Indicators Calculator (Python) :**
+```bash
+make start-infra → make restart-service SERVICE=data-collector → make restart-service SERVICE=indicators-calculator → make kafka-console-consumer TOPIC=crypto.indicators.rsi
 ```
 
 ---
@@ -412,40 +471,9 @@ make dev-frontend
 - **Kafka** : localhost:9092
 - **Redis** : localhost:6379
 
-### 🛠️ Outils Recommandés
-
-**Éditeurs :**
-- VS Code avec extensions Go, Vue.js, Docker
-- IntelliJ IDEA / PyCharm
-- Vim/Neovim pour les puristes
-
-**Clients API :**
-- Postman / Insomnia
-- curl (ligne de commande)
-- Thunder Client (VS Code)
-
-**Monitoring :**
-- Docker Desktop
-- Portainer (interface Docker)
-- pgAdmin (PostgreSQL/TimescaleDB)
-
-### 📱 Extensions VS Code Utiles
-
-```bash
-# Extensions recommandées
-code --install-extension ms-vscode.go
-code --install-extension Vue.volar
-code --install-extension ms-azuretools.vscode-docker
-code --install-extension ms-python.python
-```
-
 ### 🔗 Liens Externes
 
 - **[Binance API Docs](https://binance-docs.github.io/apidocs/)**
-- **[Vue.js 3 Guide](https://vuejs.org/guide/)**
-- **[Go Documentation](https://golang.org/doc/)**
-- **[TimescaleDB Docs](https://docs.timescale.com/)**
-- **[Apache Kafka Docs](https://kafka.apache.org/documentation/)**
 
 ---
 
@@ -474,13 +502,3 @@ make clean          # Nettoyage complet
 make update         # Mise à jour dépendances
 make test           # Tests complets
 ```
-
----
-
-**💡 Conseil Final :** Gardez ce guide ouvert pendant vos premières semaines de développement. N'hésitez pas à expérimenter avec les commandes - le projet est conçu pour être robuste !
-
-**🆘 Besoin d'aide ?** Consultez la section [Erreurs Communes](#-erreurs-communes-et-solutions) ou demandez à votre équipe.
-
----
-
-*Dernière mise à jour : Septembre 2025*
