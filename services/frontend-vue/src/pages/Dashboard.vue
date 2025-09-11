@@ -1,31 +1,52 @@
 <script setup lang="ts">
 import CandleChart from "@/components/charts/CandleChart.vue";
-import IndicatorsPanel from "@/components/IndicatorsPanel.vue";
-import { onMounted } from "vue";
-import { useMarketStore } from "@/stores/market";
-import { fetchCandles } from "@/services/markets.api";
 import RSIChart from "@/components/charts/RSIChart.vue";
-
-const store = useMarketStore();
-
-// Preload initial candles so the chart has data immediately
-onMounted(async () => {
-  const rows = await fetchCandles("BTC", store.interval, 120);
-  store.setCandles?.("BTC", rows); // if your store has per-symbol
-  // If you switched to BTC-only store, use: store.candles = rows
-});
 </script>
 
 <template>
-  <main style="padding: 16px; max-width: 1280px; margin: auto">
-    <!-- Top controls (you can add your header here if needed) -->
+  <main class="dash">
+    <!-- Colonne gauche (placeholder) -->
+    <aside class="col left"></aside>
 
-    <!-- Main price chart (candlesticks) -->
-    <section style="margin-top: 12px">
-      <CandleChart />
-      <RSIChart />
+    <!-- Centre (graphiques) -->
+    <section class="col center">
+      <div class="stack">
+        <CandleChart />
+        <RSIChart />
+      </div>
     </section>
 
-    <!-- You can render RSI/MACD/Bollinger/Momentum below when ready -->
+    <!-- Colonne droite (placeholder) -->
+    <aside class="col right"></aside>
   </main>
 </template>
+
+<style scoped>
+.dash {
+  display: grid;
+  grid-template-columns: 360px 1fr 420px; /* proches de ta maquette */
+  gap: 0;
+  height: 100vh; /* plein écran */
+  background: #040d12; /* même fond que global */
+}
+
+/* chaque colonne scrolle seule */
+.col {
+  padding: 12px;
+  min-height: 0; /* nécessaire pour que overflow-y fonctionne en grid */
+  overflow-y: auto;
+}
+
+/* lignes de séparation noires */
+.left {
+  border-right: 0.5px solid #93b1a6;
+}
+.right {
+  border-left: 0.5px solid #93b1a6;
+}
+
+.stack {
+  display: grid;
+  gap: 12px;
+}
+</style>
