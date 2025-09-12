@@ -1,15 +1,14 @@
-# Point d'entrée qui orchestre tout
-
 import time
 from scraper import fetch_articles
 from storage import save_articles, load_articles
 
 def main():
-    seen_links = set(load_articles()["link"])
+    existing_articles = load_articles()
+    seen_links = {article["link"] for article in existing_articles}
 
     while True:
-        print("🔍 Récupération des articles...")
-        articles = fetch_articles(count=20)
+        print("----- Récupération des articles -----")
+        articles = fetch_articles()
 
         new_articles = [a for a in articles if a["link"] not in seen_links]
 
@@ -17,10 +16,9 @@ def main():
             save_articles(new_articles)
             seen_links.update(a["link"] for a in new_articles)
         else:
-            print("Aucun nouvel article trouvé.")
+            print("X Aucun nouvel article trouvé X")
 
-        time.sleep(120)  # Attente 2 min avant de relancer
+        time.sleep(10)
 
 if __name__ == "__main__":
     main()
-

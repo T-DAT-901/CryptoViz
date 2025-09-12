@@ -1,25 +1,29 @@
-# Sauvegarde des données
-
-import pandas as pd
+import json
 import os
 
-STORAGE_FILE = "articles.csv"
+STORAGE_FILE = "articles.json"
 
 
 def load_articles():
-    """Charge tous les articles stockés dans un DataFrame."""
+    """Charge tous les articles stockés dans une liste de dictionnaires."""
     if os.path.exists(STORAGE_FILE):
-        return pd.read_csv(STORAGE_FILE).fillna("")
-    return pd.DataFrame(columns=["title", "link", "published", "sentiment"])
+        with open(STORAGE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
 
 
 def save_articles(new_articles):
-    """Ajoute de nouveaux articles au fichier CSV en évitant les doublons."""
-    df_existing = load_articles()
-    df_new = pd.DataFrame(new_articles)
+    """Ajoute de nouveaux articles au fichier JSON en évitant les doublons basés sur le lien."""
+    existing_articles = load_articles()
 
-    # Évite les doublons basés sur le lien
-    df_combined = pd.concat([df_existing, df_new]).drop_duplicates(subset="link", keep="last")
+    existing_links = {article["link"] for article in existing_articles}
 
-    df_combined.to_csv(STORAGE_FILE, index=False)
-    print(f"{len(df_combined) - len(df_existing)} nouveaux articles sauvegardés.")
+    filtered_new = [article for article in new_articles if article["link"] not in existing_links]
+
+    combined_articles = existing_articles + filtered_new
+
+    # Sauvegarde dans le fichier JSON
+    with open(STORAGE_FILE, "w", encoding="utf-8") as f:
+        json.dump(combined_articles, f, ensure_ascii=False, indent=4)
+
+    print(f"{len(filtered_new)} nouveaux articles sauvegardés.")

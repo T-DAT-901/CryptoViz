@@ -1,4 +1,3 @@
-# ui.py
 import tkinter as tk
 from storage import load_articles
 import webbrowser
@@ -9,7 +8,6 @@ def open_link(event, link):
     webbrowser.open(link)
 
 def refresh_articles(content_frame, canvas):
-    # Remove old widgets
     for widget in content_frame.winfo_children():
         widget.destroy()
 
@@ -25,20 +23,17 @@ def refresh_articles(content_frame, canvas):
                               font=("Arial", 10), fg="gray")
         info_label.pack(anchor="w", pady=(0,10))
 
-    # Update scroll region after adding widgets
     content_frame.update_idletasks()
     canvas.config(scrollregion=canvas.bbox("all"))
 
-    # Schedule auto-refresh
     content_frame.after(REFRESH_INTERVAL, lambda: refresh_articles(content_frame, canvas))
 
 def main():
     root = tk.Tk()
-    root.title("Crypto News RSS - Articles sauvegardés (scrollable)")
+    root.title("Crypto News RSS - Articles sauvegardés")
 
-    tk.Label(root, text="Articles Crypto en Temps Réel", font=("Arial", 16, "bold")).pack(pady=10)
+    tk.Label(root, text="Articles Crypto en temps réel", font=("Arial", 16, "bold")).pack(pady=10)
 
-    # Create canvas + scrollbar
     canvas = tk.Canvas(root, width=650, height=500)
     scrollbar = tk.Scrollbar(root, orient="vertical", command=canvas.yview)
     scrollable_frame = tk.Frame(canvas)
