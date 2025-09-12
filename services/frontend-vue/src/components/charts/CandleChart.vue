@@ -21,6 +21,8 @@ Chart.register(
   Legend
 );
 
+const props = defineProps<{ candles?: CandleDTO[] }>();
+
 const store = useMarketStore();
 const timeframes = ["1m", "30m", "1h"] as const;
 const volumeText = ref("$223K");
