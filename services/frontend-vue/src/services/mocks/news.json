@@ -1,14 +1,352 @@
 [
   {
-    "id": "1",
-    "title": "Bitcoin breaks $68k barrier",
-    "url": "https://example.com/1",
-    "publishedAt": "2025-09-01T10:00:00Z"
+    "title": "Bitcoin breaks above $68K amid strong ETF inflows",
+    "link": "https://example.com/article1",
+    "published": "2025-09-12T09:30:00Z",
+    "source": "CoinDesk",
+    "image": "https://placehold.co/100x100?text=1"
   },
   {
-    "id": "2",
-    "title": "Ethereum gas fees drop",
-    "url": "https://example.com/2",
-    "publishedAt": "2025-09-01T09:45:00Z"
+    "title": "Ethereum gas fees hit monthly low as activity shifts",
+    "link": "https://example.com/article2",
+    "published": "2025-09-12T09:05:00Z",
+    "source": "Cointelegraph",
+    "image": "https://placehold.co/100x100?text=2"
+  },
+  {
+    "title": "Solana ecosystem secures major gaming partnership",
+    "link": "https://example.com/article3",
+    "published": "2025-09-12T08:52:00Z",
+    "source": "The Block",
+    "image": "https://placehold.co/100x100?text=3"
+  },
+  {
+    "title": "SEC postpones decision on new Bitcoin spot ETF",
+    "link": "https://example.com/article4",
+    "published": "2025-09-12T08:40:00Z",
+    "source": "Reuters",
+    "image": "https://placehold.co/100x100?text=4"
+  },
+  {
+    "title": "Binance publishes updated proof-of-reserves snapshot",
+    "link": "https://example.com/article5",
+    "published": "2025-09-12T08:20:00Z",
+    "source": "Bloomberg Crypto",
+    "image": "https://placehold.co/100x100?text=5"
+  },
+  {
+    "title": "Ripple extends Asian footprint with new corridors",
+    "link": "https://example.com/article6",
+    "published": "2025-09-12T08:02:00Z",
+    "source": "Decrypt",
+    "image": "https://placehold.co/100x100?text=6"
+  },
+  {
+    "title": "Cardano staking update promises higher yields",
+    "link": "https://example.com/article7",
+    "published": "2025-09-12T07:47:00Z",
+    "source": "CryptoSlate",
+    "image": "https://placehold.co/100x100?text=7"
+  },
+  {
+    "title": "Litecoin miners ramp up after halving",
+    "link": "https://example.com/article8",
+    "published": "2025-09-12T07:30:00Z",
+    "source": "Cointribune",
+    "image": "https://placehold.co/100x100?text=8"
+  },
+  {
+    "title": "Polygon announces zkEVM upgrade schedule",
+    "link": "https://example.com/article9",
+    "published": "2025-09-12T07:10:00Z",
+    "source": "The Defiant",
+    "image": "https://placehold.co/100x100?text=9"
+  },
+  {
+    "title": "Market cap reclaims $3T as alts rally",
+    "link": "https://example.com/article10",
+    "published": "2025-09-12T06:55:00Z",
+    "source": "CoinDesk",
+    "image": "https://placehold.co/100x100?text=10"
+  },
+  {
+    "title": "Derivatives show rising long interest in BTC",
+    "link": "https://example.com/article11",
+    "published": "2025-09-12T06:40:00Z",
+    "source": "The Block",
+    "image": "https://placehold.co/100x100?text=11"
+  },
+  {
+    "title": "Stablecoin supply hits new yearly high",
+    "link": "https://example.com/article12",
+    "published": "2025-09-12T06:18:00Z",
+    "source": "Bloomberg Crypto",
+    "image": "https://placehold.co/100x100?text=12"
+  },
+  {
+    "title": "DeFi TVL rises as blue chips rebound",
+    "link": "https://example.com/article13",
+    "published": "2025-09-12T06:00:00Z",
+    "source": "The Defiant",
+    "image": "https://placehold.co/100x100?text=13"
+  },
+  {
+    "title": "On-chain data suggests BTC accumulation phase",
+    "link": "https://example.com/article14",
+    "published": "2025-09-12T05:44:00Z",
+    "source": "CryptoSlate",
+    "image": "https://placehold.co/100x100?text=14"
+  },
+  {
+    "title": "U.S. CPI print pushes volatility in crypto markets",
+    "link": "https://example.com/article15",
+    "published": "2025-09-12T05:22:00Z",
+    "source": "Reuters",
+    "image": "https://placehold.co/100x100?text=15"
+  },
+  {
+    "title": "NFT volumes recover on multiple chains",
+    "link": "https://example.com/article16",
+    "published": "2025-09-12T05:05:00Z",
+    "source": "Cointelegraph",
+    "image": "https://placehold.co/100x100?text=16"
+  },
+  {
+    "title": "Arbitrum governance passes incentive program",
+    "link": "https://example.com/article17",
+    "published": "2025-09-12T04:50:00Z",
+    "source": "The Block",
+    "image": "https://placehold.co/100x100?text=17"
+  },
+  {
+    "title": "Crypto exchanges see net positive flows",
+    "link": "https://example.com/article18",
+    "published": "2025-09-12T04:30:00Z",
+    "source": "CoinDesk",
+    "image": "https://placehold.co/100x100?text=18"
+  },
+  {
+    "title": "ETH staking deposits climb post-upgrade",
+    "link": "https://example.com/article19",
+    "published": "2025-09-12T04:10:00Z",
+    "source": "Decrypt",
+    "image": "https://placehold.co/100x100?text=19"
+  },
+  {
+    "title": "Macro funds increase exposure to BTC futures",
+    "link": "https://example.com/article20",
+    "published": "2025-09-12T03:55:00Z",
+    "source": "Bloomberg Crypto",
+    "image": "https://placehold.co/100x100?text=20"
+  },
+  {
+    "title": "Regulators issue new stablecoin guidelines",
+    "link": "https://example.com/article21",
+    "published": "2025-09-12T03:33:00Z",
+    "source": "Reuters",
+    "image": "https://placehold.co/100x100?text=21"
+  },
+  {
+    "title": "Liquid staking market share broadens",
+    "link": "https://example.com/article22",
+    "published": "2025-09-12T03:15:00Z",
+    "source": "The Defiant",
+    "image": "https://placehold.co/100x100?text=22"
+  },
+  {
+    "title": "BTC hash rate reaches new peak",
+    "link": "https://example.com/article23",
+    "published": "2025-09-12T02:58:00Z",
+    "source": "Cointelegraph",
+    "image": "https://placehold.co/100x100?text=23"
+  },
+  {
+    "title": "Institutional custody deals accelerate",
+    "link": "https://example.com/article24",
+    "published": "2025-09-12T02:40:00Z",
+    "source": "CoinDesk",
+    "image": "https://placehold.co/100x100?text=24"
+  },
+  {
+    "title": "Options market signals rising implied volatility",
+    "link": "https://example.com/article25",
+    "published": "2025-09-12T02:22:00Z",
+    "source": "The Block",
+    "image": "https://placehold.co/100x100?text=25"
+  },
+  {
+    "title": "DePIN tokens rally on new integrations",
+    "link": "https://example.com/article26",
+    "published": "2025-09-12T02:05:00Z",
+    "source": "Decrypt",
+    "image": "https://placehold.co/100x100?text=26"
+  },
+  {
+    "title": "ETF issuers file amended S-1 statements",
+    "link": "https://example.com/article27",
+    "published": "2025-09-12T01:50:00Z",
+    "source": "Bloomberg Crypto",
+    "image": "https://placehold.co/100x100?text=27"
+  },
+  {
+    "title": "BRC-20 activity cools after surge",
+    "link": "https://example.com/article28",
+    "published": "2025-09-12T01:35:00Z",
+    "source": "CryptoSlate",
+    "image": "https://placehold.co/100x100?text=28"
+  },
+  {
+    "title": "Security firms flag new wallet-drainer campaign",
+    "link": "https://example.com/article29",
+    "published": "2025-09-12T01:18:00Z",
+    "source": "The Block",
+    "image": "https://placehold.co/100x100?text=29"
+  },
+  {
+    "title": "Open interest tops $20B across exchanges",
+    "link": "https://example.com/article30",
+    "published": "2025-09-12T01:00:00Z",
+    "source": "CoinDesk",
+    "image": "https://placehold.co/100x100?text=30"
+  },
+  {
+    "title": "Tokenized T-bills see record weekly inflows",
+    "link": "https://example.com/article31",
+    "published": "2025-09-11T23:45:00Z",
+    "source": "Reuters",
+    "image": "https://placehold.co/100x100?text=31"
+  },
+  {
+    "title": "Ordinals trading stabilizes after volatility",
+    "link": "https://example.com/article32",
+    "published": "2025-09-11T23:25:00Z",
+    "source": "Cointelegraph",
+    "image": "https://placehold.co/100x100?text=32"
+  },
+  {
+    "title": "DEX volumes climb as liquidity improves",
+    "link": "https://example.com/article33",
+    "published": "2025-09-11T23:05:00Z",
+    "source": "The Defiant",
+    "image": "https://placehold.co/100x100?text=33"
+  },
+  {
+    "title": "BTC dominance ticks higher on altcoin weakness",
+    "link": "https://example.com/article34",
+    "published": "2025-09-11T22:45:00Z",
+    "source": "Bloomberg Crypto",
+    "image": "https://placehold.co/100x100?text=34"
+  },
+  {
+    "title": "Funding rates flip positive after dip",
+    "link": "https://example.com/article35",
+    "published": "2025-09-11T22:25:00Z",
+    "source": "CoinDesk",
+    "image": "https://placehold.co/100x100?text=35"
+  },
+  {
+    "title": "Layer-2 fees compress amid router upgrades",
+    "link": "https://example.com/article36",
+    "published": "2025-09-11T22:05:00Z",
+    "source": "The Block",
+    "image": "https://placehold.co/100x100?text=36"
+  },
+  {
+    "title": "CBDC pilots expand across multiple regions",
+    "link": "https://example.com/article37",
+    "published": "2025-09-11T21:50:00Z",
+    "source": "Reuters",
+    "image": "https://placehold.co/100x100?text=37"
+  },
+  {
+    "title": "MEV research highlights new mitigation paths",
+    "link": "https://example.com/article38",
+    "published": "2025-09-11T21:30:00Z",
+    "source": "The Defiant",
+    "image": "https://placehold.co/100x100?text=38"
+  },
+  {
+    "title": "Token unlocks calendar shows heavy Q4 supply",
+    "link": "https://example.com/article39",
+    "published": "2025-09-11T21:10:00Z",
+    "source": "CryptoSlate",
+    "image": "https://placehold.co/100x100?text=39"
+  },
+  {
+    "title": "Cross-chain bridges report lower exploit losses",
+    "link": "https://example.com/article40",
+    "published": "2025-09-11T20:55:00Z",
+    "source": "Cointelegraph",
+    "image": "https://placehold.co/100x100?text=40"
+  },
+  {
+    "title": "Major exchange lists new perpetual pairs",
+    "link": "https://example.com/article41",
+    "published": "2025-09-11T20:35:00Z",
+    "source": "CoinDesk",
+    "image": "https://placehold.co/100x100?text=41"
+  },
+  {
+    "title": "Venture funding in crypto rebounds in September",
+    "link": "https://example.com/article42",
+    "published": "2025-09-11T20:15:00Z",
+    "source": "Bloomberg Crypto",
+    "image": "https://placehold.co/100x100?text=42"
+  },
+  {
+    "title": "Mining stocks track BTC gains on risk-on mood",
+    "link": "https://example.com/article43",
+    "published": "2025-09-11T19:58:00Z",
+    "source": "Reuters",
+    "image": "https://placehold.co/100x100?text=43"
+  },
+  {
+    "title": "RWA protocols cross $8B in TVL",
+    "link": "https://example.com/article44",
+    "published": "2025-09-11T19:40:00Z",
+    "source": "The Defiant",
+    "image": "https://placehold.co/100x100?text=44"
+  },
+  {
+    "title": "Exchanges tighten KYC in response to guidance",
+    "link": "https://example.com/article45",
+    "published": "2025-09-11T19:22:00Z",
+    "source": "The Block",
+    "image": "https://placehold.co/100x100?text=45"
+  },
+  {
+    "title": "ETH options skew points to upside hedging",
+    "link": "https://example.com/article46",
+    "published": "2025-09-11T19:05:00Z",
+    "source": "CoinDesk",
+    "image": "https://placehold.co/100x100?text=46"
+  },
+  {
+    "title": "Treasuries selloff weighs on risk appetite",
+    "link": "https://example.com/article47",
+    "published": "2025-09-11T18:50:00Z",
+    "source": "Bloomberg Crypto",
+    "image": "https://placehold.co/100x100?text=47"
+  },
+  {
+    "title": "France outlines MiCA transition timetable",
+    "link": "https://example.com/article48",
+    "published": "2025-09-11T18:30:00Z",
+    "source": "Cointelegraph",
+    "image": "https://placehold.co/100x100?text=48"
+  },
+  {
+    "title": "Wallet adoption rises in Latin America",
+    "link": "https://example.com/article49",
+    "published": "2025-09-11T18:12:00Z",
+    "source": "Reuters",
+    "image": "https://placehold.co/100x100?text=49"
+  },
+  {
+    "title": "Funding round: Layer-3 startup raises $25M",
+    "link": "https://example.com/article50",
+    "published": "2025-09-11T17:55:00Z",
+    "source": "The Block",
+    "image": "https://placehold.co/100x100?text=50"
   }
 ]

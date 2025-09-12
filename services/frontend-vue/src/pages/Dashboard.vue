@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import CandleChart from "@/components/charts/CandleChart.vue";
 import RSIChart from "@/components/charts/RSIChart.vue";
+import NewsFeed from "@/components/NewsFeed.vue";
 </script>
 
 <template>
   <main class="dash">
-    <!-- Colonne gauche (placeholder) -->
+    <!-- Colonne gauche : infos crypto -->
     <aside class="col left"></aside>
 
     <!-- Centre (graphiques) -->
@@ -16,28 +17,30 @@ import RSIChart from "@/components/charts/RSIChart.vue";
       </div>
     </section>
 
-    <!-- Colonne droite (placeholder) -->
-    <aside class="col right"></aside>
+    <!-- Colonne droite : news -->
+    <aside class="col right">
+      <div class="stack">
+        <NewsFeed />
+      </div>
+    </aside>
   </main>
 </template>
 
 <style scoped>
 .dash {
   display: grid;
-  grid-template-columns: 360px 1fr 420px; /* proches de ta maquette */
+  grid-template-columns: 360px 1fr 420px;
   gap: 0;
-  height: 100vh; /* plein écran */
-  background: #040d12; /* même fond que global */
+  height: 100vh;
+  background: #040d12;
 }
 
-/* chaque colonne scrolle seule */
 .col {
   padding: 12px;
-  min-height: 0; /* nécessaire pour que overflow-y fonctionne en grid */
+  min-height: 0;
   overflow-y: auto;
 }
 
-/* lignes de séparation noires */
 .left {
   border-right: 0.5px solid #93b1a6;
 }
