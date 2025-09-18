@@ -50,7 +50,7 @@ services:
       # Optionnel mais utile si ZK est présent
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
     ports:
-      - "8081:8080"
+      - "8082:8080"
     networks:
       - cryptoviz-network
     restart: unless-stopped
