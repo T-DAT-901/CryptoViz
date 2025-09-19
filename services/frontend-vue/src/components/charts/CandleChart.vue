@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { onMounted, ref, watch, onBeforeUnmount } from "vue";
 import { useMarketStore } from "@/stores/market";
 import { Chart, Tooltip, Legend, TimeScale, LinearScale } from "chart.js";
+import zoomPlugin from "chartjs-plugin-zoom";
 import {
   CandlestickController,
   CandlestickElement,
@@ -18,200 +19,554 @@ Chart.register(
   TimeScale,
   LinearScale,
   Tooltip,
-  Legend
+  Legend,
+  zoomPlugin
 );
 
-const props = defineProps<{ candles?: CandleDTO[] }>();
+const props = defineProps<{ candles: CandleDTO[] }>();
 
-const store = useMarketStore();
-const timeframes = ["1m", "30m", "1h"] as const;
-const volumeText = ref("$223K");
-
-// Canvas + chart instance
 const canvasEl = ref<HTMLCanvasElement | null>(null);
 let chart: Chart<"candlestick"> | null = null;
 
-// Chart data
-const dataRef = ref<ChartData<"candlestick">>({
-  datasets: [
-    {
-      label: "BTC/USDT",
-      data: [] as any[], // [{ x, o, h, l, c }]
-      // Candlestick colors (match TradingView-like palette)
-      upColor: "#16a34a",
-      downColor: "#ef4444",
-      borderUpColor: "#16a34a",
-      borderDownColor: "#ef4444",
-      wickUpColor: "#16a34a",
-      wickDownColor: "#ef4444",
-    } as any, // candlestick dataset options are plugin-augmented
-  ],
+// État du tooltip personnalisé
+const tooltipVisible = ref(false);
+const tooltipData = ref({
+  x: 0,
+  y: 0,
+  date: "",
+  open: "",
+  high: "",
+  low: "",
+  close: "",
+  change: "",
+  changePercent: "",
+  volume: "",
+  isPositive: true,
 });
 
-// Chart options
-const options = ref<ChartOptions<"candlestick">>({
+// État des lignes de repère (crosshair)
+const crosshairVisible = ref(false);
+const crosshairPosition = ref({
+  x: 0,
+  y: 0,
+});
+const crosshairLabels = ref({
+  price: "",
+  date: "",
+  candleX: 0,
+});
+
+const options: ChartOptions<"candlestick"> = {
   responsive: true,
   maintainAspectRatio: false,
+  interaction: { intersect: false, mode: "nearest" },
+  onHover: (event, activeElements) => {
+    // Supprimé le log de debug
+  },
   plugins: {
     legend: { display: false },
-    tooltip: { mode: "index", intersect: false },
+    tooltip: { enabled: false }, // Désactiver le tooltip par défaut
+    zoom: {
+      pan: {
+        enabled: true,
+        mode: "x", // Seulement horizontal
+        modifierKey: "shift", // Maintenir Shift pour pan
+      },
+      zoom: {
+        wheel: {
+          enabled: true,
+          modifierKey: "ctrl", // Ctrl + scroll pour zoom
+          speed: 0.05, // Vitesse de zoom réduite (par défaut: 0.1)
+        },
+        pinch: {
+          enabled: true,
+        },
+        mode: "x", // Zoom horizontal seulement
+      },
+    },
   },
   scales: {
     x: {
       type: "time",
-      grid: { color: "rgba(255,255,255,0.06)" },
-      ticks: { color: "rgba(255,255,255,0.55)" },
+      grid: {
+        color: "rgba(255,255,255,0.08)",
+      },
+      ticks: {
+        color: "rgba(255,255,255,0.7)",
+        font: { size: 11 },
+      },
     },
     y: {
       position: "right",
-      grid: { color: "rgba(255,255,255,0.06)" },
-      ticks: { color: "rgba(255,255,255,0.65)" },
+      grid: {
+        color: "rgba(255,255,255,0.08)",
+      },
+      ticks: {
+        color: "rgba(255,255,255,0.7)",
+        font: { size: 11 },
+        callback: function (value) {
+          return Number(value).toLocaleString("fr-FR") + " €";
+        },
+      },
     },
   },
-});
+};
 
-async function load() {
-  // Use mocks when VITE_USE_MOCK=true
-  const rows: CandleDTO[] = await fetchCandles("BTC", store.interval, 120);
-  dataRef.value.datasets[0].data = rows.map((r) => ({
-    x: r.t,
-    o: r.o,
-    h: r.h,
-    l: r.l,
-    c: r.c,
-  }));
-  // Update chart if already built
-  if (chart) chart.update();
-}
-
+// Données et construction du graphique
 function buildChart() {
-  if (!canvasEl.value) return;
+  if (!canvasEl.value || !props.candles?.length) return;
+
   if (chart) {
     chart.destroy();
     chart = null;
   }
+
+  const chartData: ChartData<"candlestick"> = {
+    datasets: [
+      {
+        label: "BTC/USDT",
+        data: props.candles.map((candle) => ({
+          x: candle.t,
+          o: candle.o,
+          h: candle.h,
+          l: candle.l,
+          c: candle.c,
+        })),
+        upColor: "#10b981",
+        downColor: "#ef4444",
+        borderUpColor: "#10b981",
+        borderDownColor: "#ef4444",
+        wickUpColor: "#10b981",
+        wickDownColor: "#ef4444",
+      } as any,
+    ],
+  };
+
   chart = new Chart(canvasEl.value, {
     type: "candlestick",
-    data: dataRef.value,
-    options: options.value,
+    data: chartData,
+    options: options,
+  });
+
+  // Ajouter un événement mousemove sur le canvas
+  canvasEl.value.addEventListener("mousemove", handleMouseMove);
+  canvasEl.value.addEventListener("mouseleave", () => {
+    tooltipVisible.value = false;
+    crosshairVisible.value = false;
   });
 }
 
-// Initial load + build
-onMounted(async () => {
-  await load();
-  buildChart();
+// Gestionnaire d'événement mousemove personnalisé
+function handleMouseMove(event: MouseEvent) {
+  if (!chart || !canvasEl.value) return;
+
+  const rect = canvasEl.value.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+
+  crosshairVisible.value = true;
+
+  // Obtenir les éléments à cette position (la bougie la plus proche)
+  const elements = chart.getElementsAtEventForMode(
+    event,
+    "nearest",
+    { intersect: false },
+    false
+  );
+
+  if (elements.length > 0) {
+    const dataIndex = elements[0].index;
+    const candle = props.candles[dataIndex];
+    const element = elements[0].element as any;
+
+    if (candle && element) {
+      // Obtenir la position X exacte du centre de la bougie (mèche)
+      const candleCenterX = element.x;
+
+      // Calculer le prix à la position Y de la souris
+      const yScale = chart.scales.y;
+      const priceAtMouseY = yScale.getValueForPixel(y);
+
+      // Mettre à jour les positions du crosshair
+      crosshairPosition.value = { x: candleCenterX, y };
+
+      // Mettre à jour les labels
+      crosshairLabels.value = {
+        price:
+          (priceAtMouseY || 0).toLocaleString("fr-FR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }) + " €",
+        date: new Date(candle.t).toLocaleDateString("fr-FR", {
+          day: "2-digit",
+          month: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        candleX: candleCenterX,
+      };
+
+      // Calculer la variation pour le tooltip
+      const change = candle.c - candle.o;
+      const changePercent = (change / candle.o) * 100;
+
+      tooltipData.value = {
+        x: event.clientX,
+        y: event.clientY - 120,
+        date: new Date(candle.t).toLocaleDateString("fr-FR", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        open:
+          candle.o.toLocaleString("fr-FR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }) + " €",
+        high:
+          candle.h.toLocaleString("fr-FR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }) + " €",
+        low:
+          candle.l.toLocaleString("fr-FR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }) + " €",
+        close:
+          candle.c.toLocaleString("fr-FR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }) + " €",
+        change: `${change > 0 ? "+" : ""}${change.toFixed(2)} €`,
+        changePercent: `${change > 0 ? "+" : ""}${changePercent.toFixed(2)}%`,
+        volume: "Volume: N/A",
+        isPositive: change >= 0,
+      };
+
+      tooltipVisible.value = true;
+    }
+  } else {
+    // Si pas de bougie trouvée, on suit quand même la souris pour la ligne horizontale
+    crosshairPosition.value = { x, y };
+    tooltipVisible.value = false;
+
+    // Calculer le prix pour la ligne horizontale
+    const yScale = chart.scales.y;
+    const priceAtMouseY = yScale.getValueForPixel(y);
+
+    crosshairLabels.value.price =
+      (priceAtMouseY || 0).toLocaleString("fr-FR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }) + " €";
+  }
+}
+
+// Lifecycle
+onMounted(buildChart);
+watch(() => props.candles, buildChart, { deep: true });
+onBeforeUnmount(() => {
+  if (canvasEl.value) {
+    canvasEl.value.removeEventListener("mousemove", handleMouseMove);
+  }
+  chart?.destroy();
 });
 
-// Reload data when timeframe changes
-watch(
-  () => store.interval,
-  async () => {
-    await load();
+// Fonction pour réinitialiser le zoom
+function resetZoom() {
+  if (chart) {
+    chart.resetZoom();
   }
-);
+}
 </script>
 
 <template>
-  <section class="panel">
-    <div class="toolbar">
-      <div class="left">
-        <span class="pair">BTC/USDT</span>
-        <span class="dot">•</span>
-        <span class="tf nowrap">
-          <button
-            v-for="tf in timeframes"
-            :key="tf"
-            :class="['tf-btn', { active: store.interval === tf }]"
-            @click="store.setInterval(tf)"
-          >
-            {{ tf }}
-          </button>
-        </span>
-        <span class="dot">•</span>
-        <span class="ex">Binance</span>
+  <div class="candle-chart">
+    <!-- Bouton de reset du zoom -->
+    <button
+      class="reset-zoom-btn"
+      @click="resetZoom"
+      title="Réinitialiser le zoom (Ctrl+scroll pour zoomer)"
+    >
+      🔍 Reset
+    </button>
+
+    <canvas ref="canvasEl"></canvas>
+
+    <!-- Lignes de repère (crosshair) -->
+    <div v-if="crosshairVisible" class="crosshair-container">
+      <!-- Ligne verticale (fixée sur la mèche de la bougie) -->
+      <div
+        class="crosshair-line vertical"
+        :style="{ left: crosshairPosition.x + 'px' }"
+      >
+        <!-- Label de date en bas -->
+        <div class="crosshair-label date-label">
+          {{ crosshairLabels.date }}
+        </div>
+      </div>
+
+      <!-- Ligne horizontale -->
+      <div
+        class="crosshair-line horizontal"
+        :style="{ top: crosshairPosition.y + 'px' }"
+      >
+        <!-- Label de prix à droite -->
+        <div class="crosshair-label price-label">
+          {{ crosshairLabels.price }}
+        </div>
       </div>
     </div>
 
-    <div class="sub">
-      Volume <span class="g">{{ volumeText }}</span>
+    <!-- Tooltip personnalisé -->
+    <div
+      v-if="tooltipVisible"
+      class="custom-tooltip"
+      :style="{
+        left: tooltipData.x + 'px',
+        top: tooltipData.y + 'px',
+      }"
+    >
+      <div class="tooltip-date">{{ tooltipData.date }}</div>
+      <div class="tooltip-ohlc">
+        <div class="ohlc-row">
+          <span class="label">O:</span>
+          <span class="value">{{ tooltipData.open }}</span>
+        </div>
+        <div class="ohlc-row">
+          <span class="label">H:</span>
+          <span class="value high">{{ tooltipData.high }}</span>
+        </div>
+        <div class="ohlc-row">
+          <span class="label">L:</span>
+          <span class="value low">{{ tooltipData.low }}</span>
+        </div>
+        <div class="ohlc-row">
+          <span class="label">C:</span>
+          <span class="value">{{ tooltipData.close }}</span>
+        </div>
+      </div>
+      <div class="tooltip-change">
+        <span
+          :class="{
+            positive: tooltipData.isPositive,
+            negative: !tooltipData.isPositive,
+          }"
+        >
+          {{ tooltipData.change }} ({{ tooltipData.changePercent }})
+        </span>
+      </div>
     </div>
-
-    <div class="chart-wrap">
-      <canvas ref="canvasEl"></canvas>
-    </div>
-  </section>
+  </div>
 </template>
 
 <style scoped>
-.panel {
-  background: #0b0e11;
-  color: #e5e7eb;
-  border-radius: 10px;
-  border: 1px solid #1a1f24;
-  padding: 12px;
+.candle-chart {
+  width: 100%;
+  height: 100%;
+  background: #040d12;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
 }
 
-.toolbar {
+canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  background: transparent;
+}
+
+/* Bouton de reset du zoom */
+.reset-zoom-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  background: rgba(4, 13, 18, 0.9);
+  border: 1px solid #374151;
+  border-radius: 6px;
+  color: #9ca3af;
+  padding: 6px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+
+.reset-zoom-btn:hover {
+  background: #374151;
+  color: #e5e7eb;
+}
+
+/* Lignes de repère (crosshair) */
+.crosshair-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.crosshair-line {
+  position: absolute;
+  pointer-events: none;
+  /* opacity: 0.7; */
+  transition: opacity 0.15s ease;
+}
+
+.crosshair-line.vertical {
+  width: 0;
+  height: 100%;
+  border-left: 1px dashed rgba(229, 231, 235, 0.4);
+  filter: drop-shadow(0 0 1px rgba(229, 231, 235, 0.2));
+}
+
+.crosshair-line.horizontal {
+  width: 100%;
+  height: 0;
+  border-top: 1px dashed rgba(229, 231, 235, 0.4);
+  filter: drop-shadow(0 0 1px rgba(229, 231, 235, 0.2));
+}
+
+/* Animation douce à l'apparition */
+.crosshair-container {
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Labels des lignes de repère */
+.crosshair-label {
+  position: absolute;
+  background: rgba(4, 13, 18, 0.95);
+  border: 1px solid #374151;
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: #e5e7eb;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.date-label {
+  bottom: 0px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgb(16, 185, 129);
+  border-color: #10b981;
+  color: #040d12;
+}
+
+.price-label {
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgb(229, 231, 235) !important;
+  border-color: #9ca3af;
+  color: #040d12;
+}
+
+/* Tooltip personnalisé */
+.custom-tooltip {
+  position: fixed;
+  background: rgba(4, 13, 18, 0.95);
+  border: 1px solid #374151;
+  border-radius: 8px;
+  padding: 12px;
+  color: #e5e7eb;
+  font-size: 12px;
+  z-index: 1000;
+  pointer-events: none;
+  /* backdrop-filter: blur(8px); */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  min-width: 180px;
+}
+
+.tooltip-date {
+  color: #e5e7eb;
+  font-weight: bold;
+  font-size: 13px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.tooltip-ohlc {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.ohlc-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: #9ca3af;
-  font-size: 14px;
 }
 
-.left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.pair {
-  font-weight: 700;
-  color: #e5e7eb;
-  letter-spacing: 0.3px;
-}
-.dot {
-  opacity: 0.4;
-}
-.nowrap {
-  white-space: nowrap;
-}
-
-.tf-btn {
-  background: #12161c;
+.ohlc-row .label {
   color: #9ca3af;
-  border: 1px solid #1f2937;
-  padding: 6px 10px;
-  border-radius: 6px;
-  margin-right: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-.tf-btn:hover {
-  color: #e5e7eb;
-  border-color: #374151;
-}
-.tf-btn.active {
-  color: #e5e7eb;
-  border-color: #2563eb;
-  background: #111827;
-}
-
-.ex {
-  color: #d1d5db;
-}
-.sub {
-  margin: 8px 0 6px;
-  font-size: 13px;
-  color: #9ca3af;
-}
-.g {
-  color: #16a34a;
   font-weight: 600;
+  width: 20px;
 }
 
-.chart-wrap {
-  height: 440px;
+.ohlc-row .value {
+  color: #e5e7eb;
+  font-weight: 500;
+}
+
+.ohlc-row .value.high {
+  color: #10b981;
+}
+
+.ohlc-row .value.low {
+  color: #ef4444;
+}
+
+.tooltip-change {
+  text-align: center;
+  font-weight: 600;
+  padding-top: 4px;
+  border-top: 1px solid #374151;
+}
+
+.tooltip-change .positive {
+  color: #10b981;
+}
+
+.tooltip-change .negative {
+  color: #ef4444;
+}
+
+@media (max-width: 768px) {
+  .candle-chart {
+    border-radius: 8px;
+  }
+
+  .reset-zoom-btn {
+    top: 8px;
+    right: 8px;
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+
+  .custom-tooltip {
+    min-width: 160px;
+    font-size: 11px;
+  }
 }
 </style>

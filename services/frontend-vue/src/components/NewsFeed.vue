@@ -1,110 +1,87 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import newsMock from "@/services/mocks/news.json";
-
-interface Article {
+type News = {
+  id: string;
+  time: number;
   title: string;
-  link: string;
-  published: string; // ISO string
-  source: string;
-  image: string;
-}
-
-const articles = ref<Article[]>([]);
-
-onMounted(() => {
-  articles.value = newsMock as Article[];
-});
-
-function formatTime(isoDate: string): string {
-  const published = new Date(isoDate).getTime();
-  const now = Date.now();
-  const diff = Math.floor((now - published) / 1000); // in seconds
-
-  if (diff < 60) return "il y a moins d'1 minute";
-  if (diff < 3600) return `il y a ${Math.floor(diff / 60)} minutes`;
-  if (diff < 86400) return `il y a ${Math.floor(diff / 3600)} heures`;
-
-  const d = new Date(isoDate);
-  if (diff < 172800) {
-    // less than 2 days → show "11 sept. à 14h30"
-    return `${d.getDate()} ${d.toLocaleString("fr-FR", {
-      month: "short",
-    })}. à ${d.getHours()}h${d.getMinutes().toString().padStart(2, "0")}`;
-  }
-
-  return d.toLocaleDateString("fr-FR", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  source?: string;
+  url?: string;
+};
+const items: News[] = [
+  {
+    id: "n1",
+    time: Date.now() - 3 * 60_000,
+    title: "BTC holds gains as liquidity improves",
+    source: "CoinDesk",
+  },
+  {
+    id: "n2",
+    time: Date.now() - 12 * 60_000,
+    title: "ETF inflows drive late-session rally",
+    source: "Bloomberg",
+  },
+  {
+    id: "n3",
+    time: Date.now() - 25 * 60_000,
+    title: "Derivatives data hints at squeeze risk",
+    source: "The Block",
+  },
+];
+function fmt(ts: number) {
+  return new Date(ts).toLocaleTimeString();
 }
 </script>
 
 <template>
-  <div class="news-feed">
-    <ul>
-      <li v-for="(a, i) in articles" :key="i" class="article">
-        <img :src="a.image" alt="thumb" class="thumb" />
-        <div class="content">
-          <span class="time">{{ formatTime(a.published) }}</span>
-          <a :href="a.link" target="_blank" class="title">{{ a.title }}</a>
-          <span class="source">{{ a.source }}</span>
+  <section class="panel">
+    <header class="head">News</header>
+    <ul class="list">
+      <li v-for="n in items" :key="n.id" class="item">
+        <div class="title">{{ n.title }}</div>
+        <div class="meta">
+          <span class="src">{{ n.source || "source" }}</span>
+          <span class="dot">•</span>
+          <span class="t">{{ fmt(n.time) }}</span>
         </div>
       </li>
     </ul>
-  </div>
+  </section>
 </template>
 
 <style scoped>
-.news-feed ul {
-  padding: 0;
-  margin: 0;
-  list-style: none; /* remove bullet points */
+.panel {
+  background: #0b0e11;
+  border: 1px solid #1a1f24;
+  border-radius: 10px;
+  padding: 12px;
 }
-
-.article {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.thumb {
-  width: 60px;
-  height: 60px;
-  object-fit: cover;
-  border-radius: 6px;
-  flex-shrink: 0;
-}
-
-.content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.time {
-  font-size: 12px;
-  color: #9ca3af;
-  margin-bottom: 4px;
-}
-
-.title {
-  font-weight: 600;
+.head {
+  font-weight: 700;
   color: #e5e7eb;
-  text-decoration: none;
+  margin-bottom: 8px;
 }
-
-.title:hover {
-  text-decoration: underline;
+.list {
+  display: grid;
+  gap: 10px;
 }
-
-.source {
+.item {
+  padding: 10px;
+  border: 1px solid #141a1f;
+  border-radius: 8px;
+  background: #0c1116;
+}
+.title {
+  color: #e5e7eb;
+  line-height: 1.3;
+}
+.meta {
+  color: #9ca3af;
   font-size: 12px;
-  color: #6b7280;
-  margin-top: 4px;
+  margin-top: 6px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.dot {
+  opacity: 0.5;
 }
 </style>

@@ -117,6 +117,7 @@ function build() {
     type: "line",
     data: dataRef.value,
     options: options.value,
+    plugins: [rsiHoverOverlay], // Plugin local seulement pour ce graphique
   });
 }
 
@@ -216,7 +217,8 @@ const rsiHoverOverlay = {
     ctx.restore();
   },
 };
-Chart.register(rsiHoverOverlay);
+// NE PAS enregistrer globalement - sera ajouté localement dans les options
+// Chart.register(rsiHoverOverlay);
 
 onMounted(async () => {
   await load();
