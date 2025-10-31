@@ -26,7 +26,10 @@ Chart.register(
 
 /** Input point (what the wrapper sends) */
 type InPt = { x: number | string | Date; y: number };
-const props = defineProps<{ points: InPt[] }>();
+const props = defineProps<{
+  points: InPt[];
+  timeframe?: string; // Ajouter le timeframe pour ajuster les échelles
+}>();
 
 const canvasEl = ref<HTMLCanvasElement | null>(null);
 const tooltipEl = ref<HTMLDivElement | null>(null);
@@ -49,6 +52,105 @@ function toNumericPoints(src: InPt[]) {
     x: typeof p.x === "number" ? p.x : new Date(p.x).getTime(),
     y: p.y,
   }));
+}
+
+// Fonction pour obtenir le format temporel selon le timeframe
+function getTimeDisplayFormat(timeframe: string) {
+  switch (timeframe) {
+    case "1h":
+      return {
+        unit: "minute",
+        displayFormats: {
+          minute: "HH:mm",
+          hour: "HH:mm",
+        },
+        maxTicksLimit: 12,
+      };
+    case "1d":
+      return {
+        unit: "hour",
+        displayFormats: {
+          hour: "HH:mm",
+          minute: "HH:mm",
+        },
+        maxTicksLimit: 12,
+      };
+    case "7d":
+      return {
+        unit: "day",
+        displayFormats: {
+          day: "dd/MM",
+          hour: "dd/MM HH:mm",
+        },
+        maxTicksLimit: 7,
+      };
+    case "1M":
+      return {
+        unit: "week",
+        displayFormats: {
+          week: "dd/MM",
+          day: "dd/MM",
+        },
+        maxTicksLimit: 8,
+      };
+    case "1y":
+      return {
+        unit: "month",
+        displayFormats: {
+          month: "MMM yyyy",
+          week: "dd/MM",
+        },
+        maxTicksLimit: 12,
+      };
+    case "all":
+      return {
+        unit: "year",
+        displayFormats: {
+          year: "yyyy",
+          month: "MMM yyyy",
+        },
+        maxTicksLimit: 10,
+      };
+    default:
+      return {
+        unit: "minute",
+        displayFormats: {
+          minute: "HH:mm",
+          hour: "HH:mm",
+        },
+        maxTicksLimit: 12,
+      };
+  }
+}
+
+// Fonction pour ajuster automatiquement le zoom sur la période
+function fitChartToTimeframe() {
+  if (!chart || !props.points?.length) return;
+
+  // Obtenir les timestamps min et max des données
+  const numericPoints = toNumericPoints(props.points);
+  const timestamps = numericPoints.map((p) => p.x);
+  const minTime = Math.min(...timestamps);
+  const maxTime = Math.max(...timestamps);
+
+  // Ajouter une petite marge (2% de chaque côté)
+  const timeRange = maxTime - minTime;
+  const margin = timeRange * 0.02;
+
+  // Mettre à jour les formats d'affichage selon le timeframe
+  const timeConfig = getTimeDisplayFormat(props.timeframe || "7d");
+  if (chart.options.scales?.x) {
+    const xScale = chart.options.scales.x as any;
+    xScale.time = {
+      ...xScale.time,
+      unit: timeConfig.unit,
+      displayFormats: timeConfig.displayFormats,
+    };
+    xScale.ticks.maxTicksLimit = timeConfig.maxTicksLimit;
+    xScale.min = minTime - margin;
+    xScale.max = maxTime + margin;
+    chart.update("none"); // Mise à jour sans animation pour la fluidité
+  }
 }
 
 function build() {
@@ -153,6 +255,18 @@ function build() {
         ticks: {
           color: "rgba(255,255,255,0.7)",
           font: { size: 11 },
+          maxTicksLimit: 8, // Limite le nombre de ticks
+        },
+        time: {
+          displayFormats: {
+            minute: "HH:mm",
+            hour: "HH:mm",
+            day: "dd/MM",
+            week: "dd/MM",
+            month: "MMM yyyy",
+            quarter: "MMM yyyy",
+            year: "yyyy",
+          },
         },
       },
       y: {
@@ -186,11 +300,32 @@ function build() {
     data,
     options,
   });
+
+  // Ajuster automatiquement le zoom et les échelles
+  setTimeout(() => {
+    fitChartToTimeframe();
+  }, 100);
 }
 
 onMounted(build);
 watch(() => props.points, build, { deep: true });
+watch(
+  () => props.timeframe,
+  () => {
+    // Quand le timeframe change, ajuster le zoom
+    setTimeout(() => {
+      fitChartToTimeframe();
+    }, 100);
+  },
+  { immediate: false }
+);
 onBeforeUnmount(() => chart?.destroy());
+
+// Exposer les méthodes pour le composant parent
+defineExpose({
+  chart,
+  fitChartToTimeframe,
+});
 </script>
 
 <template>

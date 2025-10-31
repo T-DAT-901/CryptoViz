@@ -27,9 +27,14 @@ const loading = ref(false);
 // Données des bougies
 const candles = ref<CandleDTO[]>([]);
 
+// Références pour accéder aux méthodes des charts enfants
+const lineChartRef = ref();
+const candleChartRef = ref();
+
 // Timeframes disponibles (simplifiés et pertinents)
 const timeframes = [
-  { value: "1d", label: "1D" },
+  { value: "1h", label: "1H" },
+  { value: "1d", label: "24H" },
   { value: "7d", label: "7D" },
   { value: "1M", label: "1M" },
   { value: "1y", label: "1Y" },
@@ -37,7 +42,7 @@ const timeframes = [
 ] as const;
 
 // Timeframe sélectionné
-const selectedTimeframe = ref("7d");
+const selectedTimeframe = ref("1h");
 
 // Données pour le LineChart
 const linePoints = computed(() => {
@@ -52,42 +57,6 @@ const linePoints = computed(() => {
   }));
   // console.log('TradingChart - linePoints:', candles.value.length, 'candles →', points.length, 'points'); // Debug
   return points;
-});
-
-// Prix affichés (combinant données statiques et WebSocket)
-const displayPrice = computed(() => {
-  if (livePrice.value) {
-    return {
-      date: new Date().toLocaleDateString("fr-FR"),
-      time: new Date().toLocaleTimeString("fr-FR"),
-      current: livePrice.value.price.toLocaleString("fr-FR") + " €",
-      high: livePrice.value.high24h.toLocaleString("fr-FR") + " €",
-      low: livePrice.value.low24h.toLocaleString("fr-FR") + " €",
-      change: livePrice.value.change,
-      changePercent: livePrice.value.changePercent,
-      volume: (livePrice.value.volume / 1000000).toFixed(2) + "M €",
-      isPositive: livePrice.value.change > 0,
-    };
-  } else if (candles.value.length > 0) {
-    const latest = candles.value[candles.value.length - 1];
-    const change = latest.c - latest.o;
-    return {
-      date: new Date().toLocaleDateString("fr-FR"),
-      time: new Date().toLocaleTimeString("fr-FR"),
-      current: latest.c.toLocaleString("fr-FR") + " €",
-      high:
-        Math.max(...candles.value.map((r) => r.h)).toLocaleString("fr-FR") +
-        " €",
-      low:
-        Math.min(...candles.value.map((r) => r.l)).toLocaleString("fr-FR") +
-        " €",
-      change: change,
-      changePercent: (change / latest.o) * 100,
-      volume: "41.16M €",
-      isPositive: change > 0,
-    };
-  }
-  return null;
 });
 
 // Charge les données selon le timeframe
@@ -109,8 +78,15 @@ async function loadData() {
 
       // Sélectionner les données selon le timeframe
       switch (selectedTimeframe.value) {
+        case "1h":
+          // Pour 1H, prendre les 60 derniers points des données 1D (60 minutes)
+          const oneDayData = unifiedData["1d"] || [];
+          rows = oneDayData.slice(-60); // Dernière heure en minutes
+          break;
         case "1d":
-          rows = unifiedData["1d"] || []; // 1440 points (minutes)
+          // Pour 24H, prendre les dernières 24 heures des données 1D
+          const twentyFourHourData = unifiedData["1d"] || [];
+          rows = twentyFourHourData.slice(-1440); // Dernières 24 heures (1440 minutes)
           break;
         case "7d":
           rows = unifiedData["7d"] || []; // 168 points (heures)
@@ -125,7 +101,9 @@ async function loadData() {
           rows = unifiedData["all"] || []; // 520 points (semaines)
           break;
         default:
-          rows = unifiedData["7d"] || []; // Fallback sur 7d
+          // Pour le fallback, utiliser 1h (dernière heure des données 1d)
+          const fallbackData = unifiedData["1d"] || [];
+          rows = fallbackData.slice(-60);
       }
     } else {
       // API réelle - adapter selon le timeframe
@@ -149,6 +127,59 @@ async function changeTimeframe(newTimeframe: string) {
 
   selectedTimeframe.value = newTimeframe;
   await loadData();
+}
+
+// Fonctions de navigation temporelle
+function navigateTime(direction: "prev" | "next") {
+  const activeChart =
+    chartMode.value === "line" ? lineChartRef.value : candleChartRef.value;
+  if (!activeChart?.chart) return;
+
+  const chart = activeChart.chart;
+  const xScale = chart.scales.x;
+  const currentMin = xScale.min;
+  const currentMax = xScale.max;
+  const range = currentMax - currentMin;
+
+  // Déplacer de 50% de la plage visible
+  const shift = range * 0.5 * (direction === "next" ? 1 : -1);
+
+  chart.zoomScale(
+    "x",
+    {
+      min: currentMin + shift,
+      max: currentMax + shift,
+    },
+    "default"
+  );
+}
+
+// Ajuster le zoom
+function adjustZoom(direction: "in" | "out") {
+  const activeChart =
+    chartMode.value === "line" ? lineChartRef.value : candleChartRef.value;
+  if (!activeChart?.chart) return;
+
+  const chart = activeChart.chart;
+  const zoomFactor = direction === "in" ? 0.8 : 1.25; // Zoom de 20% in/out
+
+  chart.zoom(zoomFactor);
+}
+
+// Réinitialiser la vue du chart
+function resetChartView() {
+  const activeChart =
+    chartMode.value === "line" ? lineChartRef.value : candleChartRef.value;
+  if (!activeChart?.resetZoom) return;
+
+  activeChart.resetZoom();
+
+  // Réajuster aux données après reset
+  setTimeout(() => {
+    if (activeChart?.fitChartToTimeframe) {
+      activeChart.fitChartToTimeframe();
+    }
+  }, 100);
 }
 
 // Mise à jour avec nouvelle bougie WebSocket
@@ -222,58 +253,66 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Prix overlay (style CoinMarketCap) -->
-    <div class="price-overlay" v-if="!loading && displayPrice">
-      <div class="price-info">
-        <div class="date-time">
-          {{ displayPrice.date }} {{ displayPrice.time }}
-          <span class="timeframe-indicator">{{ selectedTimeframe }}</span>
-        </div>
-        <div class="price-details">
-          <div class="price-item">
-            <span class="label">{{
-              chartMode === "candle" ? "Ouvrir:" : "Prix:"
-            }}</span>
-            <span class="value">{{ displayPrice.current }}</span>
-          </div>
-          <div class="price-item" v-if="chartMode === 'candle'">
-            <span class="label">Haut:</span>
-            <span class="value">{{ displayPrice.high }}</span>
-          </div>
-          <div class="price-item" v-if="chartMode === 'candle'">
-            <span class="label">Bas:</span>
-            <span class="value">{{ displayPrice.low }}</span>
-          </div>
-          <div class="price-item">
-            <span class="label">Variation:</span>
-            <span
-              :class="[
-                'value',
-                displayPrice.isPositive ? 'positive' : 'negative',
-              ]"
-            >
-              {{ displayPrice.change > 0 ? "+" : ""
-              }}{{ displayPrice.change.toFixed(2) }} €({{
-                displayPrice.changePercent.toFixed(2)
-              }}%)
-            </span>
-          </div>
-          <div class="price-item" v-if="chartMode === 'line'">
-            <span class="label">Vol 24h:</span>
-            <span class="value">{{ displayPrice.volume }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Chart container -->
     <div class="chart-container">
-      <div v-if="loading" class="loading">Chargement des données...</div>
+      <div v-if="loading" class="loading">
+        <div class="loading-spinner"></div>
+        <span>Chargement des données...</span>
+      </div>
       <template v-else>
+        <!-- Navigation controls -->
+        <div class="chart-nav-controls">
+          <button
+            class="nav-btn"
+            @click="navigateTime('prev')"
+            title="Période précédente"
+          >
+            ◀
+          </button>
+          <button
+            class="nav-btn zoom-out"
+            @click="adjustZoom('out')"
+            title="Dézoomer"
+          >
+            −
+          </button>
+          <button
+            class="nav-btn zoom-in"
+            @click="adjustZoom('in')"
+            title="Zoomer"
+          >
+            +
+          </button>
+          <button
+            class="nav-btn"
+            @click="navigateTime('next')"
+            title="Période suivante"
+          >
+            ▶
+          </button>
+          <button
+            class="nav-btn reset"
+            @click="resetChartView"
+            title="Réinitialiser la vue"
+          >
+            ⌂
+          </button>
+        </div>
+
         <!-- Charts -->
         <div class="chart-wrapper">
-          <LineChart v-if="chartMode === 'line'" :points="linePoints" />
-          <CandleChart v-else-if="chartMode === 'candle'" :candles="candles" />
+          <LineChart
+            v-if="chartMode === 'line'"
+            :points="linePoints"
+            :timeframe="selectedTimeframe"
+            ref="lineChartRef"
+          />
+          <CandleChart
+            v-else-if="chartMode === 'candle'"
+            :candles="candles"
+            :timeframe="selectedTimeframe"
+            ref="candleChartRef"
+          />
         </div>
       </template>
     </div>
@@ -415,69 +454,6 @@ onUnmounted(() => {
   }
 }
 
-.price-overlay {
-  position: absolute;
-  top: 60px;
-  left: 16px;
-  z-index: 10;
-  background: rgba(4, 13, 18, 0.85);
-  backdrop-filter: blur(8px);
-  border-radius: 8px;
-  padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.date-time {
-  color: #e5e7eb;
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.timeframe-indicator {
-  background: #4f46e5;
-  color: white;
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 500;
-}
-
-.price-details {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.price-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.price-item .label {
-  color: #9ca3af;
-  font-size: 12px;
-}
-
-.price-item .value {
-  color: #e5e7eb;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.price-item .value.positive {
-  color: #10b981;
-}
-
-.price-item .value.negative {
-  color: #ef4444;
-}
-
 .chart-container {
   position: relative;
   height: 400px;
@@ -486,11 +462,80 @@ onUnmounted(() => {
 
 .loading {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 100%;
   color: #9ca3af;
   font-size: 14px;
+  gap: 12px;
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(79, 70, 229, 0.2);
+  border-top: 3px solid #4f46e5;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Contrôles de navigation du chart */
+.chart-nav-controls {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  display: flex;
+  gap: 4px;
+  background: rgba(4, 13, 18, 0.9);
+  border-radius: 8px;
+  padding: 4px;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nav-btn {
+  background: rgba(26, 26, 46, 0.8);
+  border: 1px solid #374151;
+  border-radius: 4px;
+  color: #9ca3af;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.nav-btn:hover {
+  background: #374151;
+  color: #e5e7eb;
+  transform: translateY(-1px);
+}
+
+.nav-btn:active {
+  transform: translateY(0);
+}
+
+.nav-btn.zoom-in,
+.nav-btn.zoom-out {
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.nav-btn.reset {
+  background: rgba(79, 70, 229, 0.2);
+  border-color: #4f46e5;
+  color: #4f46e5;
+}
+
+.nav-btn.reset:hover {
+  background: #4f46e5;
+  color: white;
 }
 
 .chart-wrapper {
@@ -544,27 +589,8 @@ onUnmounted(() => {
     display: none; /* Masquer sur mobile */
   }
 
-  .price-overlay {
-    position: relative;
-    top: 0;
-    left: 0;
-    margin: 12px 16px;
-    background: rgba(26, 26, 46, 0.95);
-  }
-
   .chart-container {
     height: 300px;
-  }
-
-  .price-details {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .price-item {
-    flex: 1;
-    min-width: 120px;
   }
 }
 
@@ -585,6 +611,18 @@ onUnmounted(() => {
 
   .price-details {
     flex-direction: column;
+  }
+
+  .chart-nav-controls {
+    top: 8px;
+    left: 8px;
+    padding: 2px;
+  }
+
+  .nav-btn {
+    width: 24px;
+    height: 24px;
+    font-size: 10px;
   }
 }
 </style>

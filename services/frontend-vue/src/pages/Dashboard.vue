@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import TradingChart from "@/components/charts/TradingChart.vue";
+import CryptoPricePanel from "@/components/CryptoPricePanel.vue";
 // import RSIChart from "@/components/charts/RSIChart.vue"; // Temporairement désactivé pour tester
 import NewsFeed from "@/components/NewsFeed.vue";
 </script>
@@ -7,7 +8,11 @@ import NewsFeed from "@/components/NewsFeed.vue";
 <template>
   <main class="dash">
     <!-- Colonne gauche : infos crypto -->
-    <aside class="col left"></aside>
+    <aside class="col left">
+      <div class="stack">
+        <CryptoPricePanel symbol="BTCUSDT" crypto-name="Bitcoin" />
+      </div>
+    </aside>
 
     <!-- Centre (graphiques) -->
     <section class="col center">

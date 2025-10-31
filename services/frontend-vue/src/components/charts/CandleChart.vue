@@ -23,7 +23,10 @@ Chart.register(
   zoomPlugin
 );
 
-const props = defineProps<{ candles: CandleDTO[] }>();
+const props = defineProps<{
+  candles: CandleDTO[];
+  timeframe?: string; // Ajouter le timeframe pour ajuster les échelles
+}>();
 
 const canvasEl = ref<HTMLCanvasElement | null>(null);
 let chart: Chart<"candlestick"> | null = null;
@@ -94,6 +97,18 @@ const options: ChartOptions<"candlestick"> = {
       ticks: {
         color: "rgba(255,255,255,0.7)",
         font: { size: 11 },
+        maxTicksLimit: 8, // Limite le nombre de ticks pour éviter l'encombrement
+      },
+      time: {
+        displayFormats: {
+          minute: "HH:mm",
+          hour: "HH:mm",
+          day: "dd/MM",
+          week: "dd/MM",
+          month: "MMM yyyy",
+          quarter: "MMM yyyy",
+          year: "yyyy",
+        },
       },
     },
     y: {
@@ -111,6 +126,115 @@ const options: ChartOptions<"candlestick"> = {
     },
   },
 };
+
+// Fonction pour obtenir le format temporel selon le timeframe
+function getTimeDisplayFormat(timeframe: string) {
+  switch (timeframe) {
+    case "1h":
+      return {
+        unit: "minute",
+        displayFormats: {
+          minute: "HH:mm",
+          hour: "HH:mm",
+        },
+        maxTicksLimit: 12,
+      };
+    case "1d":
+      return {
+        unit: "hour",
+        displayFormats: {
+          hour: "HH:mm",
+          minute: "HH:mm",
+        },
+        maxTicksLimit: 12,
+      };
+    case "7d":
+      return {
+        unit: "day",
+        displayFormats: {
+          day: "dd/MM",
+          hour: "dd/MM HH:mm",
+        },
+        maxTicksLimit: 7,
+      };
+    case "1M":
+      return {
+        unit: "week",
+        displayFormats: {
+          week: "dd/MM",
+          day: "dd/MM",
+        },
+        maxTicksLimit: 8,
+      };
+    case "1y":
+      return {
+        unit: "month",
+        displayFormats: {
+          month: "MMM yyyy",
+          week: "dd/MM",
+        },
+        maxTicksLimit: 12,
+      };
+    case "all":
+      return {
+        unit: "year",
+        displayFormats: {
+          year: "yyyy",
+          month: "MMM yyyy",
+        },
+        maxTicksLimit: 10,
+      };
+    default:
+      return {
+        unit: "minute",
+        displayFormats: {
+          minute: "HH:mm",
+          hour: "HH:mm",
+        },
+        maxTicksLimit: 12,
+      };
+  }
+}
+
+// Fonction pour ajuster automatiquement le zoom sur la période
+function fitChartToTimeframe() {
+  if (!chart || !props.candles?.length) return;
+
+  // Réinitialiser le zoom d'abord
+  chart.resetZoom();
+
+  // Obtenir les timestamps min et max des données
+  const timestamps = props.candles.map((c) => c.t);
+  const minTime = Math.min(...timestamps);
+  const maxTime = Math.max(...timestamps);
+
+  // Ajouter une petite marge (2% de chaque côté)
+  const timeRange = maxTime - minTime;
+  const margin = timeRange * 0.02;
+
+  // Appliquer le zoom pour s'adapter exactement aux données
+  chart.zoomScale(
+    "x",
+    {
+      min: minTime - margin,
+      max: maxTime + margin,
+    },
+    "default"
+  );
+
+  // Mettre à jour les formats d'affichage selon le timeframe
+  const timeConfig = getTimeDisplayFormat(props.timeframe || "7d");
+  if (chart.options.scales?.x) {
+    const xScale = chart.options.scales.x as any;
+    xScale.time = {
+      ...xScale.time,
+      unit: timeConfig.unit,
+      displayFormats: timeConfig.displayFormats,
+    };
+    xScale.ticks.maxTicksLimit = timeConfig.maxTicksLimit;
+    chart.update("none"); // Mise à jour sans animation pour la fluidité
+  }
+}
 
 // Données et construction du graphique
 function buildChart() {
@@ -147,6 +271,11 @@ function buildChart() {
     data: chartData,
     options: options,
   });
+
+  // Ajuster automatiquement le zoom et les échelles
+  setTimeout(() => {
+    fitChartToTimeframe();
+  }, 100); // Petit délai pour que le chart soit complètement initialisé
 
   // Ajouter un événement mousemove sur le canvas
   canvasEl.value.addEventListener("mousemove", handleMouseMove);
@@ -268,6 +397,16 @@ function handleMouseMove(event: MouseEvent) {
 // Lifecycle
 onMounted(buildChart);
 watch(() => props.candles, buildChart, { deep: true });
+watch(
+  () => props.timeframe,
+  () => {
+    // Quand le timeframe change, ajuster le zoom
+    setTimeout(() => {
+      fitChartToTimeframe();
+    }, 100);
+  },
+  { immediate: false }
+);
 onBeforeUnmount(() => {
   if (canvasEl.value) {
     canvasEl.value.removeEventListener("mousemove", handleMouseMove);
@@ -281,6 +420,13 @@ function resetZoom() {
     chart.resetZoom();
   }
 }
+
+// Exposer les méthodes pour le composant parent
+defineExpose({
+  chart,
+  resetZoom,
+  fitChartToTimeframe,
+});
 </script>
 
 <template>
