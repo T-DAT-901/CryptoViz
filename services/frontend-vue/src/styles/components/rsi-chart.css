@@ -29,7 +29,7 @@
   letter-spacing: var(--letter-spacing-tight);
 }
 
-/* Panel générique pour les charts */
+/* Generic panel for charts */
 .rsi-chart-panel {
   background: var(--bg-primary);
   color: var(--text-primary);
@@ -64,7 +64,7 @@
 
 .rsi-chart-wrap {
   position: relative;
-  height: 200px; /* Hauteur par défaut pour les indicateurs */
+  height: 200px;
   padding: var(--space-sm);
 }
 
@@ -87,7 +87,7 @@
   }
 }
 
-/* Nouvelle structure RSI Chart */
+/* New RSI Chart structure */
 .rsi-chart {
   background: var(--bg-card);
   border: 1px solid var(--border-primary);
@@ -180,7 +180,7 @@
   min-height: 180px;
 }
 
-/* Responsive Design pour nouvelle structure */
+/* Responsive Design for new structure */
 @media (max-width: 768px) {
   .rsi-chart {
     min-height: 200px;

@@ -6,11 +6,9 @@ import { CryptoService, type CryptoData } from "@/services/crypto.api";
 
 const router = useRouter();
 
-// État de chargement et données
 const loading = ref(true);
 const cryptoList = ref<CryptoData[]>([]);
 
-// Fonctions utilitaires
 const formatPrice = (price: number): string => {
   return price.toLocaleString("fr-FR", {
     minimumFractionDigits: price >= 1 ? 2 : 4,
@@ -39,12 +37,10 @@ const getChangeIcon = (change: number) => {
   return change >= 0 ? TrendingUp : TrendingDown;
 };
 
-// Actions
 const navigateToChart = (crypto: CryptoData) => {
   router.push(`/dashboard/${crypto.symbol.toLowerCase()}`);
 };
 
-// Chargement des données au montage
 const loadCryptos = async () => {
   try {
     loading.value = true;
@@ -92,13 +88,11 @@ onMounted(() => {
     </div>
 
     <div class="crypto-table-container">
-      <!-- État de chargement -->
       <div v-if="loading" class="loading-state">
         <div class="loading-spinner"></div>
         <p>Chargement des cryptomonnaies...</p>
       </div>
 
-      <!-- Tableau des cryptos -->
       <table v-else-if="cryptoList.length > 0" class="crypto-table">
         <thead>
           <tr>
@@ -121,14 +115,12 @@ onMounted(() => {
             class="crypto-row"
             @click="navigateToChart(crypto)"
           >
-            <!-- Rank -->
             <td class="col-rank">
               <div class="rank-cell">
                 <span class="rank">{{ crypto.rank }}</span>
               </div>
             </td>
 
-            <!-- Nom + Symbol -->
             <td class="col-name">
               <div class="name-cell">
                 <div class="crypto-icon">
@@ -148,7 +140,6 @@ onMounted(() => {
               </div>
             </td>
 
-            <!-- Prix -->
             <td class="col-price">
               <span class="price">{{ formatPrice(crypto.price) }} €</span>
             </td>
@@ -252,7 +243,6 @@ onMounted(() => {
         </tbody>
       </table>
 
-      <!-- Message si aucune donnée -->
       <div v-else class="no-data">
         <p>Aucune cryptomonnaie trouvée</p>
       </div>

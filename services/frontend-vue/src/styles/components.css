@@ -296,7 +296,7 @@
   cursor: not-allowed;
 }
 
-/* Stats et métriques */
+/* Stats and metrics */
 .stat-row {
   display: flex;
   justify-content: space-between;
@@ -323,7 +323,7 @@
   color: var(--accent-red);
 }
 
-/* Inputs standardisés */
+/* Standardized inputs */
 .crypto-input {
   background: var(--bg-secondary);
   border: 1px solid var(--border-secondary);
@@ -338,7 +338,7 @@
   border-color: var(--accent-blue);
 }
 
-/* Select standardisé */
+/* Standardized select */
 .crypto-select {
   background: var(--bg-secondary);
   border: 1px solid var(--border-secondary);

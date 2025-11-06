@@ -14,16 +14,12 @@ import MomentumChart from "@/components/charts/MomentumChart.vue";
 import NewsFeed from "@/components/NewsFeed.vue";
 import { useIndicatorsStore } from "@/stores/indicators";
 
-// Récupération du symbole depuis l'URL
 const route = useRoute();
 const router = useRouter();
 const symbol = computed(() => (route.params.symbol as string) || "btc");
 const symbolPair = computed(() => symbol.value.toUpperCase() + "USDT");
 
-// Store des indicateurs
 const indicatorsStore = useIndicatorsStore();
-
-// Mapping des noms de cryptos
 const cryptoNames: Record<string, string> = {
   btc: "Bitcoin",
   eth: "Ethereum",
@@ -47,7 +43,6 @@ const goBack = () => {
 
 <template>
   <div class="dashboard-page">
-    <!-- Header avec navigation -->
     <header class="dashboard-header">
       <div class="dashboard-header__left">
         <button class="dashboard-back-btn" @click="goBack">
@@ -60,23 +55,21 @@ const goBack = () => {
     </header>
 
     <main class="dashboard-grid">
-      <!-- Colonne gauche : infos crypto -->
       <aside class="dashboard-column dashboard-column--left">
         <div class="dashboard-stack">
           <CryptoPricePanel :symbol="symbolPair" :crypto-name="cryptoName" />
         </div>
       </aside>
 
-      <!-- Centre (graphiques) -->
       <section class="dashboard-column dashboard-column--center">
         <div class="dashboard-stack">
-          <!-- Mode Compact : Graphique unifié + Panel de contrôle -->
+          <!-- Compact mode: unified chart + controls -->
           <template v-if="indicatorsStore.layoutMode === 'compact'">
             <TradingChart />
             <IndicatorsPanel />
           </template>
 
-          <!-- Mode Détaillé : Graphiques séparés conditionnels -->
+          <!-- Detailed mode: separate charts -->
           <template v-else>
             <TradingChart />
             <RSIChart v-if="indicatorsStore.showRSI" :symbol="symbolPair" />
@@ -94,7 +87,6 @@ const goBack = () => {
         </div>
       </section>
 
-      <!-- Colonne droite : sentiment + news -->
       <aside class="dashboard-column dashboard-column--right">
         <div class="dashboard-stack">
           <CommunitySentiment symbol="BTCUSDT" />

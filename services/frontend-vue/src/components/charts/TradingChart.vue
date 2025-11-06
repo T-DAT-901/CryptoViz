@@ -508,23 +508,6 @@ onUnmounted(() => {
         >
           Candle
         </button>
-        <button
-          class="trading-chart-control-btn trading-chart-control-btn--icon"
-        >
-          <TrendingUp class="trading-chart-btn-icon" />
-        </button>
-        <button
-          class="trading-chart-control-btn trading-chart-control-btn--icon"
-        >
-          <Settings class="trading-chart-btn-icon" />
-        </button>
-        <button
-          class="trading-chart-control-btn trading-chart-control-btn--icon"
-          @click="resetChartView"
-          title="Reset chart view"
-        >
-          ⌂
-        </button>
       </div>
 
       <div class="trading-chart-timeframes">

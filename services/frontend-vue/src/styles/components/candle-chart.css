@@ -1,4 +1,3 @@
-/* CandleChart Component - Candlestick chart with crosshair and tooltip */
 .candle-chart {
   width: 100%;
   height: 100%;
@@ -15,7 +14,6 @@
   background: transparent;
 }
 
-/* Bouton de reset du zoom */
 .candle-chart-reset-btn {
   position: absolute;
   top: var(--space-md);
@@ -40,7 +38,6 @@
   color: var(--text-primary);
 }
 
-/* Lignes de repère (crosshair) */
 .candle-chart-crosshair-container {
   position: absolute;
   top: 0;
@@ -71,7 +68,6 @@
   filter: drop-shadow(0 0 1px rgba(232, 240, 240, 0.2));
 }
 
-/* Animation douce à l'apparition */
 .candle-chart-crosshair-container {
   animation: candle-chart-fade-in 0.2s ease-in-out;
 }
@@ -85,7 +81,6 @@
   }
 }
 
-/* Labels des lignes de repère */
 .candle-chart-crosshair-label {
   position: absolute;
   background: rgba(7, 14, 16, 0.95);
@@ -120,7 +115,6 @@
   color: var(--bg-primary);
 }
 
-/* Tooltip personnalisé */
 .candle-chart-tooltip {
   position: fixed;
   background: rgba(7, 14, 16, 0.95);
@@ -192,7 +186,6 @@
   color: var(--accent-red);
 }
 
-/* Responsive */
 @media (max-width: 768px) {
   .candle-chart {
     border-radius: var(--radius-md);

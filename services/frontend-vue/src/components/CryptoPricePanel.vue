@@ -1,14 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useTradingWebSocket, useLivePrices } from "@/services/websocket";
-import {
-  Bitcoin,
-  TrendingUp,
-  TrendingDown,
-  Star,
-  Share2,
-  Activity,
-} from "lucide-vue-next";
+import { Bitcoin, TrendingUp, TrendingDown } from "lucide-vue-next";
 
 const props = defineProps<{
   symbol?: string;
@@ -95,19 +88,6 @@ onUnmounted(() => {
           <span class="crypto-price-panel-symbol">{{ symbol || "BTC" }}</span>
           <span class="crypto-price-panel-rank">#1</span>
         </div>
-      </div>
-
-      <!-- Actions boutons -->
-      <div class="crypto-price-panel-actions">
-        <button class="crypto-price-panel-action-btn">
-          <Star class="crypto-price-panel-action-icon" />
-        </button>
-        <button class="crypto-price-panel-action-btn">
-          <Share2 class="crypto-price-panel-action-icon" />
-        </button>
-        <button class="crypto-price-panel-action-btn">
-          <Activity class="crypto-price-panel-action-icon" />
-        </button>
       </div>
     </div>
 

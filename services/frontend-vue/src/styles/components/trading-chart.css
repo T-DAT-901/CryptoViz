@@ -114,8 +114,8 @@
 
 .trading-chart-container {
   position: relative;
-  height: auto; /* Changé de 400px fixe à auto */
-  min-height: 400px; /* Hauteur minimum pour le graphique */
+  height: auto;
+  min-height: 400px;
   background: var(--bg-card);
   display: flex;
   flex-direction: column;
@@ -215,7 +215,7 @@
   }
 
   .trading-chart-container {
-    min-height: 300px; /* Changé de height à min-height */
+    min-height: 300px;
     height: auto;
   }
 
@@ -244,7 +244,7 @@
   }
 
   .trading-chart-container {
-    min-height: 250px; /* Changé de height à min-height */
+    min-height: 250px;
     height: auto;
   }
 }
@@ -256,11 +256,11 @@
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-primary);
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-  flex-shrink: 0; /* Empêche la compression */
+  flex-shrink: 0;
   min-height: 60px; /* Hauteur minimum garantie */
-  max-height: none; /* Pas de limite de hauteur */
-  overflow: visible; /* Toujours visible */
-  z-index: 1; /* Au-dessus du graphique */
+  max-height: none;
+  overflow: visible;
+  z-index: 1;
 }
 
 .trading-chart-indicator {
@@ -395,7 +395,7 @@
 
 /* Responsive adjustments for indicators */
 @media (min-width: 1024px) {
-  /* Desktop: S'assurer que les indicateurs restent visibles */
+  /* Desktop: ensure indicators stay visible */
   .trading-chart-indicators {
     min-height: 80px;
     max-height: none;
@@ -426,7 +426,7 @@
   }
 }
 
-/* Mini-canvas pour les indicateurs en mode compact */
+/* Mini-canvas for indicators in compact mode */
 .trading-chart-mini-canvas {
   width: 100% !important;
   height: 100% !important;
@@ -435,13 +435,13 @@
   background: transparent;
 }
 
-/* Ajustements spécifiques pour les mini-charts */
+/* Mini-chart specific adjustments */
 .trading-chart-indicator-chart {
   position: relative;
   overflow: hidden;
   border-radius: var(--border-radius-sm);
-  background: rgba(0, 0, 0, 0.3) !important; /* Debug background */
-  border: 1px solid rgba(255, 255, 255, 0.1); /* Debug border */
+  background: rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .trading-chart-indicator-chart:hover {

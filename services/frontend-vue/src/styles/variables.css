@@ -1,8 +1,8 @@
-/* Design System - Palette de couleurs unifiée */
+/* Design System - Unified color palette */
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
 :root {
-  /* Typographie unifiée - basée sur Home */
+  /* Typography */
   --font-family:
     "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-weight-normal: 400;
@@ -10,47 +10,47 @@
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
-  /* Tailles de police */
-  --font-size-xs: 11px; /* Petites métadonnées */
-  --font-size-sm: 12px; /* Texte secondaire */
-  --font-size-base: 14px; /* Texte standard */
-  --font-size-md: 15px; /* Titres de composants */
-  --font-size-lg: 16px; /* Pourcentages importants */
-  --font-size-xl: 18px; /* Grandes valeurs */
-  --font-size-2xl: 24px; /* Titres de page */
+  /* Font sizes */
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 14px;
+  --font-size-md: 15px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 24px;
 
-  /* Espacement de lettres */
-  --letter-spacing-tight: -0.025em; /* Défaut global */
-  --letter-spacing-normal: -0.02em; /* Titres */
-  --letter-spacing-wide: -0.01em; /* Petits textes */
+  /* Letter spacing */
+  --letter-spacing-tight: -0.025em;
+  --letter-spacing-normal: -0.02em;
+  --letter-spacing-wide: -0.01em;
 
-  /* Hauteurs de ligne */
+  /* Line heights */
   --line-height-tight: 1.2;
   --line-height-normal: 1.4;
   --line-height-relaxed: 1.6;
 
-  /* Couleurs principales */
-  --bg-primary: #070e10; /* Fond principal gris-vert très sombre */
-  --bg-secondary: #1d2626; /* Bordures et séparateurs gris-vert moyen */
-  --bg-interactive: #2d3e3e; /* États hover/focus gris-vert clair */
-  --bg-card: #070e10; /* Fond des cartes */
+  /* Main colors */
+  --bg-primary: #070e10;
+  --bg-secondary: #1d2626;
+  --bg-interactive: #2d3e3e;
+  --bg-card: #070e10;
 
-  /* Textes */
-  --text-primary: #e8f0f0; /* Texte principal blanc cassé */
-  --text-secondary: #7a9393; /* Texte secondaire gris-vert métallique */
-  --text-muted: #7a9393; /* Texte en sourdine */
+  /* Text colors */
+  --text-primary: #e8f0f0;
+  --text-secondary: #7a9393;
+  --text-muted: #7a9393;
 
-  /* Couleurs d'accent */
-  --accent-green: #10b981; /* Vert pour gains/positif */
-  --accent-red: #ef4444; /* Rouge pour pertes/négatif */
-  --accent-blue: #4f46e5; /* Bleu pour actions/liens */
-  --accent-orange: #f7931a; /* Orange Bitcoin */
+  /* Accent colors */
+  --accent-green: #10b981;
+  --accent-red: #ef4444;
+  --accent-blue: #4f46e5;
+  --accent-orange: #f7931a;
 
-  /* Bordures */
-  --border-primary: #1d2626; /* Bordure principale */
-  --border-secondary: #2d3e3e; /* Bordure interactive */
+  /* Borders */
+  --border-primary: #1d2626;
+  --border-secondary: #2d3e3e;
 
-  /* Ombres */
+  /* Shadows */
   --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.3);
   --shadow-subtle: 0 2px 8px rgba(0, 0, 0, 0.2);
 
@@ -73,7 +73,7 @@
   --space-2xl: 24px;
 }
 
-/* Classes utilitaires communes */
+/* Common utility classes */
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border-primary);
@@ -106,7 +106,7 @@
   color: white;
 }
 
-/* Classes typographiques unifiées */
+/* Unified typography classes */
 .typography-page-title {
   font-family: var(--font-family);
   font-size: var(--font-size-2xl);
@@ -176,7 +176,7 @@
   line-height: var(--line-height-tight);
 }
 
-/* Classes de couleur */
+/* Color classes */
 .text-primary {
   color: var(--text-primary);
 }
@@ -190,7 +190,7 @@
   color: var(--accent-red);
 }
 
-/* Typographie globale pour le body */
+/* Global typography for body */
 body {
   font-family: var(--font-family);
   font-weight: var(--font-weight-normal);
