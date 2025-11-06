@@ -131,12 +131,17 @@ services:
       # Data Collector - Filtrage des symboles
       QUOTE_CURRENCIES: ${QUOTE_CURRENCIES:-USDT,BUSD,FDUSD}
       MIN_VOLUME: ${MIN_VOLUME:-5000000}
-      MAX_SYMBOLS: ${MAX_SYMBOLS:-200}
+      MAX_SYMBOLS: ${MAX_SYMBOLS:-20}
 
       # Data Collector - Features
       ENABLE_TRADES: ${ENABLE_TRADES:-true}
       ENABLE_TICKER: ${ENABLE_TICKER:-false}
       ENABLE_AGGREGATION: ${ENABLE_AGGREGATION:-true}
+
+      # Data Collector - Backfill automatique
+      ENABLE_BACKFILL: ${ENABLE_BACKFILL:-true}
+      BACKFILL_LOOKBACK_DAYS: ${BACKFILL_LOOKBACK_DAYS:-365}
+      BACKFILL_TIMEFRAMES: ${BACKFILL_TIMEFRAMES:-1m,5m,15m,1h,4h,1d}
     networks:
       - cryptoviz-network
     restart: unless-stopped
@@ -285,8 +290,11 @@ services:
         # AGGREGATED OHLCV (compactable)
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.5s  --config cleanup.policy=compact,delete --config retention.ms=259200000
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.1m  --config cleanup.policy=compact,delete --config retention.ms=2592000000
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.5m  --config cleanup.policy=compact,delete --config retention.ms=5184000000
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.15m --config cleanup.policy=compact,delete --config retention.ms=7776000000
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.1h  --config cleanup.policy=compact,delete --config retention.ms=15552000000
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.4h  --config cleanup.policy=compact,delete --config retention.ms=31104000000
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.1d  --config cleanup.policy=compact,delete --config retention.ms=63072000000
 
         # INDICATORS (compactable)
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.indicators.rsi       --config cleanup.policy=compact,delete --config retention.ms=2592000000

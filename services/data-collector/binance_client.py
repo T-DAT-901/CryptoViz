@@ -12,8 +12,29 @@ logger = logging.getLogger(__name__)
 EXCHANGE_NAME = "BINANCE"
 
 
+def create_kafka_headers(message_type: str, exchange: str, symbol: str, schema: str, **kwargs):
+    # Headers standardisés pour tous les messages Kafka
+    headers = [
+        ("source", b"collector-ws"),
+        ("type", message_type.encode()),
+        ("exchange", exchange.encode()),
+        ("symbol", symbol.replace("/", "").encode()),
+        ("schema", schema.encode()),
+    ]
+
+    # Ajoute les headers optionnels (ex: closed, timeframe)
+    for key, value in kwargs.items():
+        if isinstance(value, bytes):
+            headers.append((key, value))
+        elif isinstance(value, str):
+            headers.append((key, value.encode()))
+        elif isinstance(value, bool):
+            headers.append((key, b"true" if value else b"false"))
+
+    return headers
+
+
 class BinanceClient:
-    """Client Binance pour récupérer les symboles et se connecter aux WebSockets"""
 
     def __init__(self, config: Config):
         self.config = config
@@ -22,25 +43,13 @@ class BinanceClient:
             "options": {"defaultType": config.default_type},
         })
 
-        # Authentification si clés API fournies
+        # Auth si clés API fournies
         if config.api_key and config.api_secret:
             self.exchange.apiKey = config.api_key
             self.exchange.secret = config.api_secret
 
     async def get_all_symbols(self) -> List[str]:
-        """
-        Récupère et filtre les symboles de trading
-
-        Filtres appliqués:
-        1. Seulement les marchés actifs et spot
-        2. Devises de cotation autorisées (QUOTE_CURRENCIES)
-        3. Volume minimum 24h (MIN_VOLUME)
-        4. Tri par volume décroissant
-        5. Limitation au top N symboles (MAX_SYMBOLS)
-
-        Returns:
-            Liste des symboles au format "BASE/QUOTE" (ex: "BTC/USDT")
-        """
+        # Récup et filtre les symboles selon la config (quote currencies, volume min, max symbols)
         try:
             logger.info("Chargement des marchés Binance...")
             await self.exchange.load_markets()
@@ -52,23 +61,23 @@ class BinanceClient:
             filtered_symbols = []
             quote_stats = {}
 
-            # Parcourir tous les marchés Binance
+            # Parcourt tous les marchés Binance
             for symbol, market in self.exchange.markets.items():
-                # Ignorer les marchés inactifs et non-spot
+                # Garde que les marchés actifs et spot
                 if not market.get('active', True) or market.get('type') != 'spot':
                     continue
 
                 all_symbols.append(symbol)
 
-                # Statistiques par devise de cotation
+                # Stats par devise de cotation
                 quote_currency = market.get('quote', 'UNKNOWN')
                 quote_stats[quote_currency] = quote_stats.get(quote_currency, 0) + 1
 
-                # Filtre 1: Devises de cotation autorisées
+                # Filtre par devises de cotation
                 if self.config.quote_currencies and quote_currency not in self.config.quote_currencies:
                     continue
 
-                # Filtre 2: Volume minimum 24h
+                # Filtre par volume minimum 24h
                 if self.config.min_volume:
                     ticker = tickers.get(symbol)
                     if not ticker or not ticker.get('quoteVolume') or ticker['quoteVolume'] < self.config.min_volume:
@@ -92,7 +101,7 @@ class BinanceClient:
                 )
                 logger.info(f"Top 10 par volume: {filtered_symbols[:10]}")
 
-            # Limitation au nombre max de symboles
+            # Limite au nombre max de symboles
             if self.config.max_symbols and len(filtered_symbols) > self.config.max_symbols:
                 filtered_symbols = filtered_symbols[:self.config.max_symbols]
                 logger.info(f"Limité à {self.config.max_symbols} symboles")
@@ -101,19 +110,14 @@ class BinanceClient:
 
         except Exception as e:
             logger.error(f"Erreur récupération symboles: {e}")
-            # Fallback en cas d'erreur
+            # Fallback si ça plante
             fallback = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'XRP/USDT']
             logger.info(f"Utilisation fallback: {fallback}")
             return fallback
 
     async def close(self):
-        """Ferme proprement les connexions WebSocket"""
         await self.exchange.close()
 
-
-# ====================
-# Workers WebSocket
-# ====================
 
 async def watch_trades(
     symbol: str,
@@ -123,38 +127,27 @@ async def watch_trades(
     aggregator,
     semaphore: asyncio.Semaphore
 ):
-    """
-    Worker qui surveille les trades d'un symbole via WebSocket
-
-    Args:
-        symbol: Paire de trading (ex: "BTC/USDT")
-        client: Instance du client Binance
-        producer: Producer Kafka pour publier les trades
-        topic: Topic Kafka de destination
-        aggregator: Agrégateur pour créer les barres OHLCV (peut être None)
-        semaphore: Sémaphore pour limiter les connexions simultanées
-    """
+    # Worker qui écoute les trades d'un symbole via WebSocket et les publie dans Kafka
     last_id = None
     error_count = 0
     max_errors = 10
 
-    # Utiliser le sémaphore pour étaler les connexions dans le temps
-    # Le sémaphore se libère après le délai, permettant à d'autres de se connecter
+    # Étale les connexions dans le temps pour pas surcharger
     async with semaphore:
-        await asyncio.sleep(0.1)  # Délai de 100ms entre les connexions
+        await asyncio.sleep(0.1)
 
     while True:
         try:
-            # Attendre les nouveaux trades via WebSocket
+            # Attend les nouveaux trades via WebSocket
             trades = await client.exchange.watch_trades(symbol)
             if not trades:
                 continue
 
-            # Prendre le dernier trade uniquement
+            # Prend le dernier trade uniquement
             trade = trades[-1]
             tid = trade.get("id")
 
-            # Éviter les doublons
+            # Évite les doublons
             if tid and tid == last_id:
                 continue
             last_id = tid
@@ -164,7 +157,7 @@ async def watch_trades(
             price = float(trade["price"])
             amount = float(trade["amount"])
 
-            # Préparer le message Kafka
+            # Message Kafka
             payload = {
                 "type": "trade",
                 "exchange": EXCHANGE_NAME,
@@ -176,33 +169,27 @@ async def watch_trades(
                 "trade_id": tid,
             }
 
-            # Clé Kafka pour le partitionnement (un symbole = toujours la même partition)
+            # Clé pour partitionnement (même symbole = même partition)
             key = f"{EXCHANGE_NAME}|{symbol.replace('/', '')}".encode()
 
-            # Headers Kafka pour métadonnées
-            headers = [
-                ("source", b"collector-ws"),
-                ("exchange", EXCHANGE_NAME.encode()),
-                ("symbol", symbol.replace("/", "").encode()),
-                ("type", b"trade"),
-                ("schema", b"trade_v1"),
-            ]
+            # Headers standardisés
+            headers = create_kafka_headers("trade", EXCHANGE_NAME, symbol, "trade_v1")
 
-            # Publier dans Kafka
+            # Publie dans Kafka
             await producer.send_and_wait(topic, orjson.dumps(payload), key=key, headers=headers)
 
-            # Alimenter l'agrégateur si activé
+            # Alimente l'agrégateur si activé
             if aggregator:
                 await aggregator.on_trade(EXCHANGE_NAME, symbol, ts, price, amount)
 
-            error_count = 0  # Reset compteur d'erreurs
+            error_count = 0
 
         except Exception as e:
             error_count += 1
             if error_count <= 3:
                 logger.warning(f"[trades:{symbol}] Erreur {error_count}/{max_errors}: {e}")
 
-            # Arrêter après trop d'erreurs
+            # Arrête après trop d'erreurs
             if error_count >= max_errors:
                 logger.error(f"[trades:{symbol}] Trop d'erreurs, arrêt du worker")
                 break
@@ -218,31 +205,20 @@ async def watch_ticker(
     topic: str,
     semaphore: asyncio.Semaphore
 ):
-    """
-    Worker qui surveille le ticker d'un symbole via WebSocket
-
-    Le ticker contient: bid, ask, last price, volumes 24h
-
-    Args:
-        symbol: Paire de trading (ex: "BTC/USDT")
-        client: Instance du client Binance
-        producer: Producer Kafka pour publier les tickers
-        topic: Topic Kafka de destination
-        semaphore: Sémaphore pour limiter les connexions simultanées
-    """
+    # Worker qui écoute le ticker d'un symbole (bid, ask, volumes 24h)
     error_count = 0
     max_errors = 10
 
-    # Utiliser le sémaphore pour étaler les connexions dans le temps
+    # Étale les connexions
     async with semaphore:
-        await asyncio.sleep(0.1)  # Délai de 100ms entre les connexions
+        await asyncio.sleep(0.1)
 
     while True:
         try:
-            # Attendre les mises à jour du ticker via WebSocket
+            # Attend les updates du ticker
             ticker = await client.exchange.watch_ticker(symbol)
 
-            # Préparer le message Kafka
+            # Message Kafka
             payload = {
                 "type": "ticker",
                 "exchange": EXCHANGE_NAME,
@@ -255,28 +231,22 @@ async def watch_ticker(
                 "quoteVolume": float(ticker["quoteVolume"]) if ticker.get("quoteVolume") else None,
             }
 
-            # Clé Kafka pour le partitionnement
+            # Clé pour partitionnement
             key = f"{EXCHANGE_NAME}|{symbol.replace('/', '')}".encode()
 
-            # Headers Kafka pour métadonnées
-            headers = [
-                ("source", b"collector-ws"),
-                ("exchange", EXCHANGE_NAME.encode()),
-                ("symbol", symbol.replace("/", "").encode()),
-                ("type", b"ticker"),
-                ("schema", b"ticker_v1"),
-            ]
+            # Headers standardisés
+            headers = create_kafka_headers("ticker", EXCHANGE_NAME, symbol, "ticker_v1")
 
-            # Publier dans Kafka
+            # Publie dans Kafka
             await producer.send_and_wait(topic, orjson.dumps(payload), key=key, headers=headers)
-            error_count = 0  # Reset compteur d'erreurs
+            error_count = 0
 
         except Exception as e:
             error_count += 1
             if error_count <= 3:
                 logger.warning(f"[ticker:{symbol}] Erreur {error_count}/{max_errors}: {e}")
 
-            # Arrêter après trop d'erreurs
+            # Arrête après trop d'erreurs
             if error_count >= max_errors:
                 logger.error(f"[ticker:{symbol}] Trop d'erreurs, arrêt du worker")
                 break
