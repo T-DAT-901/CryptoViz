@@ -53,20 +53,6 @@ Chart.register(
 const store = useMarketStore();
 const indicatorsStore = useIndicatorsStore();
 
-// Debug: Afficher les changements dans la console
-watch(
-  () => indicatorsStore.showRSI,
-  (newVal) => {
-    console.log("RSI changed to:", newVal);
-  }
-);
-watch(
-  () => indicatorsStore.layoutMode,
-  (newVal) => {
-    console.log("Layout mode changed to:", newVal);
-  }
-);
-
 // WebSocket for real-time data
 const { connect, disconnect, isConnected, lastUpdate } = useTradingWebSocket();
 const { priceData: livePrice } = useLivePrices("BTCUSDT");
@@ -124,7 +110,6 @@ const linePoints = computed(() => {
           : new Date((c as any).t).getTime(),
     y: c.c,
   }));
-  // console.log('TradingChart - linePoints:', candles.value.length, 'candles →', points.length, 'points'); // Debug
   return points;
 });
 
@@ -180,12 +165,6 @@ async function loadData() {
     }
 
     candles.value = rows;
-    console.log(
-      `Loaded ${rows.length} candles for timeframe ${selectedTimeframe.value}`
-    );
-
-    // Load indicator data for mini-charts
-    console.log("About to call loadIndicatorData with", rows.length, "candles");
     await loadIndicatorData(rows);
   } catch (error) {
     console.error("Error loading data:", error);
@@ -267,9 +246,7 @@ function calculateRSIFromCandles(
 }
 
 // Calculate MACD (simplified version for mini-charts)
-function calculateMACDFromCandles(
-  candles: any[]
-): Array<{
+function calculateMACDFromCandles(candles: any[]): Array<{
   timestamp: number;
   macd: number;
   signal: number;
@@ -296,7 +273,7 @@ function calculateMACDFromCandles(
   }> = [];
   const prices = candles.map((c) => c.c);
 
-  // Calcul EMA simplifié
+  // Simplified EMA calculation
   const fastEMA = calculateSimpleEMA(prices, fastPeriod);
   const slowEMA = calculateSimpleEMA(prices, slowPeriod);
 
@@ -307,7 +284,7 @@ function calculateMACDFromCandles(
 
     if (i >= slowPeriod - 1) {
       macd = fastEMA[i] - slowEMA[i];
-      signal = macd * 0.8; // Approximation pour le mini-chart
+      signal = macd * 0.8; // Approximation for mini-chart
       histogram = macd - signal;
     }
 
@@ -322,7 +299,7 @@ function calculateMACDFromCandles(
   return result;
 }
 
-// EMA simplifié pour les mini-charts
+// Simplified EMA for mini-charts
 function calculateSimpleEMA(prices: number[], period: number): number[] {
   const ema: number[] = [];
   const multiplier = 2 / (period + 1);
@@ -358,18 +335,18 @@ function buildRSIMiniChart() {
     const rsiValues = rsiMiniData.value.map((d) => d.value);
     const currentRSI = rsiValues[rsiValues.length - 1] || 50;
 
-    // Déterminer la couleur selon la zone RSI
-    let mainColor = "#60a5fa"; // Bleu par défaut (zone neutre)
+    // Determine color based on RSI zone
+    let mainColor = "#60a5fa"; // Blue default (neutral zone)
     if (currentRSI >= 70)
-      mainColor = "#ef4444"; // Rouge (surachat)
-    else if (currentRSI <= 30) mainColor = "#22c55e"; // Vert (survente)
+      mainColor = "#ef4444"; // Red (overbought)
+    else if (currentRSI <= 30) mainColor = "#22c55e"; // Green (oversold)
 
     rsiMiniChart = new Chart(rsiMiniChartRef.value, {
       type: "line",
       data: {
         labels: rsiValues.map((_, index) => index),
         datasets: [
-          // Ligne RSI principale
+          // Main RSI line
           {
             data: rsiValues,
             borderColor: mainColor,
@@ -382,7 +359,7 @@ function buildRSIMiniChart() {
             fill: true,
             tension: 0.1,
           },
-          // Ligne 70 (surachat)
+          // 70 line (overbought)
           {
             data: new Array(rsiValues.length).fill(70),
             borderColor: "rgba(239, 68, 68, 0.6)",
@@ -391,7 +368,7 @@ function buildRSIMiniChart() {
             pointRadius: 0,
             fill: false,
           },
-          // Ligne 30 (survente)
+          // 30 line (oversold)
           {
             data: new Array(rsiValues.length).fill(30),
             borderColor: "rgba(34, 197, 94, 0.6)",
@@ -417,11 +394,6 @@ function buildRSIMiniChart() {
         animation: false,
       },
     });
-
-    console.log(
-      "RSI Mini Chart built successfully! Current RSI:",
-      currentRSI.toFixed(1)
-    );
   } catch (error) {
     console.error("Error building RSI Mini Chart:", error);
   }
@@ -430,23 +402,13 @@ function buildRSIMiniChart() {
 // Build MACD mini-chart
 function buildMACDMiniChart() {
   if (!macdMiniChartRef.value || macdMiniData.value.length === 0) {
-    console.log("MACD Mini Chart: Cannot build - missing ref or data", {
-      hasRef: !!macdMiniChartRef.value,
-      dataLength: macdMiniData.value.length,
-    });
     return;
   }
-
-  console.log(
-    "Building MACD Mini Chart with",
-    macdMiniData.value.length,
-    "data points"
-  );
 
   try {
     macdMiniChart?.destroy();
 
-    // Utiliser les vraies données MACD calculées
+    // Use real calculated MACD data
     const macdValues = macdMiniData.value.map((d) => d.macd);
     const histogramValues = macdMiniData.value.map((d) => d.histogram);
     const signalValues = macdMiniData.value.map((d) => d.signal);
@@ -456,7 +418,7 @@ function buildMACDMiniChart() {
       data: {
         labels: macdValues.map((_, index) => index),
         datasets: [
-          // Histogramme MACD (barres colorées)
+          // MACD Histogram (colored bars)
           {
             type: "bar",
             data: histogramValues,
@@ -466,7 +428,7 @@ function buildMACDMiniChart() {
             borderWidth: 0,
             barThickness: 2,
           },
-          // Ligne MACD
+          // MACD Line
           {
             type: "line",
             data: macdValues,
@@ -476,7 +438,7 @@ function buildMACDMiniChart() {
             fill: false,
             tension: 0.1,
           },
-          // Ligne Signal
+          // Signal Line
           {
             type: "line",
             data: signalValues,
@@ -499,45 +461,12 @@ function buildMACDMiniChart() {
         animation: false,
       },
     });
-
-    console.log("MACD Mini Chart built successfully with real data!");
   } catch (error) {
     console.error("Error building MACD Mini Chart:", error);
   }
 }
 
-// Fonction debug pour tester les mini-charts
-function debugMiniCharts() {
-  console.log("=== DEBUG MINI-CHARTS ===");
-  console.log("RSI data:", rsiMiniData.value.length, "points");
-  console.log("MACD data:", macdMiniData.value.length, "points");
-  console.log("RSI ref:", !!rsiMiniChartRef.value);
-  console.log("MACD ref:", !!macdMiniChartRef.value);
-  console.log("Layout mode:", indicatorsStore.layoutMode);
-  console.log("Show RSI:", indicatorsStore.showRSI);
-  console.log("Show MACD:", indicatorsStore.showMACD);
-
-  if (rsiMiniData.value.length > 0) {
-    console.log("First RSI point:", rsiMiniData.value[0]);
-    console.log(
-      "Last RSI point:",
-      rsiMiniData.value[rsiMiniData.value.length - 1]
-    );
-  }
-
-  if (macdMiniData.value.length > 0) {
-    console.log("First MACD point:", macdMiniData.value[0]);
-    console.log(
-      "Last MACD point:",
-      macdMiniData.value[macdMiniData.value.length - 1]
-    );
-  }
-
-  // Forcer la reconstruction
-  buildMiniCharts();
-}
-
-// Changer le timeframe avec feedback visuel
+// Change timeframe with visual feedback
 async function changeTimeframe(
   newTimeframe: "1h" | "1d" | "7d" | "1M" | "1y" | "all"
 ) {
@@ -559,7 +488,7 @@ function navigateTime(direction: "prev" | "next") {
   const currentMax = xScale.max;
   const range = currentMax - currentMin;
 
-  // Déplacer de 50% de la plage visible
+  // Move by 50% of visible range
   const shift = range * 0.5 * (direction === "next" ? 1 : -1);
 
   chart.zoomScale(
@@ -572,19 +501,19 @@ function navigateTime(direction: "prev" | "next") {
   );
 }
 
-// Ajuster le zoom
+// Adjust zoom
 function adjustZoom(direction: "in" | "out") {
   const activeChart =
     chartMode.value === "line" ? lineChartRef.value : candleChartRef.value;
   if (!activeChart?.chart) return;
 
   const chart = activeChart.chart;
-  const zoomFactor = direction === "in" ? 0.8 : 1.25; // Zoom de 20% in/out
+  const zoomFactor = direction === "in" ? 0.8 : 1.25; // 20% zoom in/out
 
   chart.zoom(zoomFactor);
 }
 
-// Réinitialiser la vue du chart
+// Reset chart view
 function resetChartView() {
   const activeChart =
     chartMode.value === "line" ? lineChartRef.value : candleChartRef.value;
@@ -592,7 +521,7 @@ function resetChartView() {
 
   activeChart.resetZoom();
 
-  // Réajuster aux données après reset
+  // Readjust to data after reset
   setTimeout(() => {
     if (activeChart?.fitChartToTimeframe) {
       activeChart.fitChartToTimeframe();
@@ -600,34 +529,31 @@ function resetChartView() {
   }, 100);
 }
 
-// Mise à jour avec nouvelle bougie WebSocket
+// Update with new WebSocket candle
 watch(latestCandle, (newCandle) => {
   if (newCandle && candles.value.length > 0) {
-    // Remplacer la dernière bougie ou en ajouter une nouvelle
+    // Replace last candle or add new one
     const lastIndex = candles.value.length - 1;
     candles.value[lastIndex] = newCandle;
   }
 });
 
-// Watcher pour recharger les données quand le timeframe change
+// Watcher to reload data when timeframe changes
 watch(
   () => indicatorsStore.selectedTimeframe,
   async (newTimeframe) => {
-    console.log("TradingChart: Timeframe changed to", newTimeframe);
     await loadData();
   }
 );
 
-// Watcher pour reconstruire les mini-charts quand le mode layout change
+// Watcher to rebuild mini-charts when layout mode changes
 watch(
   () => indicatorsStore.layoutMode,
   async (newMode) => {
-    console.log("TradingChart: Layout mode changed to", newMode);
     if (newMode === "compact") {
-      // Attendre que le DOM soit mis à jour
+      // Wait for DOM update
       await nextTick();
       setTimeout(() => {
-        console.log("Rebuilding mini-charts after layout change...");
         buildMiniCharts();
       }, 200);
     }
@@ -648,7 +574,7 @@ onMounted(async () => {
 onUnmounted(() => {
   disconnect();
   unsubscribeCandles();
-  // Nettoyer les mini-charts
+  // Clean up mini-charts
   rsiMiniChart?.destroy();
   macdMiniChart?.destroy();
 });
@@ -696,7 +622,7 @@ onUnmounted(() => {
           TradingView
         </button>
         <button class="trading-chart-compare-btn">
-          Comparer avec
+          Compare with
           <ChevronDown class="trading-chart-btn-icon" />
         </button>
       </div>
@@ -723,7 +649,7 @@ onUnmounted(() => {
     <div class="trading-chart-container">
       <div v-if="loading" class="trading-chart-loading">
         <div class="trading-chart-loading-spinner"></div>
-        <span>Chargement des données...</span>
+        <span>Loading data...</span>
       </div>
       <div v-else>
         <!-- Navigation controls -->
@@ -731,35 +657,35 @@ onUnmounted(() => {
           <button
             class="trading-chart-nav-btn"
             @click="navigateTime('prev')"
-            title="Période précédente"
+            title="Previous period"
           >
             ◀
           </button>
           <button
             class="trading-chart-nav-btn trading-chart-nav-btn--zoom-out"
             @click="adjustZoom('out')"
-            title="Dézoomer"
+            title="Zoom out"
           >
             −
           </button>
           <button
             class="trading-chart-nav-btn trading-chart-nav-btn--zoom-in"
             @click="adjustZoom('in')"
-            title="Zoomer"
+            title="Zoom in"
           >
             +
           </button>
           <button
             class="trading-chart-nav-btn"
             @click="navigateTime('next')"
-            title="Période suivante"
+            title="Next period"
           >
             ▶
           </button>
           <button
             class="trading-chart-nav-btn trading-chart-nav-btn--reset"
             @click="resetChartView"
-            title="Réinitialiser la vue"
+            title="Reset view"
           >
             ⌂
           </button>
@@ -781,17 +707,11 @@ onUnmounted(() => {
           />
         </div>
 
-        <!-- Indicateurs techniques (mode compact uniquement) -->
+        <!-- Technical indicators (compact mode only) -->
         <div
           v-if="indicatorsStore.layoutMode === 'compact'"
           class="trading-chart-indicators"
         >
-          <!-- Debug info (peut être supprimé en production) -->
-          <div style="font-size: 12px; color: #666; margin-bottom: 8px">
-            Mode: {{ indicatorsStore.layoutMode }} | RSI:
-            {{ indicatorsStore.showRSI }} | MACD: {{ indicatorsStore.showMACD }}
-          </div>
-
           <!-- RSI Indicator -->
           <div v-if="indicatorsStore.showRSI" class="trading-chart-indicator">
             <div class="trading-chart-indicator-header">
@@ -875,7 +795,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Footer avec date/time comme CoinMarketCap -->
+    <!-- Footer with date/time like CoinMarketCap -->
     <div class="trading-chart-footer"></div>
   </div>
 </template>
