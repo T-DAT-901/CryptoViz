@@ -2,6 +2,9 @@ import { defineStore } from "pinia";
 
 export const useIndicatorsStore = defineStore("indicators", {
   state: () => ({
+    // Layout mode: 'compact' (unified chart) or 'detailed' (separate charts)
+    layoutMode: "compact" as "compact" | "detailed",
+
     // visibility
     showRSI: true,
     showMACD: true,
@@ -17,4 +20,14 @@ export const useIndicatorsStore = defineStore("indicators", {
     bbStd: 2,
     momPeriod: 10,
   }),
+
+  actions: {
+    toggleLayoutMode() {
+      this.layoutMode = this.layoutMode === "compact" ? "detailed" : "compact";
+    },
+
+    setLayoutMode(mode: "compact" | "detailed") {
+      this.layoutMode = mode;
+    },
+  },
 });

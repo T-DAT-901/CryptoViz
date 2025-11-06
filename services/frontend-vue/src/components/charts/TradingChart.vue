@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import CandleChart from "@/components/charts/CandleChart.vue";
 import LineChart from "@/components/charts/LineChart.vue";
 import { useMarketStore } from "@/stores/market";
+import { useIndicatorsStore } from "@/stores/indicators";
 import { fetchCandles } from "@/services/markets.api";
 import {
   useTradingWebSocket,
@@ -20,6 +21,21 @@ import {
 } from "lucide-vue-next";
 
 const store = useMarketStore();
+const indicatorsStore = useIndicatorsStore();
+
+// Debug: Afficher les changements dans la console
+watch(
+  () => indicatorsStore.showRSI,
+  (newVal) => {
+    console.log("RSI changed to:", newVal);
+  }
+);
+watch(
+  () => indicatorsStore.layoutMode,
+  (newVal) => {
+    console.log("Layout mode changed to:", newVal);
+  }
+);
 
 // WebSocket pour temps réel
 const { connect, disconnect, isConnected, lastUpdate } = useTradingWebSocket();
@@ -341,6 +357,84 @@ onUnmounted(() => {
             :timeframe="selectedTimeframe"
             ref="candleChartRef"
           />
+        </div>
+
+        <!-- Indicateurs techniques (mode compact uniquement) -->
+        <div
+          v-if="indicatorsStore.layoutMode === 'compact'"
+          class="trading-chart-indicators"
+        >
+          <!-- Debug info -->
+          <div style="font-size: 12px; color: #666; margin-bottom: 8px">
+            Mode: {{ indicatorsStore.layoutMode }} | RSI:
+            {{ indicatorsStore.showRSI }} | MACD: {{ indicatorsStore.showMACD }}
+          </div>
+
+          <!-- RSI Indicator -->
+          <div v-if="indicatorsStore.showRSI" class="trading-chart-indicator">
+            <div class="trading-chart-indicator-header">
+              <span class="trading-chart-indicator-title"
+                >RSI ({{ indicatorsStore.rsiPeriod }})</span
+              >
+              <span class="trading-chart-indicator-value">75.34</span>
+            </div>
+            <div class="trading-chart-indicator-chart">
+              <div class="trading-chart-indicator-line rsi-line"></div>
+              <div class="trading-chart-indicator-area rsi-area"></div>
+            </div>
+          </div>
+
+          <!-- MACD Indicator -->
+          <div v-if="indicatorsStore.showMACD" class="trading-chart-indicator">
+            <div class="trading-chart-indicator-header">
+              <span class="trading-chart-indicator-title"
+                >MACD ({{ indicatorsStore.macdFast }},{{
+                  indicatorsStore.macdSlow
+                }},{{ indicatorsStore.macdSignal }})</span
+              >
+              <span class="trading-chart-indicator-value">0.0234</span>
+            </div>
+            <div class="trading-chart-indicator-chart">
+              <div class="trading-chart-indicator-line macd-line"></div>
+              <div
+                class="trading-chart-indicator-histogram macd-histogram"
+              ></div>
+            </div>
+          </div>
+
+          <!-- Bollinger Bands Indicator -->
+          <div
+            v-if="indicatorsStore.showBollinger"
+            class="trading-chart-indicator"
+          >
+            <div class="trading-chart-indicator-header">
+              <span class="trading-chart-indicator-title"
+                >Bollinger ({{ indicatorsStore.bbPeriod }},{{
+                  indicatorsStore.bbStd
+                }})</span
+              >
+              <span class="trading-chart-indicator-value">Upper: 45,234</span>
+            </div>
+            <div class="trading-chart-indicator-chart">
+              <div class="trading-chart-indicator-bands bollinger-bands"></div>
+            </div>
+          </div>
+
+          <!-- Momentum Indicator -->
+          <div
+            v-if="indicatorsStore.showMomentum"
+            class="trading-chart-indicator"
+          >
+            <div class="trading-chart-indicator-header">
+              <span class="trading-chart-indicator-title"
+                >Momentum ({{ indicatorsStore.momPeriod }})</span
+              >
+              <span class="trading-chart-indicator-value">1.0234</span>
+            </div>
+            <div class="trading-chart-indicator-chart">
+              <div class="trading-chart-indicator-line momentum-line"></div>
+            </div>
+          </div>
         </div>
       </template>
     </div>

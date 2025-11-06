@@ -4,7 +4,13 @@ defineProps<{ symbol: string }>();
 </script>
 
 <template>
-  <div style="padding: 8px; border: 1px dashed #ccc; border-radius: 8px">
-    MACDChart ({{ symbol }}) — stub
+  <div class="macd-chart">
+    <div class="macd-chart__header">
+      <h3 class="macd-chart__title">MACD</h3>
+      <span class="macd-chart__symbol">{{ symbol }}</span>
+    </div>
+    <div class="macd-chart__content">
+      <div class="macd-chart__placeholder">Graphique MACD - À implémenter</div>
+    </div>
   </div>
 </template>

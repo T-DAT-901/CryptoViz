@@ -6,14 +6,22 @@ import TradingChart from "@/components/charts/TradingChart.vue";
 import CryptoPricePanel from "@/components/CryptoPricePanel.vue";
 import CommunitySentiment from "@/components/CommunitySentiment.vue";
 import IndicatorsPanel from "@/components/IndicatorsPanel.vue";
-// import RSIChart from "@/components/charts/RSIChart.vue"; // Temporairement désactivé pour tester
+import ViewModeToggle from "@/components/controls/ViewModeToggle.vue";
+import RSIChart from "@/components/charts/RSIChart.vue";
+import MACDChart from "@/components/charts/MACDChart.vue";
+import BollingerChart from "@/components/charts/BollingerChart.vue";
+import MomentumChart from "@/components/charts/MomentumChart.vue";
 import NewsFeed from "@/components/NewsFeed.vue";
+import { useIndicatorsStore } from "@/stores/indicators";
 
 // Récupération du symbole depuis l'URL
 const route = useRoute();
 const router = useRouter();
 const symbol = computed(() => (route.params.symbol as string) || "btc");
 const symbolPair = computed(() => symbol.value.toUpperCase() + "USDT");
+
+// Store des indicateurs
+const indicatorsStore = useIndicatorsStore();
 
 // Mapping des noms de cryptos
 const cryptoNames: Record<string, string> = {
@@ -41,11 +49,14 @@ const goBack = () => {
   <div class="dashboard-page">
     <!-- Header avec navigation -->
     <header class="dashboard-header">
-      <button class="dashboard-back-btn" @click="goBack">
-        <ArrowLeft class="dashboard-back-icon" />
-        <span>Retour aux cryptos</span>
-      </button>
-      <h1 class="dashboard-title">{{ cryptoName }} Dashboard</h1>
+      <div class="dashboard-header__left">
+        <button class="dashboard-back-btn" @click="goBack">
+          <ArrowLeft class="dashboard-back-icon" />
+          <span>Retour aux cryptos</span>
+        </button>
+        <h1 class="dashboard-title">{{ cryptoName }} Dashboard</h1>
+      </div>
+      <ViewModeToggle />
     </header>
 
     <main class="dashboard-grid">
@@ -59,9 +70,27 @@ const goBack = () => {
       <!-- Centre (graphiques) -->
       <section class="dashboard-column dashboard-column--center">
         <div class="dashboard-stack">
-          <TradingChart />
-          <IndicatorsPanel />
-          <!-- <RSIChart /> Temporairement désactivé pour tester -->
+          <!-- Mode Compact : Graphique unifié + Panel de contrôle -->
+          <template v-if="indicatorsStore.layoutMode === 'compact'">
+            <TradingChart />
+            <IndicatorsPanel />
+          </template>
+
+          <!-- Mode Détaillé : Graphiques séparés conditionnels -->
+          <template v-else>
+            <TradingChart />
+            <RSIChart v-if="indicatorsStore.showRSI" :symbol="symbolPair" />
+            <MACDChart v-if="indicatorsStore.showMACD" :symbol="symbolPair" />
+            <BollingerChart
+              v-if="indicatorsStore.showBollinger"
+              :symbol="symbolPair"
+            />
+            <MomentumChart
+              v-if="indicatorsStore.showMomentum"
+              :symbol="symbolPair"
+            />
+            <IndicatorsPanel />
+          </template>
         </div>
       </section>
 

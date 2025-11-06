@@ -10,7 +10,11 @@
 @import "./components/candle-chart.css";
 @import "./components/line-chart.css";
 @import "./components/rsi-chart.css";
+@import "./components/macd-chart.css";
+@import "./components/bollinger-chart.css";
+@import "./components/momentum-chart.css";
 @import "./components/indicators-panel.css";
+@import "./components/view-mode-toggle.css";
 
 /* Layout imports */
 @import "./layouts/dashboard.css";

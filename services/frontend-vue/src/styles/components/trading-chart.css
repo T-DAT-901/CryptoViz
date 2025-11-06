@@ -114,8 +114,11 @@
 
 .trading-chart-container {
   position: relative;
-  height: 400px;
+  height: auto; /* Changé de 400px fixe à auto */
+  min-height: 400px; /* Hauteur minimum pour le graphique */
   background: var(--bg-card);
+  display: flex;
+  flex-direction: column;
 }
 
 .trading-chart-nav-controls {
@@ -172,6 +175,12 @@
   color: white;
 }
 
+.trading-chart-wrapper {
+  flex: 1;
+  min-height: 350px;
+  position: relative;
+}
+
 .trading-chart-footer {
   display: flex;
   justify-content: space-between;
@@ -206,7 +215,8 @@
   }
 
   .trading-chart-container {
-    height: 300px;
+    min-height: 300px; /* Changé de height à min-height */
+    height: auto;
   }
 
   .trading-chart-nav-controls {
@@ -234,6 +244,184 @@
   }
 
   .trading-chart-container {
-    height: 250px;
+    min-height: 250px; /* Changé de height à min-height */
+    height: auto;
+  }
+}
+
+/* Technical Indicators Styles */
+.trading-chart-indicators {
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-primary);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  flex-shrink: 0; /* Empêche la compression */
+  min-height: 60px; /* Hauteur minimum garantie */
+  max-height: none; /* Pas de limite de hauteur */
+  overflow: visible; /* Toujours visible */
+  z-index: 1; /* Au-dessus du graphique */
+}
+
+.trading-chart-indicator {
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm) 0;
+}
+
+.trading-chart-indicator:last-child {
+  margin-bottom: 0;
+}
+
+.trading-chart-indicator-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-xs);
+}
+
+.trading-chart-indicator-title {
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.trading-chart-indicator-value {
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.trading-chart-indicator-chart {
+  height: 40px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+/* RSI Styles */
+.rsi-line {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--accent-red),
+    var(--accent-orange),
+    var(--accent-green)
+  );
+  transform: translateY(-50%);
+  border-radius: 1px;
+}
+
+.rsi-area {
+  position: absolute;
+  bottom: 0;
+  left: 75%;
+  width: 2px;
+  height: 60%;
+  background: var(--accent-green);
+  border-radius: 1px;
+}
+
+/* MACD Styles */
+.macd-line {
+  position: absolute;
+  top: 30%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--accent-blue);
+}
+
+.macd-histogram {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--accent-green) 20%,
+    var(--accent-green) 30%,
+    transparent 40%,
+    var(--accent-red) 60%,
+    var(--accent-red) 70%,
+    transparent 100%
+  );
+  opacity: 0.6;
+}
+
+/* Bollinger Bands Styles */
+.bollinger-bands {
+  position: absolute;
+  top: 20%;
+  left: 0;
+  right: 0;
+  height: 60%;
+  background: linear-gradient(
+    to bottom,
+    var(--border-secondary) 0%,
+    transparent 20%,
+    transparent 80%,
+    var(--border-secondary) 100%
+  );
+  border-top: 1px solid var(--accent-blue);
+  border-bottom: 1px solid var(--accent-blue);
+}
+
+/* Momentum Styles */
+.momentum-line {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--accent-red) 0%,
+    var(--accent-green) 70%
+  );
+  transform: translateY(-50%);
+  border-radius: 1px;
+}
+
+/* Responsive adjustments for indicators */
+@media (min-width: 1024px) {
+  /* Desktop: S'assurer que les indicateurs restent visibles */
+  .trading-chart-indicators {
+    min-height: 80px;
+    max-height: none;
+    position: relative;
+    z-index: 10;
+  }
+
+  .trading-chart-container {
+    min-height: 400px;
+  }
+}
+
+@media (max-width: 768px) {
+  .trading-chart-indicators {
+    padding: var(--space-sm);
+  }
+
+  .trading-chart-indicator-chart {
+    height: 30px;
+  }
+
+  .trading-chart-indicator-title {
+    font-size: 10px;
+  }
+
+  .trading-chart-indicator-value {
+    font-size: var(--font-size-xs);
   }
 }

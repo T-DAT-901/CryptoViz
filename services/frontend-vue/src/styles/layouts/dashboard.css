@@ -11,6 +11,13 @@
   padding: var(--space-lg) var(--space-xl);
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xl);
+}
+
+.dashboard-header__left {
+  display: flex;
+  align-items: center;
   gap: var(--space-xl);
 }
 

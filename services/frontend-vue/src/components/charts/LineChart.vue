@@ -153,6 +153,11 @@ function fitChartToTimeframe() {
   }
 }
 
+// Fonction pour masquer le tooltip
+function hideTooltip() {
+  tooltipVisible.value = false;
+}
+
 function build() {
   if (!canvasEl.value) return;
 
@@ -329,7 +334,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="line-chart">
+  <div class="line-chart" @mouseleave="hideTooltip">
     <canvas ref="canvasEl"></canvas>
 
     <!-- Tooltip personnalisé -->
