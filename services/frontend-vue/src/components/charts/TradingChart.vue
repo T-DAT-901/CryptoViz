@@ -67,37 +67,37 @@ watch(
   }
 );
 
-// WebSocket pour temps réel
+// WebSocket for real-time data
 const { connect, disconnect, isConnected, lastUpdate } = useTradingWebSocket();
 const { priceData: livePrice } = useLivePrices("BTCUSDT");
 const { latestCandle, unsubscribe: unsubscribeCandles } = useLiveCandles();
 
-// Chart mode (candle ou line)
+// Chart mode (candle or line)
 const chartMode = ref<"candle" | "line">("line");
 
 // Loading state
 const loading = ref(false);
 
-// Données des bougies
+// Candle data
 const candles = ref<CandleDTO[]>([]);
 
-// Références pour accéder aux méthodes des charts enfants
+// References to access child chart methods
 const lineChartRef = ref();
 const candleChartRef = ref();
 
-// Références pour les mini-charts
+// Mini-chart references
 const rsiMiniChartRef = ref<HTMLCanvasElement | null>(null);
 const macdMiniChartRef = ref<HTMLCanvasElement | null>(null);
 let rsiMiniChart: Chart | null = null;
 let macdMiniChart: Chart | null = null;
 
-// Données des indicateurs pour les mini-charts
+// Indicator data for mini-charts
 const rsiMiniData = ref<Array<{ timestamp: number; value: number }>>([]);
 const macdMiniData = ref<
   Array<{ timestamp: number; macd: number; signal: number; histogram: number }>
 >([]);
 
-// Timeframes disponibles (simplifiés et pertinents)
+// Available timeframes
 const timeframes = [
   { value: "1h", label: "1H" },
   { value: "1d", label: "24H" },
@@ -107,13 +107,13 @@ const timeframes = [
   { value: "all", label: "ALL" },
 ] as const;
 
-// Timeframe sélectionné (depuis le store)
+// Selected timeframe (from store)
 const selectedTimeframe = computed({
   get: () => indicatorsStore.selectedTimeframe,
   set: (value) => indicatorsStore.setTimeframe(value),
 });
 
-// Données pour le LineChart
+// Data for LineChart
 const linePoints = computed(() => {
   const points = candles.value.map((c) => ({
     x:
@@ -128,54 +128,54 @@ const linePoints = computed(() => {
   return points;
 });
 
-// Charge les données selon le timeframe
+// Load data based on selected timeframe
 async function loadData() {
   loading.value = true;
   try {
     let rows = [];
 
-    // Charger les données spécifiques au timeframe depuis le fichier unifié
+    // Load timeframe-specific data from unified file
     if (import.meta.env.VITE_USE_MOCK === "true") {
       console.log(
         `Loading mock data for timeframe: ${selectedTimeframe.value}`
       );
 
-      // Importer les données unifiées
+      // Import unified data
       const { default: unifiedData } = await import(
         "@/services/mocks/candles_unified.json"
       );
 
-      // Sélectionner les données selon le timeframe
+      // Select data based on timeframe
       switch (selectedTimeframe.value) {
         case "1h":
-          // Pour 1H, prendre les 60 derniers points des données 1D (60 minutes)
+          // For 1H, take last 60 points from 1D data (60 minutes)
           const oneDayData = unifiedData["1d"] || [];
-          rows = oneDayData.slice(-60); // Dernière heure en minutes
+          rows = oneDayData.slice(-60); // Last hour in minutes
           break;
         case "1d":
-          // Pour 24H, prendre les dernières 24 heures des données 1D
+          // For 24H, take last 24 hours from 1D data
           const twentyFourHourData = unifiedData["1d"] || [];
-          rows = twentyFourHourData.slice(-1440); // Dernières 24 heures (1440 minutes)
+          rows = twentyFourHourData.slice(-1440); // Last 24 hours (1440 minutes)
           break;
         case "7d":
-          rows = unifiedData["7d"] || []; // 168 points (heures)
+          rows = unifiedData["7d"] || []; // 168 points (hours)
           break;
         case "1M":
-          rows = unifiedData["1M"] || []; // 180 points (4h)
+          rows = unifiedData["1M"] || []; // 180 points (4h intervals)
           break;
         case "1y":
-          rows = unifiedData["1y"] || []; // 365 points (jours)
+          rows = unifiedData["1y"] || []; // 365 points (days)
           break;
         case "all":
-          rows = unifiedData["all"] || []; // 520 points (semaines)
+          rows = unifiedData["all"] || []; // 520 points (weeks)
           break;
         default:
-          // Pour le fallback, utiliser 1h (dernière heure des données 1d)
+          // For fallback, use 1h (last hour from 1d data)
           const fallbackData = unifiedData["1d"] || [];
           rows = fallbackData.slice(-60);
       }
     } else {
-      // API réelle - adapter selon le timeframe
+      // Real API - adapt based on timeframe
       rows = await fetchCandles("BTC", selectedTimeframe.value, 500);
     }
 
@@ -184,7 +184,7 @@ async function loadData() {
       `Loaded ${rows.length} candles for timeframe ${selectedTimeframe.value}`
     );
 
-    // Charger les données des indicateurs pour les mini-charts
+    // Load indicator data for mini-charts
     console.log("About to call loadIndicatorData with", rows.length, "candles");
     await loadIndicatorData(rows);
   } catch (error) {
@@ -194,22 +194,22 @@ async function loadData() {
   }
 }
 
-// Charger les données des indicateurs pour les mini-charts
+// Load indicator data for mini-charts
 async function loadIndicatorData(candleData: any[]) {
   if (candleData.length === 0) return;
 
-  // Calculer RSI
+  // Calculate RSI
   rsiMiniData.value = calculateRSIFromCandles(candleData);
 
-  // Calculer MACD
+  // Calculate MACD
   macdMiniData.value = calculateMACDFromCandles(candleData);
 
-  // Mettre à jour les mini-charts
+  // Update mini-charts
   await nextTick();
   buildMiniCharts();
 }
 
-// Calculer RSI (version simplifiée pour les mini-charts)
+// Calculate RSI (simplified version for mini-charts)
 function calculateRSIFromCandles(
   candles: any[]
 ): Array<{ timestamp: number; value: number }> {
@@ -266,7 +266,7 @@ function calculateRSIFromCandles(
   return result;
 }
 
-// Calculer MACD (version simplifiée pour les mini-charts)
+// Calculate MACD (simplified version for mini-charts)
 function calculateMACDFromCandles(
   candles: any[]
 ): Array<{
@@ -338,23 +338,23 @@ function calculateSimpleEMA(prices: number[], period: number): number[] {
   return ema;
 }
 
-// Construire les mini-charts
+// Build mini-charts
 function buildMiniCharts() {
-  // Attendre un peu pour s'assurer que les refs sont disponibles
+  // Wait a bit to ensure refs are available
   setTimeout(() => {
     buildRSIMiniChart();
     buildMACDMiniChart();
   }, 100);
 }
 
-// Construire le mini-chart RSI
+// Build RSI mini-chart
 function buildRSIMiniChart() {
   if (!rsiMiniChartRef.value || rsiMiniData.value.length === 0) return;
 
   try {
     rsiMiniChart?.destroy();
 
-    // Utiliser les vraies données RSI calculées
+    // Use real calculated RSI data
     const rsiValues = rsiMiniData.value.map((d) => d.value);
     const currentRSI = rsiValues[rsiValues.length - 1] || 50;
 
@@ -427,7 +427,7 @@ function buildRSIMiniChart() {
   }
 }
 
-// Construire le mini-chart MACD
+// Build MACD mini-chart
 function buildMACDMiniChart() {
   if (!macdMiniChartRef.value || macdMiniData.value.length === 0) {
     console.log("MACD Mini Chart: Cannot build - missing ref or data", {
@@ -547,7 +547,7 @@ async function changeTimeframe(
   selectedTimeframe.value = newTimeframe;
 }
 
-// Fonctions de navigation temporelle
+// Time navigation functions
 function navigateTime(direction: "prev" | "next") {
   const activeChart =
     chartMode.value === "line" ? lineChartRef.value : candleChartRef.value;

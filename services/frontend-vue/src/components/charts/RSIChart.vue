@@ -31,10 +31,10 @@ const indicatorsStore = useIndicatorsStore();
 const canvasEl = ref<HTMLCanvasElement | null>(null);
 let chart: Chart | null = null;
 
-// Données RSI à partir du fichier mock
+// RSI data from mock file
 const rsiData = ref<Array<{ timestamp: number; value: number }>>([]);
 
-// Charger les données mock selon le timeframe
+// Load mock data based on timeframe
 async function loadMockData() {
   try {
     // Utiliser le timeframe du store
@@ -43,22 +43,22 @@ async function loadMockData() {
     if (import.meta.env.VITE_USE_MOCK === "true") {
       console.log(`Loading RSI mock data for timeframe: ${timeframe}`);
 
-      // Importer les données unifiées (mêmes que TradingChart)
+      // Import unified data (same as TradingChart)
       const { default: unifiedData } = await import(
         "@/services/mocks/candles_unified.json"
       );
 
       let candleData = [];
 
-      // Sélectionner les données selon le timeframe (même logique que TradingChart)
+      // Select data based on timeframe (same logic as TradingChart)
       switch (timeframe) {
         case "1h":
           const oneDayData = unifiedData["1d"] || [];
-          candleData = oneDayData.slice(-60); // Dernière heure en minutes
+          candleData = oneDayData.slice(-60); // Last hour in minutes
           break;
         case "1d":
           const twentyFourHourData = unifiedData["1d"] || [];
-          candleData = twentyFourHourData.slice(-1440); // Dernières 24 heures (1440 minutes)
+          candleData = twentyFourHourData.slice(-1440); // Last 24 hours (1440 minutes)
           break;
         case "7d":
           candleData = unifiedData["7d"] || []; // 168 points (heures)
@@ -104,12 +104,12 @@ async function loadMockData() {
   }
 }
 
-// Calculer RSI à partir des données de bougies
+// Calculate RSI from candle data
 function calculateRSIFromCandles(
   candles: any[]
 ): Array<{ timestamp: number; value: number }> {
   if (candles.length < 14) {
-    // Pas assez de données pour calculer RSI, retourner des valeurs par défaut
+    // Not enough data to calculate RSI, return default values
     return candles.map((candle, i) => ({
       timestamp: candle.t,
       value: 50 + Math.sin(i * 0.2) * 20 + Math.random() * 10,
@@ -166,7 +166,7 @@ function calculateRSIFromCandles(
   return result;
 }
 
-// Données pour Chart.js
+// Data for Chart.js
 const chartData = computed(() => {
   if (!rsiData.value.length) return { datasets: [] };
 
@@ -346,7 +346,7 @@ onBeforeUnmount(() => {
   chart?.destroy();
 });
 
-// Reconstruire le chart quand les données changent
+// Rebuild chart when data changes
 watch(() => rsiData.value, buildChart, { deep: true });
 
 // Recharger les données quand le timeframe change
