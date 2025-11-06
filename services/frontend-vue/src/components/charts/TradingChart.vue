@@ -53,31 +53,22 @@ Chart.register(
 const store = useMarketStore();
 const indicatorsStore = useIndicatorsStore();
 
-// WebSocket for real-time data
 const { connect, disconnect, isConnected, lastUpdate } = useTradingWebSocket();
 const { priceData: livePrice } = useLivePrices("BTCUSDT");
 const { latestCandle, unsubscribe: unsubscribeCandles } = useLiveCandles();
 
-// Chart mode (candle or line)
 const chartMode = ref<"candle" | "line">("line");
-
-// Loading state
 const loading = ref(false);
-
-// Candle data
 const candles = ref<CandleDTO[]>([]);
 
-// References to access child chart methods
 const lineChartRef = ref();
 const candleChartRef = ref();
 
-// Mini-chart references
 const rsiMiniChartRef = ref<HTMLCanvasElement | null>(null);
 const macdMiniChartRef = ref<HTMLCanvasElement | null>(null);
 let rsiMiniChart: Chart | null = null;
 let macdMiniChart: Chart | null = null;
 
-// Indicator data for mini-charts
 const rsiMiniData = ref<Array<{ timestamp: number; value: number }>>([]);
 const macdMiniData = ref<
   Array<{ timestamp: number; macd: number; signal: number; histogram: number }>
@@ -93,13 +84,11 @@ const timeframes = [
   { value: "all", label: "ALL" },
 ] as const;
 
-// Selected timeframe (from store)
 const selectedTimeframe = computed({
   get: () => indicatorsStore.selectedTimeframe,
   set: (value) => indicatorsStore.setTimeframe(value),
 });
 
-// Data for LineChart
 const linePoints = computed(() => {
   const points = candles.value.map((c) => ({
     x:
@@ -119,48 +108,37 @@ async function loadData() {
   try {
     let rows = [];
 
-    // Load timeframe-specific data from unified file
     if (import.meta.env.VITE_USE_MOCK === "true") {
-      console.log(
-        `Loading mock data for timeframe: ${selectedTimeframe.value}`
-      );
-
-      // Import unified data
       const { default: unifiedData } = await import(
         "@/services/mocks/candles_unified.json"
       );
 
-      // Select data based on timeframe
       switch (selectedTimeframe.value) {
         case "1h":
-          // For 1H, take last 60 points from 1D data (60 minutes)
           const oneDayData = unifiedData["1d"] || [];
-          rows = oneDayData.slice(-60); // Last hour in minutes
+          rows = oneDayData.slice(-60);
           break;
         case "1d":
-          // For 24H, take last 24 hours from 1D data
           const twentyFourHourData = unifiedData["1d"] || [];
-          rows = twentyFourHourData.slice(-1440); // Last 24 hours (1440 minutes)
+          rows = twentyFourHourData.slice(-1440);
           break;
         case "7d":
-          rows = unifiedData["7d"] || []; // 168 points (hours)
+          rows = unifiedData["7d"] || [];
           break;
         case "1M":
-          rows = unifiedData["1M"] || []; // 180 points (4h intervals)
+          rows = unifiedData["1M"] || [];
           break;
         case "1y":
-          rows = unifiedData["1y"] || []; // 365 points (days)
+          rows = unifiedData["1y"] || [];
           break;
         case "all":
-          rows = unifiedData["all"] || []; // 520 points (weeks)
+          rows = unifiedData["all"] || [];
           break;
         default:
-          // For fallback, use 1h (last hour from 1d data)
           const fallbackData = unifiedData["1d"] || [];
           rows = fallbackData.slice(-60);
       }
     } else {
-      // Real API - adapt based on timeframe
       rows = await fetchCandles("BTC", selectedTimeframe.value, 500);
     }
 
@@ -173,22 +151,16 @@ async function loadData() {
   }
 }
 
-// Load indicator data for mini-charts
 async function loadIndicatorData(candleData: any[]) {
   if (candleData.length === 0) return;
 
-  // Calculate RSI
   rsiMiniData.value = calculateRSIFromCandles(candleData);
-
-  // Calculate MACD
   macdMiniData.value = calculateMACDFromCandles(candleData);
 
-  // Update mini-charts
   await nextTick();
   buildMiniCharts();
 }
 
-// Calculate RSI (simplified version for mini-charts)
 function calculateRSIFromCandles(
   candles: any[]
 ): Array<{ timestamp: number; value: number }> {
@@ -245,7 +217,6 @@ function calculateRSIFromCandles(
   return result;
 }
 
-// Calculate MACD (simplified version for mini-charts)
 function calculateMACDFromCandles(candles: any[]): Array<{
   timestamp: number;
   macd: number;
@@ -273,7 +244,6 @@ function calculateMACDFromCandles(candles: any[]): Array<{
   }> = [];
   const prices = candles.map((c) => c.c);
 
-  // Simplified EMA calculation
   const fastEMA = calculateSimpleEMA(prices, fastPeriod);
   const slowEMA = calculateSimpleEMA(prices, slowPeriod);
 
@@ -284,7 +254,7 @@ function calculateMACDFromCandles(candles: any[]): Array<{
 
     if (i >= slowPeriod - 1) {
       macd = fastEMA[i] - slowEMA[i];
-      signal = macd * 0.8; // Approximation for mini-chart
+      signal = macd * 0.8;
       histogram = macd - signal;
     }
 
@@ -299,7 +269,6 @@ function calculateMACDFromCandles(candles: any[]): Array<{
   return result;
 }
 
-// Simplified EMA for mini-charts
 function calculateSimpleEMA(prices: number[], period: number): number[] {
   const ema: number[] = [];
   const multiplier = 2 / (period + 1);
@@ -315,38 +284,31 @@ function calculateSimpleEMA(prices: number[], period: number): number[] {
   return ema;
 }
 
-// Build mini-charts
 function buildMiniCharts() {
-  // Wait a bit to ensure refs are available
   setTimeout(() => {
     buildRSIMiniChart();
     buildMACDMiniChart();
   }, 100);
 }
 
-// Build RSI mini-chart
 function buildRSIMiniChart() {
   if (!rsiMiniChartRef.value || rsiMiniData.value.length === 0) return;
 
   try {
     rsiMiniChart?.destroy();
 
-    // Use real calculated RSI data
     const rsiValues = rsiMiniData.value.map((d) => d.value);
     const currentRSI = rsiValues[rsiValues.length - 1] || 50;
 
-    // Determine color based on RSI zone
-    let mainColor = "#60a5fa"; // Blue default (neutral zone)
-    if (currentRSI >= 70)
-      mainColor = "#ef4444"; // Red (overbought)
-    else if (currentRSI <= 30) mainColor = "#22c55e"; // Green (oversold)
+    let mainColor = "#60a5fa";
+    if (currentRSI >= 70) mainColor = "#ef4444";
+    else if (currentRSI <= 30) mainColor = "#22c55e";
 
     rsiMiniChart = new Chart(rsiMiniChartRef.value, {
       type: "line",
       data: {
         labels: rsiValues.map((_, index) => index),
         datasets: [
-          // Main RSI line
           {
             data: rsiValues,
             borderColor: mainColor,
@@ -359,7 +321,6 @@ function buildRSIMiniChart() {
             fill: true,
             tension: 0.1,
           },
-          // 70 line (overbought)
           {
             data: new Array(rsiValues.length).fill(70),
             borderColor: "rgba(239, 68, 68, 0.6)",
@@ -368,7 +329,6 @@ function buildRSIMiniChart() {
             pointRadius: 0,
             fill: false,
           },
-          // 30 line (oversold)
           {
             data: new Array(rsiValues.length).fill(30),
             borderColor: "rgba(34, 197, 94, 0.6)",
@@ -399,7 +359,6 @@ function buildRSIMiniChart() {
   }
 }
 
-// Build MACD mini-chart
 function buildMACDMiniChart() {
   if (!macdMiniChartRef.value || macdMiniData.value.length === 0) {
     return;
@@ -408,7 +367,6 @@ function buildMACDMiniChart() {
   try {
     macdMiniChart?.destroy();
 
-    // Use real calculated MACD data
     const macdValues = macdMiniData.value.map((d) => d.macd);
     const histogramValues = macdMiniData.value.map((d) => d.histogram);
     const signalValues = macdMiniData.value.map((d) => d.signal);
@@ -418,7 +376,6 @@ function buildMACDMiniChart() {
       data: {
         labels: macdValues.map((_, index) => index),
         datasets: [
-          // MACD Histogram (colored bars)
           {
             type: "bar",
             data: histogramValues,
@@ -428,7 +385,6 @@ function buildMACDMiniChart() {
             borderWidth: 0,
             barThickness: 2,
           },
-          // MACD Line
           {
             type: "line",
             data: macdValues,
@@ -438,7 +394,6 @@ function buildMACDMiniChart() {
             fill: false,
             tension: 0.1,
           },
-          // Signal Line
           {
             type: "line",
             data: signalValues,
@@ -466,54 +421,13 @@ function buildMACDMiniChart() {
   }
 }
 
-// Change timeframe with visual feedback
 async function changeTimeframe(
   newTimeframe: "1h" | "1d" | "7d" | "1M" | "1y" | "all"
 ) {
   if (loading.value || selectedTimeframe.value === newTimeframe) return;
-
-  // Le watcher va automatiquement recharger les données
   selectedTimeframe.value = newTimeframe;
 }
 
-// Time navigation functions
-function navigateTime(direction: "prev" | "next") {
-  const activeChart =
-    chartMode.value === "line" ? lineChartRef.value : candleChartRef.value;
-  if (!activeChart?.chart) return;
-
-  const chart = activeChart.chart;
-  const xScale = chart.scales.x;
-  const currentMin = xScale.min;
-  const currentMax = xScale.max;
-  const range = currentMax - currentMin;
-
-  // Move by 50% of visible range
-  const shift = range * 0.5 * (direction === "next" ? 1 : -1);
-
-  chart.zoomScale(
-    "x",
-    {
-      min: currentMin + shift,
-      max: currentMax + shift,
-    },
-    "default"
-  );
-}
-
-// Adjust zoom
-function adjustZoom(direction: "in" | "out") {
-  const activeChart =
-    chartMode.value === "line" ? lineChartRef.value : candleChartRef.value;
-  if (!activeChart?.chart) return;
-
-  const chart = activeChart.chart;
-  const zoomFactor = direction === "in" ? 0.8 : 1.25; // 20% zoom in/out
-
-  chart.zoom(zoomFactor);
-}
-
-// Reset chart view
 function resetChartView() {
   const activeChart =
     chartMode.value === "line" ? lineChartRef.value : candleChartRef.value;
@@ -521,7 +435,6 @@ function resetChartView() {
 
   activeChart.resetZoom();
 
-  // Readjust to data after reset
   setTimeout(() => {
     if (activeChart?.fitChartToTimeframe) {
       activeChart.fitChartToTimeframe();
@@ -529,16 +442,13 @@ function resetChartView() {
   }, 100);
 }
 
-// Update with new WebSocket candle
 watch(latestCandle, (newCandle) => {
   if (newCandle && candles.value.length > 0) {
-    // Replace last candle or add new one
     const lastIndex = candles.value.length - 1;
     candles.value[lastIndex] = newCandle;
   }
 });
 
-// Watcher to reload data when timeframe changes
 watch(
   () => indicatorsStore.selectedTimeframe,
   async (newTimeframe) => {
@@ -546,12 +456,10 @@ watch(
   }
 );
 
-// Watcher to rebuild mini-charts when layout mode changes
 watch(
   () => indicatorsStore.layoutMode,
   async (newMode) => {
     if (newMode === "compact") {
-      // Wait for DOM update
       await nextTick();
       setTimeout(() => {
         buildMiniCharts();
@@ -560,10 +468,8 @@ watch(
   }
 );
 
-// Lifecycle
 onMounted(async () => {
   await loadData();
-  // Connecter WebSocket après le chargement initial
   try {
     await connect();
   } catch (error) {
@@ -574,7 +480,6 @@ onMounted(async () => {
 onUnmounted(() => {
   disconnect();
   unsubscribeCandles();
-  // Clean up mini-charts
   rsiMiniChart?.destroy();
   macdMiniChart?.destroy();
 });
@@ -582,7 +487,6 @@ onUnmounted(() => {
 
 <template>
   <div class="trading-chart">
-    <!-- Header avec boutons Line/Candle et timeframes -->
     <div class="trading-chart-header">
       <div class="trading-chart-controls-left">
         <button
@@ -614,16 +518,12 @@ onUnmounted(() => {
         >
           <Settings class="trading-chart-btn-icon" />
         </button>
-      </div>
-
-      <div class="trading-chart-controls-center">
-        <button class="trading-chart-trading-view-btn">
-          <ExternalLink class="trading-chart-btn-icon" />
-          TradingView
-        </button>
-        <button class="trading-chart-compare-btn">
-          Compare with
-          <ChevronDown class="trading-chart-btn-icon" />
+        <button
+          class="trading-chart-control-btn trading-chart-control-btn--icon"
+          @click="resetChartView"
+          title="Reset chart view"
+        >
+          ⌂
         </button>
       </div>
 
@@ -641,47 +541,16 @@ onUnmounted(() => {
           {{ tf.label }}
         </button>
         <button class="trading-chart-tf-btn">LOG</button>
-        <button class="trading-chart-tf-btn">⋯</button>
       </div>
     </div>
 
-    <!-- Chart container -->
     <div class="trading-chart-container">
       <div v-if="loading" class="trading-chart-loading">
         <div class="trading-chart-loading-spinner"></div>
         <span>Loading data...</span>
       </div>
       <div v-else>
-        <!-- Navigation controls -->
         <div class="trading-chart-nav-controls">
-          <button
-            class="trading-chart-nav-btn"
-            @click="navigateTime('prev')"
-            title="Previous period"
-          >
-            ◀
-          </button>
-          <button
-            class="trading-chart-nav-btn trading-chart-nav-btn--zoom-out"
-            @click="adjustZoom('out')"
-            title="Zoom out"
-          >
-            −
-          </button>
-          <button
-            class="trading-chart-nav-btn trading-chart-nav-btn--zoom-in"
-            @click="adjustZoom('in')"
-            title="Zoom in"
-          >
-            +
-          </button>
-          <button
-            class="trading-chart-nav-btn"
-            @click="navigateTime('next')"
-            title="Next period"
-          >
-            ▶
-          </button>
           <button
             class="trading-chart-nav-btn trading-chart-nav-btn--reset"
             @click="resetChartView"
@@ -691,7 +560,6 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <!-- Charts -->
         <div class="trading-chart-wrapper">
           <LineChart
             v-if="chartMode === 'line'"
@@ -707,7 +575,6 @@ onUnmounted(() => {
           />
         </div>
 
-        <!-- Technical indicators (compact mode only) -->
         <div
           v-if="indicatorsStore.layoutMode === 'compact'"
           class="trading-chart-indicators"
@@ -757,45 +624,43 @@ onUnmounted(() => {
               ></canvas>
             </div>
           </div>
-        </div>
+          <!-- Bollinger Indicator -->
+          <div
+            v-if="indicatorsStore.showBollinger"
+            class="trading-chart-indicator"
+          >
+            <div class="trading-chart-indicator-header">
+              <span class="trading-chart-indicator-title"
+                >Bollinger ({{ indicatorsStore.bbPeriod }},{{
+                  indicatorsStore.bbStd
+                }})</span
+              >
+              <span class="trading-chart-indicator-value">Upper: 45,234</span>
+            </div>
+            <div class="trading-chart-indicator-chart">
+              <div class="trading-chart-indicator-bands bollinger-bands"></div>
+            </div>
+          </div>
 
-        <!-- Bollinger Bands Indicator -->
-        <div
-          v-if="indicatorsStore.showBollinger"
-          class="trading-chart-indicator"
-        >
-          <div class="trading-chart-indicator-header">
-            <span class="trading-chart-indicator-title"
-              >Bollinger ({{ indicatorsStore.bbPeriod }},{{
-                indicatorsStore.bbStd
-              }})</span
-            >
-            <span class="trading-chart-indicator-value">Upper: 45,234</span>
-          </div>
-          <div class="trading-chart-indicator-chart">
-            <div class="trading-chart-indicator-bands bollinger-bands"></div>
-          </div>
-        </div>
-
-        <!-- Momentum Indicator -->
-        <div
-          v-if="indicatorsStore.showMomentum"
-          class="trading-chart-indicator"
-        >
-          <div class="trading-chart-indicator-header">
-            <span class="trading-chart-indicator-title"
-              >Momentum ({{ indicatorsStore.momPeriod }})</span
-            >
-            <span class="trading-chart-indicator-value">1.0234</span>
-          </div>
-          <div class="trading-chart-indicator-chart">
-            <div class="trading-chart-indicator-line momentum-line"></div>
+          <!-- Momentum Indicator -->
+          <div
+            v-if="indicatorsStore.showMomentum"
+            class="trading-chart-indicator"
+          >
+            <div class="trading-chart-indicator-header">
+              <span class="trading-chart-indicator-title"
+                >Momentum ({{ indicatorsStore.momPeriod }})</span
+              >
+              <span class="trading-chart-indicator-value">1.0234</span>
+            </div>
+            <div class="trading-chart-indicator-chart">
+              <div class="trading-chart-indicator-line momentum-line"></div>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Footer with date/time like CoinMarketCap -->
     <div class="trading-chart-footer"></div>
   </div>
 </template>

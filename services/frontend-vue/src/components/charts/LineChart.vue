@@ -24,18 +24,16 @@ Chart.register(
   Filler
 );
 
-/** Input point (what the wrapper sends) */
 type InPt = { x: number | string | Date; y: number };
 const props = defineProps<{
   points: InPt[];
-  timeframe?: string; // Ajouter le timeframe pour ajuster les échelles
+  timeframe?: string;
 }>();
 
 const canvasEl = ref<HTMLCanvasElement | null>(null);
 const tooltipEl = ref<HTMLDivElement | null>(null);
 let chart: Chart<"line"> | null = null;
 
-// État du tooltip personnalisé
 const tooltipVisible = ref(false);
 const tooltipData = ref({
   x: 0,
@@ -46,7 +44,6 @@ const tooltipData = ref({
   isPositive: true,
 });
 
-/** Normalize x into a numeric timestamp for Chart.js typing */
 function toNumericPoints(src: InPt[]) {
   return src.map((p) => ({
     x: typeof p.x === "number" ? p.x : new Date(p.x).getTime(),
@@ -54,7 +51,6 @@ function toNumericPoints(src: InPt[]) {
   }));
 }
 
-// Fonction pour obtenir le format temporel selon le timeframe
 function getTimeDisplayFormat(timeframe: string) {
   switch (timeframe) {
     case "1h":
@@ -123,21 +119,17 @@ function getTimeDisplayFormat(timeframe: string) {
   }
 }
 
-// Fonction pour ajuster automatiquement le zoom sur la période
 function fitChartToTimeframe() {
   if (!chart || !props.points?.length) return;
 
-  // Obtenir les timestamps min et max des données
   const numericPoints = toNumericPoints(props.points);
   const timestamps = numericPoints.map((p) => p.x);
   const minTime = Math.min(...timestamps);
   const maxTime = Math.max(...timestamps);
 
-  // Ajouter une petite marge (2% de chaque côté)
   const timeRange = maxTime - minTime;
   const margin = timeRange * 0.02;
 
-  // Mettre à jour les formats d'affichage selon le timeframe
   const timeConfig = getTimeDisplayFormat(props.timeframe || "7d");
   if (chart.options.scales?.x) {
     const xScale = chart.options.scales.x as any;
@@ -149,11 +141,10 @@ function fitChartToTimeframe() {
     xScale.ticks.maxTicksLimit = timeConfig.maxTicksLimit;
     xScale.min = minTime - margin;
     xScale.max = maxTime + margin;
-    chart.update("none"); // Mise à jour sans animation pour la fluidité
+    chart.update("none");
   }
 }
 
-// Fonction pour masquer le tooltip
 function hideTooltip() {
   tooltipVisible.value = false;
 }
@@ -167,7 +158,6 @@ function build() {
   grad.addColorStop(1, "rgba(16,185,129,0)");
 
   const numericPoints = toNumericPoints(props.points);
-  // console.log('LineChart - Points data:', numericPoints.length, numericPoints.slice(0, 3)); // Debug
 
   const data: ChartData<"line"> = {
     datasets: [
@@ -179,7 +169,7 @@ function build() {
         backgroundColor: grad,
         borderWidth: 2,
         fill: true,
-        tension: 0.1, // Moins arrondi (était 0.3)
+        tension: 0.1,
         pointRadius: 0,
         pointHoverRadius: 6,
         pointBackgroundColor: "#10b981",
@@ -203,15 +193,12 @@ function build() {
         if (point && canvasEl.value && element) {
           const rect = canvasEl.value.getBoundingClientRect();
 
-          // Position par rapport au graphique, pas à la souris
           const tooltipX = rect.left + element.x;
-          const tooltipY = rect.top + element.y - 100; // 100px au-dessus du point
+          const tooltipY = rect.top + element.y - 100;
 
-          // Calculer les infos du tooltip
           const date = new Date(point.x);
           const price = point.y;
 
-          // Variation par rapport au point précédent
           let change = 0;
           let changePercent = 0;
           if (dataIndex > 0) {
@@ -291,7 +278,7 @@ function build() {
     plugins: {
       legend: { display: false },
       tooltip: {
-        enabled: false, // Désactiver le tooltip par défaut
+        enabled: false,
       },
     },
     elements: {
@@ -306,7 +293,6 @@ function build() {
     options,
   });
 
-  // Ajuster automatiquement le zoom et les échelles
   setTimeout(() => {
     fitChartToTimeframe();
   }, 100);
@@ -317,7 +303,6 @@ watch(() => props.points, build, { deep: true });
 watch(
   () => props.timeframe,
   () => {
-    // Quand le timeframe change, ajuster le zoom
     setTimeout(() => {
       fitChartToTimeframe();
     }, 100);
@@ -326,7 +311,6 @@ watch(
 );
 onBeforeUnmount(() => chart?.destroy());
 
-// Exposer les méthodes pour le composant parent
 defineExpose({
   chart,
   fitChartToTimeframe,
@@ -337,7 +321,6 @@ defineExpose({
   <div class="line-chart" @mouseleave="hideTooltip">
     <canvas ref="canvasEl"></canvas>
 
-    <!-- Tooltip personnalisé -->
     <div
       v-if="tooltipVisible"
       ref="tooltipEl"
