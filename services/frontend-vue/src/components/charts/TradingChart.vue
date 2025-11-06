@@ -10,6 +10,14 @@ import {
   useLiveCandles,
 } from "@/services/websocket";
 import type { CandleDTO } from "@/types/market";
+import {
+  TrendingUp,
+  Settings,
+  BarChart3,
+  Minus,
+  ExternalLink,
+  ChevronDown,
+} from "lucide-vue-next";
 
 const store = useMarketStore();
 
@@ -229,13 +237,23 @@ onUnmounted(() => {
         >
           Candle
         </button>
-        <button class="control-btn icon-btn">📈</button>
-        <button class="control-btn icon-btn">🔧</button>
+        <button class="control-btn icon-btn">
+          <TrendingUp />
+        </button>
+        <button class="control-btn icon-btn">
+          <Settings />
+        </button>
       </div>
 
       <div class="chart-controls-center">
-        <button class="trading-view-btn">📈 TradingView</button>
-        <button class="compare-btn">Comparer avec ▼</button>
+        <button class="trading-view-btn">
+          <ExternalLink class="btn-icon" />
+          TradingView
+        </button>
+        <button class="compare-btn">
+          Comparer avec
+          <ChevronDown class="btn-icon" />
+        </button>
       </div>
 
       <div class="timeframes">
@@ -384,6 +402,20 @@ onUnmounted(() => {
 .control-btn.icon-btn {
   padding: 6px 8px;
   min-width: 32px;
+}
+
+.btn-icon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+.control-btn .btn-icon {
+  margin-right: 4px;
+}
+
+.control-btn.icon-btn .btn-icon {
+  margin-right: 0;
 }
 
 .trading-view-btn,

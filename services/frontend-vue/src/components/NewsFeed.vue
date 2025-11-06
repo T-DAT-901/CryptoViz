@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Newspaper, Clock } from "lucide-vue-next";
+
 type News = {
   id: string;
   time: number;
@@ -33,13 +35,17 @@ function fmt(ts: number) {
 
 <template>
   <section class="panel">
-    <header class="head">News</header>
+    <header class="head">
+      <Newspaper class="news-icon" />
+      News
+    </header>
     <ul class="list">
       <li v-for="n in items" :key="n.id" class="item">
         <div class="title">{{ n.title }}</div>
         <div class="meta">
           <span class="src">{{ n.source || "source" }}</span>
           <span class="dot">•</span>
+          <Clock class="time-icon" />
           <span class="t">{{ fmt(n.time) }}</span>
         </div>
       </li>
@@ -58,6 +64,16 @@ function fmt(ts: number) {
   font-weight: 700;
   color: #e5e7eb;
   margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.news-icon {
+  width: 16px;
+  height: 16px;
+  color: #9ca3af;
+  stroke-width: 2;
 }
 .list {
   display: grid;
@@ -80,6 +96,13 @@ function fmt(ts: number) {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.time-icon {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2;
+  color: #6b7280;
 }
 .dot {
   opacity: 0.5;

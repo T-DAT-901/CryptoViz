@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useTradingWebSocket, useLivePrices } from "@/services/websocket";
+import {
+  Bitcoin,
+  TrendingUp,
+  TrendingDown,
+  Star,
+  Share2,
+  Activity,
+} from "lucide-vue-next";
 
 const props = defineProps<{
   symbol?: string;
@@ -81,7 +89,7 @@ onUnmounted(() => {
     <!-- Header avec nom et prix principal -->
     <div class="crypto-header">
       <div class="crypto-icon">
-        <div class="bitcoin-icon">₿</div>
+        <Bitcoin class="bitcoin-icon" />
         <div class="crypto-info">
           <h1 class="crypto-name">{{ cryptoName || "Bitcoin" }}</h1>
           <span class="crypto-symbol">{{ symbol || "BTC" }}</span>
@@ -89,12 +97,17 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div class="favorite-actions">
-        <button class="favorite-btn">
-          <span class="star">⭐</span>
-          <span class="count">6M</span>
+      <!-- Actions boutons -->
+      <div class="action-buttons">
+        <button class="action-btn favorite-btn">
+          <Star class="action-icon" />
         </button>
-        <button class="share-btn">📤</button>
+        <button class="action-btn share-btn">
+          <Share2 class="action-icon" />
+        </button>
+        <button class="action-btn insights-btn">
+          <Activity class="action-icon" />
+        </button>
       </div>
     </div>
 
@@ -113,21 +126,12 @@ onUnmounted(() => {
         class="price-change"
         :class="{ positive: isPositive, negative: !isPositive }"
       >
-        <span class="change-icon">{{ isPositive ? "▲" : "▼" }}</span>
+        <TrendingUp v-if="isPositive" class="change-icon" />
+        <TrendingDown v-else class="change-icon" />
         <span class="change-text">
           {{ isPositive ? "+" : "" }}{{ priceChangePercent.toFixed(2) }}% (1Y)
         </span>
       </div>
-    </div>
-
-    <!-- Question insight -->
-    <div class="price-insight">
-      <div class="insight-icon">🤖</div>
-      <span class="insight-text"
-        >Pourquoi le prix de BTC est-il en
-        {{ isPositive ? "hausse" : "baisse" }}?</span
-      >
-      <button class="insight-arrow">›</button>
     </div>
 
     <!-- Convertisseur BTC/EUR -->
@@ -257,16 +261,42 @@ onUnmounted(() => {
 }
 
 .bitcoin-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #f7931a, #ff8c00);
+  width: 24px;
+  height: 24px;
+  color: #f7931a;
+  stroke-width: 2;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.action-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: #1a1a2e;
+  color: #9ca3af;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
-  font-weight: bold;
-  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+  background: #2d2d47;
+  color: #e5e7eb;
+  transform: translateY(-1px);
+}
+
+.action-icon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
 }
 
 .crypto-info {
@@ -354,7 +384,9 @@ onUnmounted(() => {
 }
 
 .change-icon {
-  font-size: 10px;
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
 }
 
 /* Insight */
