@@ -44,23 +44,22 @@ const ind = useIndicatorsStore();
   cursor: pointer;
   padding: 6px 10px;
   border-radius: 6px;
-  background: #0b0e11;
-  border: 1px solid #1a1f24;
-  color: #e5e7eb;
+  background: #070e10;
+  border: 1px solid #1d2626;
+  color: #e8f0f0;
   font-size: 14px;
   transition: all 0.2s ease;
 }
 
 .indicator-item:hover {
-  background: #141a1f;
-  border-color: #2d2d44;
+  background: #1d2626;
+  border-color: #2d3e3e;
 }
 
 .indicator-icon {
   width: 14px;
   height: 14px;
-  stroke-width: 2;
-  color: #9ca3af;
+  color: #7a9393;
 }
 
 .indicator-item input[type="checkbox"] {

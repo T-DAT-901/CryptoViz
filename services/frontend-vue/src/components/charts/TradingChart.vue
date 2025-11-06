@@ -342,11 +342,11 @@ onUnmounted(() => {
 
 <style scoped>
 .trading-chart {
-  background: #040d12;
+  background: #070e10;
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  border: 1px solid #1a1a2e;
+  border: 1px solid #1d2626;
 }
 
 .chart-header {
@@ -354,8 +354,8 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px 8px;
-  background: #040d12;
-  border-bottom: 1px solid #16213e;
+  background: #070e10;
+  border-bottom: 1px solid #1d2626;
   flex-wrap: wrap;
   gap: 8px;
 }
@@ -375,17 +375,17 @@ onUnmounted(() => {
 .control-btn {
   padding: 6px 12px;
   border-radius: 6px;
-  background: #1a1a2e;
-  border: 1px solid #2d2d44;
-  color: #9ca3af;
+  background: #1d2626;
+  border: 1px solid #2d3e3e;
+  color: #7a9393;
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 13px;
 }
 
 .control-btn:hover {
-  background: #2d2d44;
-  color: #e5e7eb;
+  background: #2d3e3e;
+  color: #e8f0f0;
 }
 
 .control-btn.active {
@@ -396,7 +396,7 @@ onUnmounted(() => {
 
 .control-btn.secondary {
   background: transparent;
-  border-color: #374151;
+  border-color: #2d3e3e;
 }
 
 .control-btn.icon-btn {
@@ -422,9 +422,9 @@ onUnmounted(() => {
 .compare-btn {
   padding: 6px 12px;
   border-radius: 6px;
-  background: #1a1a2e;
-  border: 1px solid #2d2d44;
-  color: #9ca3af;
+  background: #1d2626;
+  border: 1px solid #2d3e3e;
+  color: #7a9393;
   cursor: pointer;
   font-size: 13px;
 }
@@ -441,7 +441,7 @@ onUnmounted(() => {
   border-radius: 4px;
   background: transparent;
   border: 1px solid transparent;
-  color: #6b7280;
+  color: #7a9393;
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 12px;
@@ -450,8 +450,8 @@ onUnmounted(() => {
 }
 
 .tf-btn:hover:not(:disabled) {
-  background: #1a1a2e;
-  color: #9ca3af;
+  background: #1d2626;
+  color: #7a9393;
 }
 
 .tf-btn.active {
@@ -489,7 +489,7 @@ onUnmounted(() => {
 .chart-container {
   position: relative;
   height: 400px;
-  background: #040d12;
+  background: #070e10;
 }
 
 .loading {
@@ -498,7 +498,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #9ca3af;
+  color: #7a9393;
   font-size: 14px;
   gap: 12px;
 }
@@ -520,18 +520,18 @@ onUnmounted(() => {
   z-index: 10;
   display: flex;
   gap: 4px;
-  background: rgba(4, 13, 18, 0.9);
+  background: rgba(7, 14, 16, 0.9);
   border-radius: 8px;
   padding: 4px;
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid #1d2626;
 }
 
 .nav-btn {
-  background: rgba(26, 26, 46, 0.8);
-  border: 1px solid #374151;
+  background: #1d2626;
+  border: 1px solid #2d3e3e;
   border-radius: 4px;
-  color: #9ca3af;
+  color: #7a9393;
   width: 28px;
   height: 28px;
   display: flex;
@@ -544,8 +544,8 @@ onUnmounted(() => {
 }
 
 .nav-btn:hover {
-  background: #374151;
-  color: #e5e7eb;
+  background: #2d3e3e;
+  color: #e8f0f0;
   transform: translateY(-1px);
 }
 
@@ -580,20 +580,20 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 8px 16px;
-  background: #040d12;
-  border-top: 1px solid #16213e;
+  background: #070e10;
+  border-top: 1px solid #1d2626;
 }
 
 .time-indicator {
-  color: #6b7280;
+  color: #7a9393;
   font-size: 11px;
-  background: rgba(26, 26, 46, 0.8);
+  background: #1d2626;
   padding: 4px 8px;
   border-radius: 4px;
 }
 
 .coinmarketcap-logo {
-  color: #6b7280;
+  color: #7a9393;
   font-size: 11px;
 }
 

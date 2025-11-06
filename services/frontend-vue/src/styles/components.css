@@ -1,0 +1,357 @@
+/* Component imports - Modular CSS architecture */
+@import "./components/crypto-card.css";
+@import "./components/crypto-converter.css";
+@import "./components/crypto-performance.css";
+@import "./components/crypto-historical.css";
+@import "./components/trading-chart.css";
+@import "./components/crypto-price-panel.css";
+@import "./components/news-feed.css";
+@import "./components/community-sentiment.css";
+
+/* Layout imports */
+@import "./layouts/dashboard.css";
+@import "./layouts/home.css";
+
+/* Legacy components - keeping existing styles for compatibility */
+.crypto-btn {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-secondary);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition-base);
+  font-size: 13px;
+}
+
+.crypto-btn:hover {
+  background: var(--bg-interactive);
+  color: var(--text-primary);
+}
+
+.crypto-btn--active {
+  background: var(--accent-blue);
+  color: white;
+  border-color: var(--accent-blue);
+}
+
+.crypto-btn--icon {
+  width: 32px;
+  height: 32px;
+  padding: var(--space-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* News feed component */
+.news-feed {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-card);
+}
+
+.news-feed-header {
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.news-feed-title {
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.news-feed-content {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.news-item {
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--bg-card);
+  transition: var(--transition-base);
+}
+
+.news-item:hover {
+  background: var(--bg-secondary);
+}
+
+.news-item:last-child {
+  border-bottom: none;
+}
+
+.news-item-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0 0 var(--space-xs) 0;
+  line-height: 1.4;
+}
+
+.news-item-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Community sentiment component */
+.community-sentiment {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  box-shadow: var(--shadow-card);
+}
+
+.sentiment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-2xl);
+}
+
+.sentiment-title {
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.sentiment-votes {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.sentiment-bar-container {
+  margin-bottom: 18px;
+}
+
+.sentiment-percentages {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-md);
+}
+
+.sentiment-percentage {
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sentiment-percentage--bullish {
+  color: var(--accent-green);
+}
+
+.sentiment-percentage--bearish {
+  color: var(--accent-red);
+}
+
+.sentiment-bar {
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+  background: var(--bg-secondary);
+}
+
+.sentiment-fill--bullish {
+  background: linear-gradient(90deg, var(--accent-green), #059669);
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sentiment-fill--bearish {
+  background: linear-gradient(90deg, var(--accent-red), #dc2626);
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sentiment-vote-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+}
+
+.sentiment-vote-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  border: 1.5px solid;
+  background: transparent;
+  cursor: pointer;
+  transition: var(--transition-base);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.sentiment-vote-btn--bullish {
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+}
+
+.sentiment-vote-btn--bullish:hover {
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.sentiment-vote-btn--bearish {
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+}
+
+.sentiment-vote-btn--bearish:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Indicators panel */
+.indicators-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-card);
+}
+
+.indicators-header {
+  padding: var(--space-lg);
+  background: var(--bg-secondary);
+  border-color: var(--border-secondary);
+}
+
+.indicators-title {
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.indicators-content {
+  padding: var(--space-lg);
+}
+
+.indicator-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.indicator-item:last-child {
+  border-bottom: none;
+}
+
+.indicator-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.indicator-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Navigation et pagination */
+.nav-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-base);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.nav-btn:hover:not(:disabled) {
+  background: var(--bg-interactive);
+  color: var(--text-primary);
+}
+
+.nav-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Stats et métriques */
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.stat-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Prix et changements */
+.price-change--positive {
+  color: var(--accent-green);
+}
+
+.price-change--negative {
+  color: var(--accent-red);
+}
+
+/* Inputs standardisés */
+.crypto-input {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  padding: var(--space-md);
+  outline: none;
+  transition: var(--transition-base);
+}
+
+.crypto-input:focus {
+  border-color: var(--accent-blue);
+}
+
+/* Select standardisé */
+.crypto-select {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  padding: var(--space-sm) var(--space-md);
+  font-size: 12px;
+}
+
+/* Loading states */
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(79, 70, 229, 0.2);
+  border-top: 3px solid var(--accent-blue);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

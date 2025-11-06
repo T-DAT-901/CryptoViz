@@ -513,7 +513,7 @@ defineExpose({
 .candle-chart {
   width: 100%;
   height: 100%;
-  background: #040d12;
+  background: #070e10;
   border-radius: 12px;
   overflow: hidden;
   position: relative;
@@ -532,10 +532,10 @@ canvas {
   top: 12px;
   right: 12px;
   z-index: 10;
-  background: rgba(4, 13, 18, 0.9);
-  border: 1px solid #374151;
+  background: rgba(7, 14, 16, 0.9);
+  border: 1px solid #2d3e3e;
   border-radius: 6px;
-  color: #9ca3af;
+  color: #7a9393;
   padding: 6px 10px;
   font-size: 11px;
   cursor: pointer;
@@ -544,8 +544,8 @@ canvas {
 }
 
 .reset-zoom-btn:hover {
-  background: #374151;
-  color: #e5e7eb;
+  background: #2d3e3e;
+  color: #e8f0f0;
 }
 
 /* Lignes de repère (crosshair) */
@@ -569,15 +569,15 @@ canvas {
 .crosshair-line.vertical {
   width: 0;
   height: 100%;
-  border-left: 1px dashed rgba(229, 231, 235, 0.4);
-  filter: drop-shadow(0 0 1px rgba(229, 231, 235, 0.2));
+  border-left: 1px dashed rgba(232, 240, 240, 0.4);
+  filter: drop-shadow(0 0 1px rgba(232, 240, 240, 0.2));
 }
 
 .crosshair-line.horizontal {
   width: 100%;
   height: 0;
-  border-top: 1px dashed rgba(229, 231, 235, 0.4);
-  filter: drop-shadow(0 0 1px rgba(229, 231, 235, 0.2));
+  border-top: 1px dashed rgba(232, 240, 240, 0.4);
+  filter: drop-shadow(0 0 1px rgba(232, 240, 240, 0.2));
 }
 
 /* Animation douce à l'apparition */
@@ -597,11 +597,11 @@ canvas {
 /* Labels des lignes de repère */
 .crosshair-label {
   position: absolute;
-  background: rgba(4, 13, 18, 0.95);
-  border: 1px solid #374151;
+  background: rgba(7, 14, 16, 0.95);
+  border: 1px solid #2d3e3e;
   border-radius: 4px;
   padding: 4px 8px;
-  color: #e5e7eb;
+  color: #e8f0f0;
   font-size: 11px;
   font-weight: 500;
   white-space: nowrap;
@@ -615,26 +615,26 @@ canvas {
   transform: translateX(-50%);
   background: rgb(16, 185, 129);
   border-color: #10b981;
-  color: #040d12;
+  color: #070e10;
 }
 
 .price-label {
   right: 8px;
   top: 50%;
   transform: translateY(-50%);
-  background: rgb(229, 231, 235) !important;
-  border-color: #9ca3af;
-  color: #040d12;
+  background: rgb(232, 240, 240) !important;
+  border-color: #7a9393;
+  color: #070e10;
 }
 
 /* Tooltip personnalisé */
 .custom-tooltip {
   position: fixed;
-  background: rgba(4, 13, 18, 0.95);
-  border: 1px solid #374151;
+  background: rgba(7, 14, 16, 0.95);
+  border: 1px solid #2d3e3e;
   border-radius: 8px;
   padding: 12px;
-  color: #e5e7eb;
+  color: #e8f0f0;
   font-size: 12px;
   z-index: 1000;
   pointer-events: none;
@@ -644,7 +644,7 @@ canvas {
 }
 
 .tooltip-date {
-  color: #e5e7eb;
+  color: #e8f0f0;
   font-weight: bold;
   font-size: 13px;
   margin-bottom: 8px;
@@ -665,13 +665,13 @@ canvas {
 }
 
 .ohlc-row .label {
-  color: #9ca3af;
+  color: #7a9393;
   font-weight: 600;
   width: 20px;
 }
 
 .ohlc-row .value {
-  color: #e5e7eb;
+  color: #e8f0f0;
   font-weight: 500;
 }
 
@@ -687,7 +687,7 @@ canvas {
   text-align: center;
   font-weight: 600;
   padding-top: 4px;
-  border-top: 1px solid #374151;
+  border-top: 1px solid #2d3e3e;
 }
 
 .tooltip-change .positive {

@@ -160,9 +160,9 @@ const rsiHoverOverlay = {
 
     // Neutral colors (adjust later if needed)
     const guideColor = "rgba(220, 220, 220, 0.50)"; // soft gray
-    const dotColor = "#d1d5db"; // light gray
-    const bubbleBg = "#111827"; // dark slate
-    const bubbleText = "#e5e7eb"; // near-white
+    const dotColor = "#e8f0f0"; // light text color from new palette
+    const bubbleBg = "#070e10"; // dark background from new palette
+    const bubbleText = "#e8f0f0"; // near-white from new palette
     const bubbleBorder = "#94a3b8"; // muted border
 
     // Vertical guide (thin line + soft column)
@@ -248,31 +248,30 @@ watch(
 </template>
 
 <style scoped>
-.panel {
-  background: #0b0e11;
-  color: #e5e7eb;
+.rsi-panel {
+  background: #070e10;
+  color: #e8f0f0;
+  border: 1px solid #1d2626;
   border-radius: 10px;
-  border: 1px solid #1a1f24;
-  padding: 12px;
-  margin-top: 12px;
+  overflow: hidden;
 }
-.toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: #9ca3af;
+
+.rsi-header {
+  padding: 8px 12px;
+  background: rgba(107, 147, 147, 0.08);
+  border-bottom: 1px solid rgba(107, 147, 147, 0.1);
+}
+
+.rsi-title {
+  color: #7a9393;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.rsi-current {
+  color: #e8f0f0;
   font-size: 14px;
-}
-.left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.title {
   font-weight: 700;
-  color: #e5e7eb;
 }
-.chart-wrap {
-  height: 220px;
-} /* typical RSI panel height */
 </style>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { Star, TrendingUp, TrendingDown } from "lucide-vue-next";
+import { TrendingUp, TrendingDown } from "lucide-vue-next";
 import { CryptoService, type CryptoData } from "@/services/crypto.api";
 
 const router = useRouter();
@@ -40,10 +40,6 @@ const getChangeIcon = (change: number) => {
 };
 
 // Actions
-const toggleFavorite = (crypto: CryptoData) => {
-  crypto.isFavorite = !crypto.isFavorite;
-};
-
 const navigateToChart = (crypto: CryptoData) => {
   router.push(`/dashboard/${crypto.symbol.toLowerCase()}`);
 };
@@ -73,11 +69,26 @@ onMounted(() => {
 <template>
   <div class="home-page">
     <div class="page-header">
-      <h1 class="page-title">Cryptomonnaies</h1>
-      <p class="page-subtitle">
-        Suivez les prix et performances des principales cryptomonnaies en temps
-        réel
-      </p>
+      <div class="header-content">
+        <div class="header-left">
+          <h1 class="page-title">Market Overview</h1>
+          <p class="page-subtitle">
+            Real-time cryptocurrency prices and market data
+          </p>
+        </div>
+        <div class="header-right">
+          <div class="market-stats">
+            <div class="stat-item">
+              <span class="stat-label">24h Volume</span>
+              <span class="stat-value">€2.1T</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Market Cap</span>
+              <span class="stat-value">€3.2T</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="crypto-table-container">
@@ -110,16 +121,9 @@ onMounted(() => {
             class="crypto-row"
             @click="navigateToChart(crypto)"
           >
-            <!-- Favoris + Rank -->
+            <!-- Rank -->
             <td class="col-rank">
               <div class="rank-cell">
-                <button
-                  class="favorite-btn"
-                  :class="{ active: crypto.isFavorite }"
-                  @click.stop="toggleFavorite(crypto)"
-                >
-                  <Star :class="{ filled: crypto.isFavorite }" />
-                </button>
                 <span class="rank">{{ crypto.rank }}</span>
               </div>
             </td>
@@ -255,289 +259,3 @@ onMounted(() => {
     </div>
   </div>
 </template>
-
-<style scoped>
-.home-page {
-  min-height: 100vh;
-  background: #0a0e13;
-  color: #e5e7eb;
-  padding: 20px;
-}
-
-.page-header {
-  margin-bottom: 30px;
-  text-align: center;
-}
-
-.page-title {
-  font-size: 32px;
-  font-weight: 700;
-  margin: 0 0 8px 0;
-  color: #ffffff;
-}
-
-.page-subtitle {
-  font-size: 16px;
-  color: #9ca3af;
-  margin: 0;
-}
-
-.crypto-table-container {
-  background: #0b0e11;
-  border-radius: 12px;
-  border: 1px solid #1a1f24;
-  overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-}
-
-/* États de chargement */
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  color: #9ca3af;
-}
-
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(79, 70, 229, 0.2);
-  border-top: 3px solid #4f46e5;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin-bottom: 16px;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.no-data {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  color: #9ca3af;
-  font-style: italic;
-}
-
-.crypto-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-
-.crypto-table thead {
-  background: #141a1f;
-  border-bottom: 1px solid #1a1f24;
-}
-
-.crypto-table th {
-  padding: 16px 12px;
-  text-align: left;
-  font-weight: 600;
-  color: #9ca3af;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.crypto-table tbody tr {
-  border-bottom: 1px solid #1a1f24;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.crypto-table tbody tr:hover {
-  background: #141a1f;
-}
-
-.crypto-table td {
-  padding: 16px 12px;
-  vertical-align: middle;
-}
-
-/* Colonnes spécifiques */
-.col-rank {
-  width: 80px;
-}
-
-.col-name {
-  width: 200px;
-}
-
-.col-price {
-  width: 120px;
-}
-
-.col-change {
-  width: 100px;
-}
-
-.col-market-cap {
-  width: 140px;
-}
-
-.col-volume {
-  width: 140px;
-}
-
-.col-supply {
-  width: 140px;
-}
-
-.col-chart {
-  width: 140px;
-}
-
-/* Styles des cellules */
-.rank-cell {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.favorite-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #6b7280;
-  transition: color 0.2s ease;
-  padding: 4px;
-}
-
-.favorite-btn:hover {
-  color: #fbbf24;
-}
-
-.favorite-btn.active {
-  color: #fbbf24;
-}
-
-.favorite-btn .filled {
-  fill: currentColor;
-}
-
-.rank {
-  font-weight: 600;
-  color: #9ca3af;
-}
-
-.name-cell {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.crypto-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  overflow: hidden;
-  background: #1a1f24;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.crypto-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.name-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.crypto-name {
-  font-weight: 600;
-  color: #e5e7eb;
-}
-
-.crypto-symbol {
-  font-size: 12px;
-  color: #9ca3af;
-  text-transform: uppercase;
-}
-
-.price {
-  font-weight: 600;
-  color: #e5e7eb;
-  font-size: 15px;
-}
-
-.change-cell {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-weight: 600;
-}
-
-.change-cell.positive {
-  color: #10b981;
-}
-
-.change-cell.negative {
-  color: #ef4444;
-}
-
-.change-icon {
-  width: 12px;
-  height: 12px;
-  stroke-width: 2;
-}
-
-.market-cap,
-.volume,
-.supply {
-  font-weight: 500;
-  color: #e5e7eb;
-}
-
-.mini-chart {
-  width: 120px;
-  height: 40px;
-}
-
-.mini-chart polyline.positive {
-  stroke: #10b981;
-}
-
-.mini-chart polyline.negative {
-  stroke: #ef4444;
-}
-
-/* Responsive */
-@media (max-width: 1200px) {
-  .col-supply,
-  .col-volume {
-    display: none;
-  }
-}
-
-@media (max-width: 900px) {
-  .col-market-cap,
-  .col-chart {
-    display: none;
-  }
-}
-
-@media (max-width: 600px) {
-  .col-change:nth-child(4),
-  .col-change:nth-child(6) {
-    display: none;
-  }
-
-  .crypto-table th,
-  .crypto-table td {
-    padding: 12px 8px;
-  }
-}
-</style>

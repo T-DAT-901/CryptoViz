@@ -34,77 +34,21 @@ function fmt(ts: number) {
 </script>
 
 <template>
-  <section class="panel">
-    <header class="head">
-      <Newspaper class="news-icon" />
+  <section class="news-feed-panel">
+    <header class="news-feed-header">
+      <Newspaper class="news-feed-icon" />
       News
     </header>
-    <ul class="list">
-      <li v-for="n in items" :key="n.id" class="item">
-        <div class="title">{{ n.title }}</div>
-        <div class="meta">
-          <span class="src">{{ n.source || "source" }}</span>
-          <span class="dot">•</span>
-          <Clock class="time-icon" />
-          <span class="t">{{ fmt(n.time) }}</span>
+    <ul class="news-feed-list">
+      <li v-for="n in items" :key="n.id" class="news-feed-item">
+        <div class="news-feed-title">{{ n.title }}</div>
+        <div class="news-feed-meta">
+          <span class="news-feed-source">{{ n.source || "source" }}</span>
+          <span class="news-feed-dot">•</span>
+          <Clock class="news-feed-time-icon" />
+          <span class="news-feed-time">{{ fmt(n.time) }}</span>
         </div>
       </li>
     </ul>
   </section>
 </template>
-
-<style scoped>
-.panel {
-  background: #0b0e11;
-  border: 1px solid #1a1f24;
-  border-radius: 10px;
-  padding: 12px;
-}
-.head {
-  font-weight: 700;
-  color: #e5e7eb;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.news-icon {
-  width: 16px;
-  height: 16px;
-  color: #9ca3af;
-  stroke-width: 2;
-}
-.list {
-  display: grid;
-  gap: 10px;
-}
-.item {
-  padding: 10px;
-  border: 1px solid #141a1f;
-  border-radius: 8px;
-  background: #0c1116;
-}
-.title {
-  color: #e5e7eb;
-  line-height: 1.3;
-}
-.meta {
-  color: #9ca3af;
-  font-size: 12px;
-  margin-top: 6px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.time-icon {
-  width: 12px;
-  height: 12px;
-  stroke-width: 2;
-  color: #6b7280;
-}
-.dot {
-  opacity: 0.5;
-}
-</style>

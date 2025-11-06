@@ -361,7 +361,7 @@ defineExpose({
 .line-chart {
   width: 100%;
   height: 100%;
-  background: #040d12;
+  background: #070e10;
   border-radius: 12px;
   overflow: hidden;
   position: relative;
@@ -377,11 +377,11 @@ canvas {
 /* Tooltip personnalisé */
 .custom-tooltip {
   position: fixed;
-  background: rgba(4, 13, 18, 0.95);
+  background: rgba(7, 14, 16, 0.95);
   border: 1px solid #10b981;
   border-radius: 8px;
   padding: 12px;
-  color: #e5e7eb;
+  color: #e8f0f0;
   font-size: 12px;
   z-index: 1000;
   pointer-events: none;
@@ -390,14 +390,14 @@ canvas {
 }
 
 .tooltip-date {
-  color: #e5e7eb;
+  color: #e8f0f0;
   font-weight: bold;
   font-size: 13px;
   margin-bottom: 4px;
 }
 
 .tooltip-price {
-  color: #9ca3af;
+  color: #7a9393;
   margin-bottom: 2px;
 }
 

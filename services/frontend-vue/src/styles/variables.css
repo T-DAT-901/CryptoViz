@@ -1,0 +1,87 @@
+/* Design System - Palette de couleurs unifiée */
+:root {
+  /* Couleurs principales */
+  --bg-primary: #070e10; /* Fond principal gris-vert très sombre */
+  --bg-secondary: #1d2626; /* Bordures et séparateurs gris-vert moyen */
+  --bg-interactive: #2d3e3e; /* États hover/focus gris-vert clair */
+  --bg-card: #070e10; /* Fond des cartes */
+
+  /* Textes */
+  --text-primary: #e8f0f0; /* Texte principal blanc cassé */
+  --text-secondary: #7a9393; /* Texte secondaire gris-vert métallique */
+  --text-muted: #7a9393; /* Texte en sourdine */
+
+  /* Couleurs d'accent */
+  --accent-green: #10b981; /* Vert pour gains/positif */
+  --accent-red: #ef4444; /* Rouge pour pertes/négatif */
+  --accent-blue: #4f46e5; /* Bleu pour actions/liens */
+  --accent-orange: #f7931a; /* Orange Bitcoin */
+
+  /* Bordures */
+  --border-primary: #1d2626; /* Bordure principale */
+  --border-secondary: #2d3e3e; /* Bordure interactive */
+
+  /* Ombres */
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.3);
+  --shadow-subtle: 0 2px 8px rgba(0, 0, 0, 0.2);
+
+  /* Transitions */
+  --transition-base: all 0.2s ease;
+  --transition-slow: all 0.3s ease;
+
+  /* Border radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-2xl: 24px;
+}
+
+/* Classes utilitaires communes */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.btn {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-secondary);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.btn:hover {
+  background: var(--bg-interactive);
+  color: var(--text-primary);
+}
+
+.btn--primary {
+  background: var(--accent-blue);
+  border-color: var(--accent-blue);
+  color: white;
+}
+
+.text-primary {
+  color: var(--text-primary);
+}
+.text-secondary {
+  color: var(--text-secondary);
+}
+.text-success {
+  color: var(--accent-green);
+}
+.text-danger {
+  color: var(--accent-red);
+}
