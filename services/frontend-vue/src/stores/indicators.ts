@@ -3,7 +3,7 @@ import { defineStore } from "pinia";
 export const useIndicatorsStore = defineStore("indicators", {
   state: () => ({
     // Layout mode: 'compact' (unified chart) or 'detailed' (separate charts)
-    layoutMode: "compact" as "compact" | "detailed",
+    layoutMode: "detailed" as "compact" | "detailed",
 
     // Timeframe synchronization
     selectedTimeframe: "1h" as "1h" | "1d" | "7d" | "1M" | "1y" | "all",
