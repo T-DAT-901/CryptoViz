@@ -433,7 +433,7 @@ defineExpose({
   <div class="candle-chart">
     <!-- Bouton de reset du zoom -->
     <button
-      class="reset-zoom-btn"
+      class="candle-chart-reset-btn"
       @click="resetZoom"
       title="Réinitialiser le zoom (Ctrl+scroll pour zoomer)"
     >
@@ -443,25 +443,25 @@ defineExpose({
     <canvas ref="canvasEl"></canvas>
 
     <!-- Lignes de repère (crosshair) -->
-    <div v-if="crosshairVisible" class="crosshair-container">
+    <div v-if="crosshairVisible" class="candle-chart-crosshair-container">
       <!-- Ligne verticale (fixée sur la mèche de la bougie) -->
       <div
-        class="crosshair-line vertical"
+        class="candle-chart-crosshair-line candle-chart-crosshair-line--vertical"
         :style="{ left: crosshairPosition.x + 'px' }"
       >
         <!-- Label de date en bas -->
-        <div class="crosshair-label date-label">
+        <div class="candle-chart-crosshair-label candle-chart-date-label">
           {{ crosshairLabels.date }}
         </div>
       </div>
 
       <!-- Ligne horizontale -->
       <div
-        class="crosshair-line horizontal"
+        class="candle-chart-crosshair-line candle-chart-crosshair-line--horizontal"
         :style="{ top: crosshairPosition.y + 'px' }"
       >
         <!-- Label de prix à droite -->
-        <div class="crosshair-label price-label">
+        <div class="candle-chart-crosshair-label candle-chart-price-label">
           {{ crosshairLabels.price }}
         </div>
       </div>
@@ -470,36 +470,40 @@ defineExpose({
     <!-- Tooltip personnalisé -->
     <div
       v-if="tooltipVisible"
-      class="custom-tooltip"
+      class="candle-chart-tooltip"
       :style="{
         left: tooltipData.x + 'px',
         top: tooltipData.y + 'px',
       }"
     >
-      <div class="tooltip-date">{{ tooltipData.date }}</div>
-      <div class="tooltip-ohlc">
-        <div class="ohlc-row">
-          <span class="label">O:</span>
-          <span class="value">{{ tooltipData.open }}</span>
+      <div class="candle-chart-tooltip-date">{{ tooltipData.date }}</div>
+      <div class="candle-chart-tooltip-ohlc">
+        <div class="candle-chart-ohlc-row">
+          <span class="candle-chart-ohlc-label">O:</span>
+          <span class="candle-chart-ohlc-value">{{ tooltipData.open }}</span>
         </div>
-        <div class="ohlc-row">
-          <span class="label">H:</span>
-          <span class="value high">{{ tooltipData.high }}</span>
+        <div class="candle-chart-ohlc-row">
+          <span class="candle-chart-ohlc-label">H:</span>
+          <span class="candle-chart-ohlc-value candle-chart-ohlc-value--high">{{
+            tooltipData.high
+          }}</span>
         </div>
-        <div class="ohlc-row">
-          <span class="label">L:</span>
-          <span class="value low">{{ tooltipData.low }}</span>
+        <div class="candle-chart-ohlc-row">
+          <span class="candle-chart-ohlc-label">L:</span>
+          <span class="candle-chart-ohlc-value candle-chart-ohlc-value--low">{{
+            tooltipData.low
+          }}</span>
         </div>
-        <div class="ohlc-row">
-          <span class="label">C:</span>
-          <span class="value">{{ tooltipData.close }}</span>
+        <div class="candle-chart-ohlc-row">
+          <span class="candle-chart-ohlc-label">C:</span>
+          <span class="candle-chart-ohlc-value">{{ tooltipData.close }}</span>
         </div>
       </div>
-      <div class="tooltip-change">
+      <div class="candle-chart-tooltip-change">
         <span
           :class="{
-            positive: tooltipData.isPositive,
-            negative: !tooltipData.isPositive,
+            'candle-chart-change--positive': tooltipData.isPositive,
+            'candle-chart-change--negative': !tooltipData.isPositive,
           }"
         >
           {{ tooltipData.change }} ({{ tooltipData.changePercent }})
@@ -508,211 +512,3 @@ defineExpose({
     </div>
   </div>
 </template>
-
-<style scoped>
-.candle-chart {
-  width: 100%;
-  height: 100%;
-  background: #070e10;
-  border-radius: 12px;
-  overflow: hidden;
-  position: relative;
-}
-
-canvas {
-  display: block;
-  width: 100% !important;
-  height: 100% !important;
-  background: transparent;
-}
-
-/* Bouton de reset du zoom */
-.reset-zoom-btn {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 10;
-  background: rgba(7, 14, 16, 0.9);
-  border: 1px solid #2d3e3e;
-  border-radius: 6px;
-  color: #7a9393;
-  padding: 6px 10px;
-  font-size: 11px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(8px);
-}
-
-.reset-zoom-btn:hover {
-  background: #2d3e3e;
-  color: #e8f0f0;
-}
-
-/* Lignes de repère (crosshair) */
-.crosshair-container {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-  z-index: 5;
-}
-
-.crosshair-line {
-  position: absolute;
-  pointer-events: none;
-  /* opacity: 0.7; */
-  transition: opacity 0.15s ease;
-}
-
-.crosshair-line.vertical {
-  width: 0;
-  height: 100%;
-  border-left: 1px dashed rgba(232, 240, 240, 0.4);
-  filter: drop-shadow(0 0 1px rgba(232, 240, 240, 0.2));
-}
-
-.crosshair-line.horizontal {
-  width: 100%;
-  height: 0;
-  border-top: 1px dashed rgba(232, 240, 240, 0.4);
-  filter: drop-shadow(0 0 1px rgba(232, 240, 240, 0.2));
-}
-
-/* Animation douce à l'apparition */
-.crosshair-container {
-  animation: fadeIn 0.2s ease-in-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-/* Labels des lignes de repère */
-.crosshair-label {
-  position: absolute;
-  background: rgba(7, 14, 16, 0.95);
-  border: 1px solid #2d3e3e;
-  border-radius: 4px;
-  padding: 4px 8px;
-  color: #e8f0f0;
-  font-size: 11px;
-  font-weight: 500;
-  white-space: nowrap;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-.date-label {
-  bottom: 0px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgb(16, 185, 129);
-  border-color: #10b981;
-  color: #070e10;
-}
-
-.price-label {
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: rgb(232, 240, 240) !important;
-  border-color: #7a9393;
-  color: #070e10;
-}
-
-/* Tooltip personnalisé */
-.custom-tooltip {
-  position: fixed;
-  background: rgba(7, 14, 16, 0.95);
-  border: 1px solid #2d3e3e;
-  border-radius: 8px;
-  padding: 12px;
-  color: #e8f0f0;
-  font-size: 12px;
-  z-index: 1000;
-  pointer-events: none;
-  /* backdrop-filter: blur(8px); */
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  min-width: 180px;
-}
-
-.tooltip-date {
-  color: #e8f0f0;
-  font-weight: bold;
-  font-size: 13px;
-  margin-bottom: 8px;
-  text-align: center;
-}
-
-.tooltip-ohlc {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  margin-bottom: 8px;
-}
-
-.ohlc-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.ohlc-row .label {
-  color: #7a9393;
-  font-weight: 600;
-  width: 20px;
-}
-
-.ohlc-row .value {
-  color: #e8f0f0;
-  font-weight: 500;
-}
-
-.ohlc-row .value.high {
-  color: #10b981;
-}
-
-.ohlc-row .value.low {
-  color: #ef4444;
-}
-
-.tooltip-change {
-  text-align: center;
-  font-weight: 600;
-  padding-top: 4px;
-  border-top: 1px solid #2d3e3e;
-}
-
-.tooltip-change .positive {
-  color: #10b981;
-}
-
-.tooltip-change .negative {
-  color: #ef4444;
-}
-
-@media (max-width: 768px) {
-  .candle-chart {
-    border-radius: 8px;
-  }
-
-  .reset-zoom-btn {
-    top: 8px;
-    right: 8px;
-    padding: 4px 8px;
-    font-size: 10px;
-  }
-
-  .custom-tooltip {
-    min-width: 160px;
-    font-size: 11px;
-  }
-}
-</style>

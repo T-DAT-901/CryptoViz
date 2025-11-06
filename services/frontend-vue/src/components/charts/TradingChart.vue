@@ -219,97 +219,107 @@ onUnmounted(() => {
 <template>
   <div class="trading-chart">
     <!-- Header avec boutons Line/Candle et timeframes -->
-    <div class="chart-header">
-      <div class="chart-controls-left">
+    <div class="trading-chart-header">
+      <div class="trading-chart-controls-left">
         <button
-          :class="['control-btn', { active: chartMode === 'line' }]"
+          :class="[
+            'trading-chart-control-btn',
+            { 'trading-chart-control-btn--active': chartMode === 'line' },
+          ]"
           @click="chartMode = 'line'"
         >
           Line
         </button>
         <button
           :class="[
-            'control-btn',
-            'secondary',
-            { active: chartMode === 'candle' },
+            'trading-chart-control-btn',
+            'trading-chart-control-btn--secondary',
+            { 'trading-chart-control-btn--active': chartMode === 'candle' },
           ]"
           @click="chartMode = 'candle'"
         >
           Candle
         </button>
-        <button class="control-btn icon-btn">
-          <TrendingUp />
+        <button
+          class="trading-chart-control-btn trading-chart-control-btn--icon"
+        >
+          <TrendingUp class="trading-chart-btn-icon" />
         </button>
-        <button class="control-btn icon-btn">
-          <Settings />
+        <button
+          class="trading-chart-control-btn trading-chart-control-btn--icon"
+        >
+          <Settings class="trading-chart-btn-icon" />
         </button>
       </div>
 
-      <div class="chart-controls-center">
-        <button class="trading-view-btn">
-          <ExternalLink class="btn-icon" />
+      <div class="trading-chart-controls-center">
+        <button class="trading-chart-trading-view-btn">
+          <ExternalLink class="trading-chart-btn-icon" />
           TradingView
         </button>
-        <button class="compare-btn">
+        <button class="trading-chart-compare-btn">
           Comparer avec
-          <ChevronDown class="btn-icon" />
+          <ChevronDown class="trading-chart-btn-icon" />
         </button>
       </div>
 
-      <div class="timeframes">
+      <div class="trading-chart-timeframes">
         <button
           v-for="tf in timeframes"
           :key="tf.value"
-          :class="['tf-btn', { active: selectedTimeframe === tf.value }]"
+          :class="[
+            'trading-chart-tf-btn',
+            { 'trading-chart-tf-btn--active': selectedTimeframe === tf.value },
+          ]"
           @click="changeTimeframe(tf.value)"
           :disabled="loading"
         >
           {{ tf.label }}
         </button>
-        <button class="tf-btn">LOG</button>
-        <button class="tf-btn">⋯</button>
+        <button class="trading-chart-tf-btn">LOG</button>
+        <button class="trading-chart-tf-btn">⋯</button>
       </div>
     </div>
 
     <!-- Chart container -->
-    <div class="chart-container">
-      <div v-if="loading" class="loading">
-        <div class="loading-spinner"></div>
+    <div class="trading-chart-container">
+      <div v-if="loading" class="trading-chart-loading">
+        <div class="trading-chart-loading-spinner"></div>
         <span>Chargement des données...</span>
       </div>
       <template v-else>
         <!-- Navigation controls -->
-        <div class="chart-nav-controls">
+        <div class="trading-chart-nav-controls">
           <button
-            class="nav-btn"
+            class="trading-chart-nav-btn"
             @click="navigateTime('prev')"
             title="Période précédente"
           >
             ◀
           </button>
           <button
-            class="nav-btn zoom-out"
+            class="trading-chart-nav-btn trading-chart-nav-btn--zoom-out"
             @click="adjustZoom('out')"
             title="Dézoomer"
           >
             −
           </button>
           <button
-            class="nav-btn zoom-in"
+            class="trading-chart-nav-btn trading-chart-nav-btn--zoom-in"
             @click="adjustZoom('in')"
             title="Zoomer"
           >
             +
           </button>
           <button
-            class="nav-btn"
+            class="trading-chart-nav-btn"
             @click="navigateTime('next')"
             title="Période suivante"
           >
             ▶
           </button>
           <button
-            class="nav-btn reset"
+            class="trading-chart-nav-btn trading-chart-nav-btn--reset"
             @click="resetChartView"
             title="Réinitialiser la vue"
           >
@@ -318,7 +328,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Charts -->
-        <div class="chart-wrapper">
+        <div class="trading-chart-wrapper">
           <LineChart
             v-if="chartMode === 'line'"
             :points="linePoints"
@@ -336,325 +346,6 @@ onUnmounted(() => {
     </div>
 
     <!-- Footer avec date/time comme CoinMarketCap -->
-    <div class="chart-footer"></div>
+    <div class="trading-chart-footer"></div>
   </div>
 </template>
-
-<style scoped>
-.trading-chart {
-  background: #070e10;
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  border: 1px solid #1d2626;
-}
-
-.chart-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px 8px;
-  background: #070e10;
-  border-bottom: 1px solid #1d2626;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.chart-controls-left {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.chart-controls-center {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.control-btn {
-  padding: 6px 12px;
-  border-radius: 6px;
-  background: #1d2626;
-  border: 1px solid #2d3e3e;
-  color: #7a9393;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 13px;
-}
-
-.control-btn:hover {
-  background: #2d3e3e;
-  color: #e8f0f0;
-}
-
-.control-btn.active {
-  background: #4f46e5;
-  color: white;
-  border-color: #4f46e5;
-}
-
-.control-btn.secondary {
-  background: transparent;
-  border-color: #2d3e3e;
-}
-
-.control-btn.icon-btn {
-  padding: 6px 8px;
-  min-width: 32px;
-}
-
-.btn-icon {
-  width: 16px;
-  height: 16px;
-  stroke-width: 2;
-}
-
-.control-btn .btn-icon {
-  margin-right: 4px;
-}
-
-.control-btn.icon-btn .btn-icon {
-  margin-right: 0;
-}
-
-.trading-view-btn,
-.compare-btn {
-  padding: 6px 12px;
-  border-radius: 6px;
-  background: #1d2626;
-  border: 1px solid #2d3e3e;
-  color: #7a9393;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.timeframes {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.tf-btn {
-  padding: 4px 8px;
-  border-radius: 4px;
-  background: transparent;
-  border: 1px solid transparent;
-  color: #7a9393;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 12px;
-  min-width: 28px;
-  position: relative;
-}
-
-.tf-btn:hover:not(:disabled) {
-  background: #1d2626;
-  color: #7a9393;
-}
-
-.tf-btn.active {
-  background: #4f46e5;
-  color: white;
-  border-color: #4f46e5;
-  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
-}
-
-.tf-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.tf-btn:disabled.active::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 12px;
-  height: 12px;
-  border: 2px solid transparent;
-  border-top-color: white;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: translate(-50%, -50%) rotate(360deg);
-  }
-}
-
-.chart-container {
-  position: relative;
-  height: 400px;
-  background: #070e10;
-}
-
-.loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: #7a9393;
-  font-size: 14px;
-  gap: 12px;
-}
-
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(79, 70, 229, 0.2);
-  border-top: 3px solid #4f46e5;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-/* Contrôles de navigation du chart */
-.chart-nav-controls {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  z-index: 10;
-  display: flex;
-  gap: 4px;
-  background: rgba(7, 14, 16, 0.9);
-  border-radius: 8px;
-  padding: 4px;
-  backdrop-filter: blur(8px);
-  border: 1px solid #1d2626;
-}
-
-.nav-btn {
-  background: #1d2626;
-  border: 1px solid #2d3e3e;
-  border-radius: 4px;
-  color: #7a9393;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.nav-btn:hover {
-  background: #2d3e3e;
-  color: #e8f0f0;
-  transform: translateY(-1px);
-}
-
-.nav-btn:active {
-  transform: translateY(0);
-}
-
-.nav-btn.zoom-in,
-.nav-btn.zoom-out {
-  font-size: 14px;
-  font-weight: bold;
-}
-
-.nav-btn.reset {
-  background: rgba(79, 70, 229, 0.2);
-  border-color: #4f46e5;
-  color: #4f46e5;
-}
-
-.nav-btn.reset:hover {
-  background: #4f46e5;
-  color: white;
-}
-
-.chart-wrapper {
-  height: 100%;
-  width: 100%;
-}
-
-.chart-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 16px;
-  background: #070e10;
-  border-top: 1px solid #1d2626;
-}
-
-.time-indicator {
-  color: #7a9393;
-  font-size: 11px;
-  background: #1d2626;
-  padding: 4px 8px;
-  border-radius: 4px;
-}
-
-.coinmarketcap-logo {
-  color: #7a9393;
-  font-size: 11px;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .chart-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-  }
-
-  .chart-controls-left,
-  .chart-controls-center {
-    order: 2;
-  }
-
-  .timeframes {
-    order: 1;
-    justify-content: center;
-  }
-
-  .control-btn.secondary,
-  .trading-view-btn,
-  .compare-btn {
-    display: none; /* Masquer sur mobile */
-  }
-
-  .chart-container {
-    height: 300px;
-  }
-}
-
-@media (max-width: 480px) {
-  .timeframes {
-    gap: 2px;
-  }
-
-  .tf-btn {
-    padding: 3px 6px;
-    font-size: 11px;
-    min-width: 24px;
-  }
-
-  .chart-container {
-    height: 250px;
-  }
-
-  .price-details {
-    flex-direction: column;
-  }
-
-  .chart-nav-controls {
-    top: 8px;
-    left: 8px;
-    padding: 2px;
-  }
-
-  .nav-btn {
-    width: 24px;
-    height: 24px;
-    font-size: 10px;
-  }
-}
-</style>

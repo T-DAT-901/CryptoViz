@@ -235,43 +235,14 @@ watch(
 </script>
 
 <template>
-  <section class="panel">
-    <div class="toolbar">
-      <div class="left">
-        <span class="title">RSI (14)</span>
+  <section class="rsi-chart-panel">
+    <div class="rsi-chart-toolbar">
+      <div class="rsi-chart-toolbar-left">
+        <span class="rsi-chart-title">RSI (14)</span>
       </div>
     </div>
-    <div class="chart-wrap">
+    <div class="rsi-chart-wrap">
       <canvas ref="canvasEl"></canvas>
     </div>
   </section>
 </template>
-
-<style scoped>
-.rsi-panel {
-  background: #070e10;
-  color: #e8f0f0;
-  border: 1px solid #1d2626;
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.rsi-header {
-  padding: 8px 12px;
-  background: rgba(107, 147, 147, 0.08);
-  border-bottom: 1px solid rgba(107, 147, 147, 0.1);
-}
-
-.rsi-title {
-  color: #7a9393;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-}
-
-.rsi-current {
-  color: #e8f0f0;
-  font-size: 14px;
-  font-weight: 700;
-}
-</style>

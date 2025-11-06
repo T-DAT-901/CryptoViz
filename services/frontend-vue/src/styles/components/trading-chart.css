@@ -39,7 +39,10 @@
   color: var(--text-secondary);
   cursor: pointer;
   transition: var(--transition-base);
-  font-size: 13px;
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--letter-spacing-wide);
 }
 
 .trading-chart-control-btn:hover {
@@ -84,7 +87,10 @@
   color: var(--text-secondary);
   cursor: pointer;
   transition: var(--transition-base);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--letter-spacing-wide);
   min-width: 28px;
   position: relative;
 }
@@ -138,8 +144,10 @@
   justify-content: center;
   cursor: pointer;
   transition: var(--transition-base);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-tight);
 }
 
 .trading-chart-nav-btn:hover:not(:disabled) {

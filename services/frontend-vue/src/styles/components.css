@@ -7,6 +7,10 @@
 @import "./components/crypto-price-panel.css";
 @import "./components/news-feed.css";
 @import "./components/community-sentiment.css";
+@import "./components/candle-chart.css";
+@import "./components/line-chart.css";
+@import "./components/rsi-chart.css";
+@import "./components/indicators-panel.css";
 
 /* Layout imports */
 @import "./layouts/dashboard.css";

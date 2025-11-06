@@ -1,0 +1,88 @@
+/* RSIChart Component - RSI indicator chart with custom overlay */
+.rsi-panel {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.rsi-header {
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(122, 147, 147, 0.08);
+  border-bottom: 1px solid rgba(122, 147, 147, 0.1);
+}
+
+.rsi-title {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.rsi-current {
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  font-family: var(--font-family);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+/* Panel générique pour les charts */
+.rsi-chart-panel {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.rsi-chart-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(122, 147, 147, 0.05);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.rsi-chart-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.rsi-chart-title {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-wide);
+  margin: 0;
+}
+
+.rsi-chart-wrap {
+  position: relative;
+  height: 200px; /* Hauteur par défaut pour les indicateurs */
+  padding: var(--space-sm);
+}
+
+.rsi-chart-wrap canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  background: transparent;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .rsi-panel,
+  .rsi-chart-panel {
+    border-radius: var(--radius-md);
+  }
+
+  .rsi-chart-wrap {
+    height: 160px;
+  }
+}

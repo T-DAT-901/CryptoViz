@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-vue-next";
 import TradingChart from "@/components/charts/TradingChart.vue";
 import CryptoPricePanel from "@/components/CryptoPricePanel.vue";
 import CommunitySentiment from "@/components/CommunitySentiment.vue";
+import IndicatorsPanel from "@/components/IndicatorsPanel.vue";
 // import RSIChart from "@/components/charts/RSIChart.vue"; // Temporairement désactivé pour tester
 import NewsFeed from "@/components/NewsFeed.vue";
 
@@ -59,6 +60,7 @@ const goBack = () => {
       <section class="dashboard-column dashboard-column--center">
         <div class="dashboard-stack">
           <TradingChart />
+          <IndicatorsPanel />
           <!-- <RSIChart /> Temporairement désactivé pour tester -->
         </div>
       </section>

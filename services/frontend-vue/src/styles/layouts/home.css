@@ -1,24 +1,17 @@
 /* Home Layout - Unified with Dashboard style */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
-
 .home-page {
   min-height: 100vh;
-  background: #070e10;
-  color: #e8f0f0;
-  font-family:
-    "Inter",
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-  font-weight: 400;
-  letter-spacing: -0.025em;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-weight: var(--font-weight-normal);
+  letter-spacing: var(--letter-spacing-tight);
 }
 
 .page-header {
-  background: #070e10;
-  border-bottom: 1px solid #1d2626;
-  padding: 24px 20px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-primary);
+  padding: var(--space-2xl) var(--space-xl);
 }
 
 .header-content {
@@ -34,18 +27,18 @@
 }
 
 .page-title {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
   margin: 0 0 6px 0;
-  color: #e8f0f0;
-  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  letter-spacing: var(--letter-spacing-normal);
 }
 
 .page-subtitle {
-  font-size: 14px;
-  color: #7a9393;
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
   margin: 0;
-  font-weight: 400;
+  font-weight: var(--font-weight-normal);
 }
 
 .header-right {

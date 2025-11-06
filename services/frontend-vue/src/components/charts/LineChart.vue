@@ -336,19 +336,19 @@ defineExpose({
     <div
       v-if="tooltipVisible"
       ref="tooltipEl"
-      class="custom-tooltip"
+      class="line-chart-tooltip"
       :style="{
         left: tooltipData.x + 'px',
         top: tooltipData.y + 'px',
       }"
     >
-      <div class="tooltip-date">{{ tooltipData.date }}</div>
-      <div class="tooltip-price">Prix: {{ tooltipData.price }}</div>
+      <div class="line-chart-tooltip-date">{{ tooltipData.date }}</div>
+      <div class="line-chart-tooltip-price">Prix: {{ tooltipData.price }}</div>
       <div
-        class="tooltip-change"
+        class="line-chart-tooltip-change"
         :class="{
-          positive: tooltipData.isPositive,
-          negative: !tooltipData.isPositive,
+          'line-chart-tooltip-change--positive': tooltipData.isPositive,
+          'line-chart-tooltip-change--negative': !tooltipData.isPositive,
         }"
       >
         {{ tooltipData.change }}
@@ -356,66 +356,3 @@ defineExpose({
     </div>
   </div>
 </template>
-
-<style scoped>
-.line-chart {
-  width: 100%;
-  height: 100%;
-  background: #070e10;
-  border-radius: 12px;
-  overflow: hidden;
-  position: relative;
-}
-
-canvas {
-  display: block;
-  width: 100% !important;
-  height: 100% !important;
-  background: transparent;
-}
-
-/* Tooltip personnalisé */
-.custom-tooltip {
-  position: fixed;
-  background: rgba(7, 14, 16, 0.95);
-  border: 1px solid #10b981;
-  border-radius: 8px;
-  padding: 12px;
-  color: #e8f0f0;
-  font-size: 12px;
-  z-index: 1000;
-  pointer-events: none;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.tooltip-date {
-  color: #e8f0f0;
-  font-weight: bold;
-  font-size: 13px;
-  margin-bottom: 4px;
-}
-
-.tooltip-price {
-  color: #7a9393;
-  margin-bottom: 2px;
-}
-
-.tooltip-change {
-  font-weight: 500;
-}
-
-.tooltip-change.positive {
-  color: #10b981;
-}
-
-.tooltip-change.negative {
-  color: #ef4444;
-}
-
-@media (max-width: 768px) {
-  .line-chart {
-    border-radius: 8px;
-  }
-}
-</style>

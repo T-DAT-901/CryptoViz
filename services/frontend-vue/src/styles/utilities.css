@@ -1,5 +1,67 @@
 /* Utilitaires et classes helper */
 
+/* Reset et typographie globale - Force l'utilisation d'Inter partout */
+* {
+  font-family: var(--font-family) !important;
+}
+
+/* Application automatique de la typographie Inter sur tous les éléments de l'app */
+#app {
+  font-family: var(--font-family);
+  font-weight: var(--font-weight-normal);
+  letter-spacing: var(--letter-spacing-tight);
+  line-height: var(--line-height-normal);
+  color: var(--text-primary);
+}
+
+/* Styles par défaut pour les titres */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-family) !important;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-normal);
+  line-height: var(--line-height-tight);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+h1 {
+  font-size: var(--font-size-2xl);
+}
+h2 {
+  font-size: var(--font-size-xl);
+}
+h3 {
+  font-size: var(--font-size-md);
+}
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-base);
+}
+
+/* Styles par défaut pour les paragraphes et textes */
+p,
+span,
+div,
+label {
+  font-family: var(--font-family) !important;
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+/* Styles par défaut pour les boutons et inputs */
+button,
+input,
+select,
+textarea {
+  font-family: var(--font-family) !important;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
 /* Flexbox utilities */
 .flex {
   display: flex;
@@ -91,38 +153,38 @@
 
 /* Text utilities */
 .text-xs {
-  font-size: 10px;
+  font-size: var(--font-size-xs);
 }
 .text-sm {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 .text-base {
-  font-size: 14px;
+  font-size: var(--font-size-base);
+}
+.text-md {
+  font-size: var(--font-size-md);
 }
 .text-lg {
-  font-size: 16px;
+  font-size: var(--font-size-lg);
 }
 .text-xl {
-  font-size: 18px;
+  font-size: var(--font-size-xl);
 }
 .text-2xl {
-  font-size: 24px;
-}
-.text-3xl {
-  font-size: 28px;
+  font-size: var(--font-size-2xl);
 }
 
 .font-normal {
-  font-weight: 400;
+  font-weight: var(--font-weight-normal);
 }
 .font-medium {
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 .font-semibold {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 .font-bold {
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 .text-center {
