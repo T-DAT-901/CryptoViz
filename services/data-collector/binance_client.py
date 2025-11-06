@@ -51,10 +51,10 @@ class BinanceClient:
     async def get_all_symbols(self) -> List[str]:
         # Récup et filtre les symboles selon la config (quote currencies, volume min, max symbols)
         try:
-            logger.info("Chargement des marchés Binance...")
+            logger.info("Loading Binance markets...")
             await self.exchange.load_markets()
 
-            logger.info("Récupération des tickers pour filtrage par volume...")
+            logger.info("Fetching tickers for volume filtering...")
             tickers = await self.exchange.fetch_tickers()
 
             all_symbols = []
@@ -86,12 +86,8 @@ class BinanceClient:
                 filtered_symbols.append(symbol)
 
             # Logs informatifs
-            logger.info(f"Total marchés spot actifs: {len(all_symbols)}")
-            logger.info(f"Symboles après filtrage: {len(filtered_symbols)}")
-
-            logger.info("Répartition par devise de cotation:")
-            for quote, count in sorted(quote_stats.items(), key=lambda x: x[1], reverse=True)[:10]:
-                logger.info(f"   {quote}: {count} paires")
+            logger.info(f"Found {len(all_symbols)} active spot markets")
+            logger.info(f"After filtering: {len(filtered_symbols)} symbols")
 
             # Tri par volume décroissant
             if self.config.min_volume and tickers:
@@ -99,20 +95,20 @@ class BinanceClient:
                     key=lambda s: tickers.get(s, {}).get('quoteVolume', 0),
                     reverse=True
                 )
-                logger.info(f"Top 10 par volume: {filtered_symbols[:10]}")
+                logger.info(f"Top 10 by volume: {filtered_symbols[:10]}")
 
             # Limite au nombre max de symboles
             if self.config.max_symbols and len(filtered_symbols) > self.config.max_symbols:
                 filtered_symbols = filtered_symbols[:self.config.max_symbols]
-                logger.info(f"Limité à {self.config.max_symbols} symboles")
+                logger.info(f"✓ Limited to {self.config.max_symbols} symbols")
 
             return filtered_symbols
 
         except Exception as e:
-            logger.error(f"Erreur récupération symboles: {e}")
+            logger.error(f"Error fetching symbols: {e}")
             # Fallback si ça plante
             fallback = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'XRP/USDT']
-            logger.info(f"Utilisation fallback: {fallback}")
+            logger.warning(f"Using fallback symbols: {fallback}")
             return fallback
 
     async def close(self):
@@ -187,11 +183,11 @@ async def watch_trades(
         except Exception as e:
             error_count += 1
             if error_count <= 3:
-                logger.warning(f"[trades:{symbol}] Erreur {error_count}/{max_errors}: {e}")
+                logger.warning(f"[trades:{symbol}] Error {error_count}/{max_errors}: {e}")
 
             # Arrête après trop d'erreurs
             if error_count >= max_errors:
-                logger.error(f"[trades:{symbol}] Trop d'erreurs, arrêt du worker")
+                logger.error(f"❌ [trades:{symbol}] Too many errors, stopping worker")
                 break
 
             # Backoff exponentiel (2s, 4s, 8s, ... max 60s)
@@ -244,11 +240,11 @@ async def watch_ticker(
         except Exception as e:
             error_count += 1
             if error_count <= 3:
-                logger.warning(f"[ticker:{symbol}] Erreur {error_count}/{max_errors}: {e}")
+                logger.warning(f"[ticker:{symbol}] Error {error_count}/{max_errors}: {e}")
 
             # Arrête après trop d'erreurs
             if error_count >= max_errors:
-                logger.error(f"[ticker:{symbol}] Trop d'erreurs, arrêt du worker")
+                logger.error(f"❌ [ticker:{symbol}] Too many errors, stopping worker")
                 break
 
             # Backoff exponentiel

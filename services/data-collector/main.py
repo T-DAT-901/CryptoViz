@@ -48,10 +48,10 @@ async def run_backfill_if_needed(config, symbols):
     enable_backfill = os.getenv("ENABLE_BACKFILL", "false").lower() == "true"
 
     if not enable_backfill:
-        logger.info("⏭️  Backfill désactivé")
+        logger.info("Backfill disabled, skipping")
         return
 
-    logger.info("🔍 Vérif si backfill nécessaire...")
+    logger.info("Checking if backfill is needed...")
 
     lookback_days = int(os.getenv("BACKFILL_LOOKBACK_DAYS", "365"))
     backfill_timeframes_str = os.getenv("BACKFILL_TIMEFRAMES", "1m,5m,15m,1h,4h,1d")
@@ -63,7 +63,7 @@ async def run_backfill_if_needed(config, symbols):
         if tf and not tf.endswith('s'):
             backfill_timeframes.append(tf)
         elif tf and tf.endswith('s') and not tf.endswith('ms'):
-            logger.warning(f"⏭️  {tf} ignoré (REST API supporte pas les secondes)")
+            logger.warning(f"Ignoring timeframe '{tf}' (REST API does not support seconds)")
 
     collector = HistoricalCollector(config)
 
@@ -73,7 +73,7 @@ async def run_backfill_if_needed(config, symbols):
         # Check si déjà fait en lisant le fichier d'état
         state_file = Path(config.backfill_state_file)
         if state_file.exists():
-            logger.info("📝 Fichier d'état trouvé, check si complet...")
+            logger.info("State file found, checking completion...")
 
             with open(state_file, 'r') as f:
                 state = json.load(f)
@@ -93,28 +93,25 @@ async def run_backfill_if_needed(config, symbols):
                     break
 
             if all_complete:
-                logger.info("✅ Backfill déjà complet")
+                logger.info("Backfill already complete")
                 return
 
-        logger.info("🚀 Go backfill historique...")
-        logger.info(f"   Période: {lookback_days} jours")
-        logger.info(f"   Timeframes: {backfill_timeframes}")
-        logger.info(f"   Symboles: {len(symbols)}")
-        logger.info("⏳ Ça peut prendre plusieurs heures...")
+        logger.info(f"Starting historical backfill: {lookback_days} days, {len(symbols)} symbols, timeframes: {backfill_timeframes}")
+        logger.info("This may take several hours...")
 
         await collector.backfill_all(symbols, backfill_timeframes, lookback_days)
 
-        logger.info("✅ Backfill terminé")
+        logger.info("✓ Backfill completed successfully")
 
     except Exception as e:
-        logger.error(f"❌ Erreur backfill: {e}", exc_info=True)
-        logger.warning("⚠️  On passe au temps réel quand même")
+        logger.error(f"Backfill error: {e}", exc_info=True)
+        logger.warning("Continuing with realtime collection despite backfill error")
     finally:
         await collector.cleanup()
 
 
 async def run_realtime_collector(config, symbols, client):
-    logger.info("🔴 Go collecte temps réel...")
+    logger.info("Starting realtime collection...")
 
     producer = await create_kafka_producer(config)
     aggregator = OptimizedAggregator(producer, config) if config.enable_aggregation else None
@@ -137,14 +134,14 @@ async def run_realtime_collector(config, symbols, client):
                 watch_ticker(symbol, client, producer, config.topic_ticker, semaphore)
             ))
 
-    logger.info(f"✅ {len(tasks)} tâches démarrées pour {len(symbols)} symboles")
+    logger.info(f"✓ Started {len(tasks)} tasks for {len(symbols)} symbols")
 
     # Affiche des stats toutes les 5 min
     async def monitor():
         while True:
             await asyncio.sleep(300)
             if aggregator:
-                logger.info(f"📊 Stats: {aggregator.stats}, fenêtres actives: {len(aggregator.windows)}")
+                logger.info(f"Stats: {aggregator.stats}, active windows: {len(aggregator.windows)}")
 
     tasks.append(asyncio.create_task(monitor()))
 
@@ -152,7 +149,7 @@ async def run_realtime_collector(config, symbols, client):
     stop = asyncio.Event()
 
     def shutdown():
-        logger.info("🛑 Signal d'arrêt reçu...")
+        logger.info("Shutdown signal received, stopping...")
         stop.set()
 
     # Handlers pour Ctrl+C et docker stop
@@ -166,7 +163,7 @@ async def run_realtime_collector(config, symbols, client):
     try:
         await stop.wait()
     finally:
-        logger.info("⏹️  Arrêt en cours...")
+        logger.info("Stopping collector...")
 
         # Cancel toutes les tâches
         for task in tasks:
@@ -179,26 +176,26 @@ async def run_realtime_collector(config, symbols, client):
         await producer.stop()
         await client.close()
 
-        logger.info("✅ Arrêt propre OK")
+        logger.info("✓ Collector stopped cleanly")
 
 
 async def main():
     logger.info("=" * 50)
-    logger.info("  📊 CryptoViz Data Collector")
+    logger.info("🚀 CryptoViz Data Collector - Starting")
     logger.info("=" * 50)
 
     config = load_config()
-    logger.info(f"Config: quotes={config.quote_currencies}, min_volume={config.min_volume}")
+    logger.info(f"Configuration loaded: quotes={config.quote_currencies}, min_volume={config.min_volume}, max_symbols={config.max_symbols}")
 
     # Récup les symboles depuis Binance avec les filtres
     client = BinanceClient(config)
     symbols = await client.get_all_symbols()
 
     if not symbols:
-        logger.error("❌ Aucun symbole trouvé")
+        logger.error("No symbols found, exiting")
         return
 
-    logger.info(f"📋 {len(symbols)} symboles sélectionnés")
+    logger.info(f"✓ Selected {len(symbols)} symbols for collection")
 
     # 1. Backfill historique si besoin
     await run_backfill_if_needed(config, symbols)
@@ -211,6 +208,6 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("Interrompu par user")
+        logger.info("Interrupted by user")
     except Exception as e:
-        logger.error(f"Erreur fatale: {e}", exc_info=True)
+        logger.error(f"Fatal error: {e}", exc_info=True)

@@ -61,7 +61,7 @@ def load_config() -> Config:
         try:
             min_volume = float(os.getenv("MIN_VOLUME"))
         except ValueError:
-            logging.warning("MIN_VOLUME invalide, ignoré")
+            logging.warning("Invalid MIN_VOLUME, ignoring")
 
     # Parse nb max symboles
     max_symbols = None
@@ -69,7 +69,7 @@ def load_config() -> Config:
         try:
             max_symbols = int(os.getenv("MAX_SYMBOLS"))
         except ValueError:
-            logging.warning("MAX_SYMBOLS invalide, ignoré")
+            logging.warning("Invalid MAX_SYMBOLS, ignoring")
 
     # Parse et valide les timeframes
     timeframes_str = os.getenv("TIMEFRAMES", "5s,1m,15m,1h")
@@ -79,7 +79,7 @@ def load_config() -> Config:
         if tf and is_valid_timeframe(tf):
             timeframes.append(tf)
         elif tf:
-            logging.warning(f"Timeframe invalide ignoré: {tf}")
+            logging.warning(f"Invalid timeframe ignored: {tf}")
 
     return Config(
         quote_currencies=quote_filter,

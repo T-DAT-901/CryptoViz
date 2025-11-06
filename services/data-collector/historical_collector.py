@@ -46,9 +46,9 @@ class ProgressTracker:
             try:
                 with open(self.state_file, 'r') as f:
                     self.state = json.load(f)
-                logger.info(f"État chargé: {len(self.state)} symboles déjà en cours")
+                logger.info(f"Loaded backfill state: {len(self.state)} symbols in progress")
             except Exception as e:
-                logger.warning(f"Impossible de charger l'état: {e}")
+                logger.warning(f"Could not load state file: {e}")
                 self.state = {}
         else:
             self.state = {}
@@ -58,7 +58,7 @@ class ProgressTracker:
             with open(self.state_file, 'w') as f:
                 json.dump(self.state, f, indent=2)
         except Exception as e:
-            logger.error(f"Impossible de sauvegarder l'état: {e}")
+            logger.error(f"Could not save state file: {e}")
 
     def get_last_timestamp(self, symbol: str, timeframe: str) -> Optional[int]:
         return self.state.get(symbol, {}).get(timeframe)
@@ -107,7 +107,7 @@ class HistoricalCollector:
             enable_idempotence=True,
         )
         await self.producer.start()
-        logger.info("Producer Kafka démarré")
+        logger.info("✓ Kafka producer started")
 
     async def cleanup(self):
         if self.producer:
@@ -138,7 +138,7 @@ class HistoricalCollector:
                 )
                 return ohlcv
             except Exception as e:
-                logger.error(f"Erreur fetch {symbol} {timeframe}: {e}")
+                logger.error(f"Error fetching {symbol} {timeframe}: {e}")
                 return []
 
     async def backfill_symbol_timeframe(
@@ -154,7 +154,7 @@ class HistoricalCollector:
 
         # Check si déjà complet
         if self.tracker.is_complete(symbol, timeframe, end_ts):
-            logger.info(f"✓ {symbol} {timeframe} déjà complet")
+            logger.info(f"{symbol} {timeframe} already complete")
             return
 
         # Reprend depuis la dernière position
@@ -163,14 +163,14 @@ class HistoricalCollector:
         topic = f"{self.config.output_prefix}{timeframe}"
         total_bars = 0
 
-        logger.info(f"Démarrage backfill {symbol} {timeframe}: {datetime.fromtimestamp(current_ts/1000)} -> {end_date}")
+        logger.info(f"Starting backfill for {symbol} {timeframe}: {datetime.fromtimestamp(current_ts/1000)} -> {end_date}")
 
         while current_ts < end_ts:
             # Récup un batch de 1000 barres
             ohlcv = await self.fetch_ohlcv_batch(symbol, timeframe, current_ts, limit=1000)
 
             if not ohlcv:
-                logger.warning(f"Aucune donnée pour {symbol} {timeframe} depuis {current_ts}")
+                logger.warning(f"No data for {symbol} {timeframe} since {current_ts}")
                 break
 
             # Publie chaque barre dans Kafka
@@ -224,16 +224,18 @@ class HistoricalCollector:
             # Avance au timestamp suivant
             current_ts = ohlcv[-1][0] + 1
 
-        logger.info(f"✓ {symbol} {timeframe} terminé: {total_bars} barres collectées")
+        logger.info(f"✓ {symbol} {timeframe} completed: {total_bars} bars collected")
 
     async def backfill_all(self, symbols: List[str], timeframes: List[str], lookback_days: int = 365):
         # Lance le backfill pour tous les symboles et timeframes
         end_date = datetime.utcnow() - timedelta(hours=1)
         start_date = end_date - timedelta(days=lookback_days)
 
-        logger.info(f"=== Démarrage Backfill Historique ===")
-        logger.info(f"Période: {start_date} -> {end_date}")
-        logger.info(f"Symboles: {len(symbols)}")
+        logger.info("=" * 50)
+        logger.info("📊 Starting Historical Backfill")
+        logger.info("=" * 50)
+        logger.info(f"Period: {start_date} -> {end_date}")
+        logger.info(f"Symbols: {len(symbols)}")
         logger.info(f"Timeframes: {timeframes}")
 
         # Crée toutes les tâches
@@ -246,10 +248,12 @@ class HistoricalCollector:
                 tasks.append(task)
 
         # Exécute toutes les tâches
-        logger.info(f"Lancement de {len(tasks)} tâches de backfill...")
+        logger.info(f"Launching {len(tasks)} backfill tasks...")
         await asyncio.gather(*tasks, return_exceptions=True)
 
-        logger.info("=== Backfill Terminé ===")
+        logger.info("=" * 50)
+        logger.info("✓ Historical Backfill Complete")
+        logger.info("=" * 50)
 
 
 async def main():
@@ -266,9 +270,9 @@ async def main():
         if tf and not tf.endswith('s'):
             backfill_timeframes.append(tf)
         elif tf and tf.endswith('s') and not tf.endswith('ms'):
-            logger.warning(f"Timeframe {tf} ignoré (REST API supporte pas les secondes)")
+            logger.warning(f"Ignoring timeframe '{tf}' (REST API does not support seconds)")
 
-    logger.info(f"Configuration backfill: {lookback_days} jours, timeframes: {backfill_timeframes}")
+    logger.info(f"Backfill configuration: {lookback_days} days, timeframes: {backfill_timeframes}")
 
     collector = HistoricalCollector(config)
 
@@ -282,16 +286,16 @@ async def main():
         await client.close()
 
         if not symbols:
-            logger.error("Aucun symbole trouvé")
+            logger.error("No symbols found")
             return
 
-        logger.info(f"Symboles à backfill: {symbols[:10]}... ({len(symbols)} total)")
+        logger.info(f"Symbols to backfill: {symbols[:10]}... ({len(symbols)} total)")
 
         # Lance le backfill
         await collector.backfill_all(symbols, backfill_timeframes, lookback_days)
 
     except Exception as e:
-        logger.error(f"Erreur lors du backfill: {e}", exc_info=True)
+        logger.error(f"Backfill error: {e}", exc_info=True)
     finally:
         await collector.cleanup()
 

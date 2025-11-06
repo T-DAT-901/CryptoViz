@@ -37,9 +37,9 @@ def parse_timeframe(s: str) -> int:
             return int(s[:-1]) * 3_600_000
         if s.endswith("d"):
             return int(s[:-1]) * 86_400_000
-        raise ValueError(f"Format timeframe non reconnu: {s}")
+        raise ValueError(f"Unrecognized timeframe format: {s}")
     except ValueError as e:
-        logger.error(f"Erreur parsing timeframe '{s}': {e}")
+        logger.error(f"Error parsing timeframe '{s}': {e}")
         return 60_000  # Défaut: 1 minute
 
 
@@ -104,11 +104,11 @@ class OptimizedAggregator:
             'errors': 0
         }
 
-        logger.info(f"Agrégateur initialisé avec timeframes: {config.timeframes}")
+        logger.info(f"⚡ Aggregator initialized with timeframes: {config.timeframes}")
 
     async def stop(self):
         self._stop.set()
-        logger.info(f"Stats finales: {self.stats}")
+        logger.info(f"Final stats: {self.stats}")
 
     async def sweeper(self):
         # Boucle qui ferme les fenêtres expirées
@@ -187,7 +187,7 @@ class OptimizedAggregator:
 
         except Exception as e:
             self.stats['errors'] += 1
-            logger.error(f"Erreur traitement trade {symbol}: {e}")
+            logger.error(f"Error processing trade for {symbol}: {e}")
 
     async def _emit_bar(self, bar: dict, closed: bool):
         # Publie une barre dans Kafka
@@ -214,4 +214,4 @@ class OptimizedAggregator:
 
         except Exception as e:
             self.stats['errors'] += 1
-            logger.error(f"Erreur émission barre {bar.get('symbol', 'unknown')}: {e}")
+            logger.error(f"Error emitting bar for {bar.get('symbol', 'unknown')}: {e}")
