@@ -40,3 +40,8 @@ mypy==1.8.0
 # Error handling and retry
 tenacity==8.2.3
 backoff==2.2.1
+ccxt
+aiokafka>=0.10.0
+orjson
+uvloop
+python-snappy
