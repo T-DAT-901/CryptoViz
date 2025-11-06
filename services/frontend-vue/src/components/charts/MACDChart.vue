@@ -39,22 +39,75 @@ const macdData = ref<
   Array<{ timestamp: number; macd: number; signal: number; histogram: number }>
 >([]);
 
-// Charger les données mock
+// Charger les données mock selon le timeframe
 async function loadMockData() {
   try {
-    const { default: mockData } = await import(
-      "@/services/mocks/ind_macd.json"
-    );
+    // Utiliser le timeframe du store
+    const timeframe = indicatorsStore.selectedTimeframe;
 
-    // Transformer les données mock au format attendu
-    macdData.value = mockData.map((item: any) => ({
-      timestamp: item.ts,
-      macd: item.macd,
-      signal: item.signal,
-      histogram: item.hist,
-    }));
+    if (import.meta.env.VITE_USE_MOCK === "true") {
+      console.log(`Loading MACD mock data for timeframe: ${timeframe}`);
 
-    console.log(`Loaded ${macdData.value.length} MACD data points`);
+      // Importer les données unifiées (mêmes que TradingChart)
+      const { default: unifiedData } = await import(
+        "@/services/mocks/candles_unified.json"
+      );
+
+      let candleData = [];
+
+      // Sélectionner les données selon le timeframe (même logique que TradingChart)
+      switch (timeframe) {
+        case "1h":
+          const oneDayData = unifiedData["1d"] || [];
+          candleData = oneDayData.slice(-60); // Dernière heure en minutes
+          break;
+        case "1d":
+          const twentyFourHourData = unifiedData["1d"] || [];
+          candleData = twentyFourHourData.slice(-1440); // Dernières 24 heures (1440 minutes)
+          break;
+        case "7d":
+          candleData = unifiedData["7d"] || []; // 168 points (heures)
+          break;
+        case "1M":
+          candleData = unifiedData["1M"] || []; // 180 points (4h)
+          break;
+        case "1y":
+          candleData = unifiedData["1y"] || []; // 365 points (jours)
+          break;
+        case "all":
+          candleData = unifiedData["all"] || []; // 520 points (semaines)
+          break;
+        default:
+          const fallbackData = unifiedData["1d"] || [];
+          candleData = fallbackData.slice(-60);
+      }
+
+      // Calculer des valeurs MACD réalistes basées sur les prix de clôture
+      macdData.value = calculateMACDFromCandles(candleData);
+
+      console.log(
+        `Loaded ${macdData.value.length} MACD data points for ${timeframe}`
+      );
+    } else {
+      // Pour l'API réelle, adapter selon le timeframe
+      console.error("API MACD data loading not implemented yet");
+      // Fallback avec quelques données par défaut
+      macdData.value = [
+        {
+          timestamp: Date.now() - 120000,
+          macd: 0.5,
+          signal: 0.4,
+          histogram: 0.1,
+        },
+        {
+          timestamp: Date.now() - 60000,
+          macd: 0.8,
+          signal: 0.6,
+          histogram: 0.2,
+        },
+        { timestamp: Date.now(), macd: 0.7, signal: 0.65, histogram: 0.05 },
+      ];
+    }
   } catch (error) {
     console.error("Error loading MACD mock data:", error);
     // Fallback avec quelques données par défaut
@@ -69,6 +122,98 @@ async function loadMockData() {
       { timestamp: Date.now(), macd: 0.7, signal: 0.65, histogram: 0.05 },
     ];
   }
+}
+
+// Calculer MACD à partir des données de bougies
+function calculateMACDFromCandles(candles: any[]): Array<{
+  timestamp: number;
+  macd: number;
+  signal: number;
+  histogram: number;
+}> {
+  if (candles.length < 26) {
+    // Pas assez de données pour calculer MACD, retourner des valeurs par défaut
+    return candles.map((candle, i) => ({
+      timestamp: candle.t,
+      macd: Math.sin(i * 0.1) * 2,
+      signal: Math.sin(i * 0.1 - 0.3) * 1.5,
+      histogram: Math.sin(i * 0.1) * 0.5,
+    }));
+  }
+
+  const fastPeriod = indicatorsStore.macdFast;
+  const slowPeriod = indicatorsStore.macdSlow;
+  const signalPeriod = indicatorsStore.macdSignal;
+
+  const result: Array<{
+    timestamp: number;
+    macd: number;
+    signal: number;
+    histogram: number;
+  }> = [];
+
+  // Calculer les EMA pour MACD
+  const prices = candles.map((c) => c.c);
+  const fastEMA = calculateEMA(prices, fastPeriod);
+  const slowEMA = calculateEMA(prices, slowPeriod);
+
+  // Calculer la ligne MACD
+  const macdLine = [];
+  for (let i = slowPeriod - 1; i < candles.length; i++) {
+    macdLine.push(fastEMA[i] - slowEMA[i]);
+  }
+
+  // Calculer la ligne de signal (EMA du MACD)
+  const signalLine = calculateEMA(macdLine, signalPeriod);
+
+  // Construire le résultat final
+  for (let i = 0; i < candles.length; i++) {
+    let macd = 0;
+    let signal = 0;
+    let histogram = 0;
+
+    if (i >= slowPeriod - 1) {
+      const macdIndex = i - (slowPeriod - 1);
+      macd = macdLine[macdIndex] || 0;
+
+      if (macdIndex >= signalPeriod - 1) {
+        const signalIndex = macdIndex - (signalPeriod - 1);
+        signal = signalLine[signalIndex] || 0;
+        histogram = macd - signal;
+      }
+    }
+
+    result.push({
+      timestamp: candles[i].t,
+      macd: macd,
+      signal: signal,
+      histogram: histogram,
+    });
+  }
+
+  return result;
+}
+
+// Fonction utilitaire pour calculer l'EMA
+function calculateEMA(prices: number[], period: number): number[] {
+  const ema = [];
+  const multiplier = 2 / (period + 1);
+
+  // Premier point = SMA
+  let sum = 0;
+  for (let i = 0; i < period && i < prices.length; i++) {
+    sum += prices[i];
+  }
+  ema.push(sum / Math.min(period, prices.length));
+
+  // Points suivants = EMA
+  for (let i = period; i < prices.length; i++) {
+    const currentEMA: number =
+      prices[i] * multiplier + ema[ema.length - 1] * (1 - multiplier);
+    ema.push(currentEMA);
+  }
+
+  return ema;
 }
 
 // Données pour Chart.js
@@ -211,6 +356,19 @@ onBeforeUnmount(() => {
 
 // Reconstruire le chart quand les données changent
 watch(() => macdData.value, buildChart, { deep: true });
+
+// Recharger les données quand le timeframe change
+watch(
+  () => indicatorsStore.selectedTimeframe,
+  async () => {
+    console.log(
+      "MACD Chart: Timeframe changed to",
+      indicatorsStore.selectedTimeframe
+    );
+    await loadMockData();
+    buildChart();
+  }
+);
 </script>
 
 <template>

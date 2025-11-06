@@ -5,6 +5,9 @@ export const useIndicatorsStore = defineStore("indicators", {
     // Layout mode: 'compact' (unified chart) or 'detailed' (separate charts)
     layoutMode: "compact" as "compact" | "detailed",
 
+    // Timeframe synchronization
+    selectedTimeframe: "1h" as "1h" | "1d" | "7d" | "1M" | "1y" | "all",
+
     // visibility
     showRSI: true,
     showMACD: true,
@@ -28,6 +31,10 @@ export const useIndicatorsStore = defineStore("indicators", {
 
     setLayoutMode(mode: "compact" | "detailed") {
       this.layoutMode = mode;
+    },
+
+    setTimeframe(timeframe: "1h" | "1d" | "7d" | "1M" | "1y" | "all") {
+      this.selectedTimeframe = timeframe;
     },
   },
 });

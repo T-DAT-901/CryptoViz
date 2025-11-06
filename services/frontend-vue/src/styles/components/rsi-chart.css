@@ -86,3 +86,120 @@
     height: 160px;
   }
 }
+
+/* Nouvelle structure RSI Chart */
+.rsi-chart {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-card);
+  min-height: 250px;
+}
+
+.rsi-chart__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+}
+
+.rsi-chart__title {
+  font-family: var(--font-family);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.rsi-chart__symbol {
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.rsi-chart__signal {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.rsi-chart__signal-badge {
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.rsi-chart__signal-badge--overbought {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid #ef4444;
+}
+
+.rsi-chart__signal-badge--oversold {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 1px solid #10b981;
+}
+
+.rsi-chart__signal-badge--neutral {
+  background: rgba(148, 163, 184, 0.2);
+  color: #94a3b8;
+  border: 1px solid #94a3b8;
+}
+
+.rsi-chart__current-value {
+  font-family: var(--font-family);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
+
+.rsi-chart__content {
+  padding: var(--space-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  position: relative;
+}
+
+.rsi-chart__content canvas {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 180px;
+}
+
+/* Responsive Design pour nouvelle structure */
+@media (max-width: 768px) {
+  .rsi-chart {
+    min-height: 200px;
+  }
+
+  .rsi-chart__content {
+    min-height: 130px;
+    padding: var(--space-md);
+  }
+
+  .rsi-chart__header {
+    padding: var(--space-md);
+    flex-direction: column;
+    gap: var(--space-sm);
+    align-items: flex-start;
+  }
+
+  .rsi-chart__signal {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

@@ -1,9 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
-import { useMarketStore } from "@/stores/market";
-import { fetchRSI } from "@/services/indicators.api";
-import type { RSIPoint } from "@/types/market";
-
+import { onMounted, onBeforeUnmount, ref, watch, computed } from "vue";
 import {
   Chart,
   LineController,
@@ -12,237 +8,395 @@ import {
   LinearScale,
   TimeScale,
   Tooltip,
-  Legend,
+  Filler,
+  type ChartData,
+  type ChartOptions,
 } from "chart.js";
-import type { ChartData, ChartOptions } from "chart.js";
 import "chartjs-adapter-date-fns";
+import { useIndicatorsStore } from "@/stores/indicators";
 
-// register needed pieces once
 Chart.register(
-  LineElement,
   LineController,
+  LineElement,
   PointElement,
   LinearScale,
   TimeScale,
   Tooltip,
-  Legend
+  Filler
 );
 
-const market = useMarketStore();
+const props = defineProps<{ symbol: string }>();
+const indicatorsStore = useIndicatorsStore();
 
-// canvas + chart instance
 const canvasEl = ref<HTMLCanvasElement | null>(null);
-let chart: Chart<"line"> | null = null;
+let chart: Chart | null = null;
 
-// data & options
-const dataRef = ref<ChartData<"line">>({
-  labels: [],
-  datasets: [
-    {
-      label: "RSI",
-      data: [], // numbers 0..100
-      borderColor: "#22c55e",
-      backgroundColor: "rgba(34,197,94,0.25)",
-      borderWidth: 1.5,
-      pointRadius: 0,
-      tension: 0.2,
-    },
-    // 70 band
-    {
-      label: "70",
-      data: [],
-      borderColor: "rgba(239,68,68,0.8)",
-      borderDash: [6, 6],
-      pointRadius: 0,
-      borderWidth: 1,
-    },
-    // 30 band
-    {
-      label: "30",
-      data: [],
-      borderColor: "rgba(34,197,94,0.8)",
-      borderDash: [6, 6],
-      pointRadius: 0,
-      borderWidth: 1,
-    },
-  ],
+// Données RSI à partir du fichier mock
+const rsiData = ref<Array<{ timestamp: number; value: number }>>([]);
+
+// Charger les données mock selon le timeframe
+async function loadMockData() {
+  try {
+    // Utiliser le timeframe du store
+    const timeframe = indicatorsStore.selectedTimeframe;
+
+    if (import.meta.env.VITE_USE_MOCK === "true") {
+      console.log(`Loading RSI mock data for timeframe: ${timeframe}`);
+
+      // Importer les données unifiées (mêmes que TradingChart)
+      const { default: unifiedData } = await import(
+        "@/services/mocks/candles_unified.json"
+      );
+
+      let candleData = [];
+
+      // Sélectionner les données selon le timeframe (même logique que TradingChart)
+      switch (timeframe) {
+        case "1h":
+          const oneDayData = unifiedData["1d"] || [];
+          candleData = oneDayData.slice(-60); // Dernière heure en minutes
+          break;
+        case "1d":
+          const twentyFourHourData = unifiedData["1d"] || [];
+          candleData = twentyFourHourData.slice(-1440); // Dernières 24 heures (1440 minutes)
+          break;
+        case "7d":
+          candleData = unifiedData["7d"] || []; // 168 points (heures)
+          break;
+        case "1M":
+          candleData = unifiedData["1M"] || []; // 180 points (4h)
+          break;
+        case "1y":
+          candleData = unifiedData["1y"] || []; // 365 points (jours)
+          break;
+        case "all":
+          candleData = unifiedData["all"] || []; // 520 points (semaines)
+          break;
+        default:
+          const fallbackData = unifiedData["1d"] || [];
+          candleData = fallbackData.slice(-60);
+      }
+
+      // Calculer des valeurs RSI réalistes basées sur les prix de clôture
+      rsiData.value = calculateRSIFromCandles(candleData);
+
+      console.log(
+        `Loaded ${rsiData.value.length} RSI data points for ${timeframe}`
+      );
+    } else {
+      // Pour l'API réelle, adapter selon le timeframe
+      console.error("API RSI data loading not implemented yet");
+      // Fallback avec quelques données par défaut
+      const now = Date.now();
+      rsiData.value = Array.from({ length: 20 }, (_, i) => ({
+        timestamp: now - (20 - i) * 15 * 60 * 1000,
+        value: 30 + Math.sin(i * 0.3) * 20 + Math.random() * 10,
+      }));
+    }
+  } catch (error) {
+    console.error("Error loading RSI mock data:", error);
+    // Fallback avec quelques données par défaut
+    const now = Date.now();
+    rsiData.value = Array.from({ length: 20 }, (_, i) => ({
+      timestamp: now - (20 - i) * 15 * 60 * 1000,
+      value: 30 + Math.sin(i * 0.3) * 20 + Math.random() * 10,
+    }));
+  }
+}
+
+// Calculer RSI à partir des données de bougies
+function calculateRSIFromCandles(
+  candles: any[]
+): Array<{ timestamp: number; value: number }> {
+  if (candles.length < 14) {
+    // Pas assez de données pour calculer RSI, retourner des valeurs par défaut
+    return candles.map((candle, i) => ({
+      timestamp: candle.t,
+      value: 50 + Math.sin(i * 0.2) * 20 + Math.random() * 10,
+    }));
+  }
+
+  const rsiPeriod = indicatorsStore.rsiPeriod;
+  const result: Array<{ timestamp: number; value: number }> = [];
+
+  for (let i = 0; i < candles.length; i++) {
+    if (i < rsiPeriod - 1) {
+      // Les premières valeurs avant qu'on ait assez de données
+      result.push({
+        timestamp: candles[i].t,
+        value: 50 + Math.sin(i * 0.2) * 15,
+      });
+      continue;
+    }
+
+    // Calculer les gains et pertes sur la période
+    let totalGains = 0;
+    let totalLosses = 0;
+
+    for (let j = i - rsiPeriod + 1; j <= i; j++) {
+      if (j > 0) {
+        const priceChange = candles[j].c - candles[j - 1].c;
+        if (priceChange > 0) {
+          totalGains += priceChange;
+        } else {
+          totalLosses += Math.abs(priceChange);
+        }
+      }
+    }
+
+    const avgGain = totalGains / rsiPeriod;
+    const avgLoss = totalLosses / rsiPeriod;
+
+    // Calculer RSI
+    let rsi = 50; // Valeur par défaut
+    if (avgLoss !== 0) {
+      const rs = avgGain / avgLoss;
+      rsi = 100 - 100 / (1 + rs);
+    }
+
+    // S'assurer que RSI est dans la plage [0, 100]
+    rsi = Math.max(0, Math.min(100, rsi));
+
+    result.push({
+      timestamp: candles[i].t,
+      value: rsi,
+    });
+  }
+
+  return result;
+}
+
+// Données pour Chart.js
+const chartData = computed(() => {
+  if (!rsiData.value.length) return { datasets: [] };
+
+  return {
+    datasets: [
+      // Zone de surachat (70-100)
+      {
+        label: "Surachat",
+        data: rsiData.value.map((d) => ({ x: d.timestamp, y: 100 })),
+        backgroundColor: "rgba(239, 68, 68, 0.1)", // Rouge translucide
+        borderColor: "transparent",
+        fill: "1", // Fill to next dataset
+        pointRadius: 0,
+        order: 3,
+      },
+      // Ligne 70
+      {
+        label: "Niveau 70",
+        data: rsiData.value.map((d) => ({ x: d.timestamp, y: 70 })),
+        backgroundColor: "rgba(239, 68, 68, 0.2)", // Rouge translucide
+        borderColor: "#ef4444",
+        borderWidth: 1,
+        borderDash: [5, 5],
+        pointRadius: 0,
+        fill: "2", // Fill to next dataset
+        order: 2,
+      },
+      // Zone neutre (30-70)
+      {
+        label: "Zone neutre",
+        data: rsiData.value.map((d) => ({ x: d.timestamp, y: 30 })),
+        backgroundColor: "rgba(148, 163, 184, 0.05)", // Gris très translucide
+        borderColor: "#10b981",
+        borderWidth: 1,
+        borderDash: [5, 5],
+        pointRadius: 0,
+        fill: "3", // Fill to next dataset
+        order: 1,
+      },
+      // Zone de survente (0-30)
+      {
+        label: "Survente",
+        data: rsiData.value.map((d) => ({ x: d.timestamp, y: 0 })),
+        backgroundColor: "rgba(16, 185, 129, 0.1)", // Vert translucide
+        borderColor: "transparent",
+        pointRadius: 0,
+        order: 0,
+      },
+      // Ligne RSI principale
+      {
+        label: "RSI",
+        data: rsiData.value.map((d) => ({ x: d.timestamp, y: d.value })),
+        borderColor: "#3b82f6", // Bleu principal
+        backgroundColor: "rgba(59, 130, 246, 0.1)",
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointBackgroundColor: "#3b82f6",
+        pointBorderColor: "#ffffff",
+        pointBorderWidth: 2,
+        tension: 0.1,
+        order: 4, // Au-dessus de tout
+      },
+    ],
+  };
 });
 
-const options = ref<ChartOptions<"line">>({
+const options: ChartOptions = {
   responsive: true,
   maintainAspectRatio: false,
-  interaction: {
-    mode: "nearest",
-    intersect: false,
-    axis: "x",
-  },
-  plugins: {
-    legend: { display: false },
-    tooltip: { enabled: false },
-  },
+  interaction: { intersect: false, mode: "index" },
   scales: {
     x: {
       type: "time",
-      grid: { color: "rgba(255,255,255,0.06)" },
-      ticks: { color: "rgba(255,255,255,0.55)" },
+      grid: {
+        color: "rgba(255,255,255,0.08)",
+      },
+      ticks: {
+        color: "rgba(255,255,255,0.7)",
+        font: { size: 10 },
+        maxTicksLimit: 6,
+      },
+      time: {
+        displayFormats: {
+          minute: "HH:mm",
+          hour: "HH:mm",
+        },
+      },
     },
     y: {
       min: 0,
       max: 100,
       position: "right",
-      grid: { color: "rgba(255,255,255,0.06)" },
-      ticks: { color: "rgba(255,255,255,0.65)" },
+      grid: {
+        color: "rgba(255,255,255,0.08)",
+      },
+      ticks: {
+        color: "rgba(255,255,255,0.7)",
+        font: { size: 10 },
+        stepSize: 20,
+        callback: function (value) {
+          // Mettre en évidence les niveaux clés
+          if (value === 70) return "70 (Surachat)";
+          if (value === 50) return "50 (Neutre)";
+          if (value === 30) return "30 (Survente)";
+          return value.toString();
+        },
+      },
+      // Lignes horizontales aux niveaux clés
+      afterBuildTicks: function (scale) {
+        scale.ticks = [
+          { value: 0, label: "0" },
+          { value: 30, label: "30" },
+          { value: 50, label: "50" },
+          { value: 70, label: "70" },
+          { value: 100, label: "100" },
+        ];
+      },
     },
   },
-});
+  plugins: {
+    legend: {
+      display: false, // Pas de légende, on a les labels sur l'axe Y
+    },
+    tooltip: {
+      backgroundColor: "rgba(7, 14, 16, 0.95)",
+      titleColor: "#fff",
+      bodyColor: "#fff",
+      borderColor: "rgba(255,255,255,0.2)",
+      borderWidth: 1,
+      callbacks: {
+        title: function (context) {
+          return new Date(context[0].parsed.x).toLocaleString("fr-FR");
+        },
+        label: function (context) {
+          if (context.datasetIndex === 4) {
+            // RSI line
+            const value = Number(context.parsed.y).toFixed(1);
+            let interpretation = "";
 
-async function load() {
-  // read from mock via indicators.api
-  const rows: RSIPoint[] = await fetchRSI("BTC", market.interval, 14);
-  const xs = rows.map((r) => r.ts);
-  const ys = rows.map((r) => r.value);
+            if (context.parsed.y >= 70) {
+              interpretation = " (Surachat - Signal de vente)";
+            } else if (context.parsed.y <= 30) {
+              interpretation = " (Survente - Signal d'achat)";
+            } else if (context.parsed.y > 50) {
+              interpretation = " (Tendance haussière)";
+            } else {
+              interpretation = " (Tendance baissière)";
+            }
 
-  dataRef.value.labels = xs;
-  dataRef.value.datasets[0].data = ys;
-  dataRef.value.datasets[1].data = xs.map(() => 70);
-  dataRef.value.datasets[2].data = xs.map(() => 30);
+            return `RSI: ${value}${interpretation}`;
+          }
+          return ""; // Retourne string vide pour les autres datasets
+        },
+      },
+    },
+  },
+};
 
-  if (chart) chart.update();
-}
+function buildChart() {
+  if (!canvasEl.value || !rsiData.value.length) return;
 
-function build() {
-  if (!canvasEl.value) return;
-  if (chart) chart.destroy();
+  chart?.destroy();
   chart = new Chart(canvasEl.value, {
     type: "line",
-    data: dataRef.value,
-    options: options.value,
-    plugins: [rsiHoverOverlay], // Plugin local seulement pour ce graphique
+    data: chartData.value,
+    options,
   });
 }
 
-// Helper to draw rounded rectangles
-function roundRectPath(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number
-) {
-  const rr = Math.min(r, h / 2, w / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + rr, y);
-  ctx.arcTo(x + w, y, x + w, y + h, rr);
-  ctx.arcTo(x + w, y + h, x, y + h, rr);
-  ctx.arcTo(x, y + h, x, y, rr);
-  ctx.arcTo(x, y, x + w, y, rr);
-  ctx.closePath();
-}
-
-// Custom overlay: vertical guide + point + value bubble
-const rsiHoverOverlay = {
-  id: "rsiHoverOverlay",
-  afterDraw(chart: any) {
-    const active = chart.getActiveElements?.();
-    if (!active || active.length === 0) return;
-
-    const { ctx, chartArea } = chart;
-    const { datasetIndex, index } = active[0];
-    const meta = chart.getDatasetMeta(datasetIndex);
-    const pt = meta.data[index];
-    if (!pt) return;
-
-    // Values
-    const val = chart.data.datasets[datasetIndex].data[index] as number;
-    const label =
-      typeof val === "number" ? `RSI ${val.toFixed(2)}` : `RSI ${val}`;
-
-    // Neutral colors (adjust later if needed)
-    const guideColor = "rgba(220, 220, 220, 0.50)"; // soft gray
-    const dotColor = "#e8f0f0"; // light text color from new palette
-    const bubbleBg = "#070e10"; // dark background from new palette
-    const bubbleText = "#e8f0f0"; // near-white from new palette
-    const bubbleBorder = "#94a3b8"; // muted border
-
-    // Vertical guide (thin line + soft column)
-    ctx.save();
-    ctx.fillStyle = "rgba(148,163,184,0.08)";
-    ctx.fillRect(
-      pt.x - 14,
-      chartArea.top,
-      28,
-      chartArea.bottom - chartArea.top
-    );
-    ctx.strokeStyle = guideColor;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(pt.x, chartArea.top);
-    ctx.lineTo(pt.x, chartArea.bottom);
-    ctx.stroke();
-    ctx.restore();
-
-    // Point
-    ctx.save();
-    ctx.fillStyle = dotColor;
-    ctx.beginPath();
-    ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-
-    // Bubble
-    ctx.save();
-    ctx.font = "12px ui-sans-serif, -apple-system, Segoe UI, Roboto, Ubuntu";
-    const padX = 10,
-      padY = 6,
-      h = 28;
-    const textW = ctx.measureText(label).width;
-    const w = textW + padX * 2;
-    const x = Math.min(
-      Math.max(pt.x - w / 2, chartArea.left + 6),
-      chartArea.right - w - 6
-    );
-    const y = pt.y - h - 10;
-
-    roundRectPath(ctx, x, y, w, h, 10);
-    ctx.fillStyle = bubbleBg;
-    ctx.fill();
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = bubbleBorder;
-    ctx.stroke();
-
-    ctx.fillStyle = bubbleText;
-    ctx.textBaseline = "middle";
-    ctx.fillText(label, x + padX, y + h / 2);
-    ctx.restore();
-  },
-};
-// NE PAS enregistrer globalement - sera ajouté localement dans les options
-// Chart.register(rsiHoverOverlay);
-
 onMounted(async () => {
-  await load();
-  build();
+  await loadMockData();
+  buildChart();
 });
 
-// reload when timeframe changes
+onBeforeUnmount(() => {
+  chart?.destroy();
+});
+
+// Reconstruire le chart quand les données changent
+watch(() => rsiData.value, buildChart, { deep: true });
+
+// Recharger les données quand le timeframe change
 watch(
-  () => market.interval,
+  () => indicatorsStore.selectedTimeframe,
   async () => {
-    await load();
+    console.log(
+      "RSI Chart: Timeframe changed to",
+      indicatorsStore.selectedTimeframe
+    );
+    await loadMockData();
+    buildChart();
   }
 );
 </script>
 
 <template>
-  <section class="rsi-chart-panel">
-    <div class="rsi-chart-toolbar">
-      <div class="rsi-chart-toolbar-left">
-        <span class="rsi-chart-title">RSI (14)</span>
+  <div class="rsi-chart">
+    <div class="rsi-chart__header">
+      <h3 class="rsi-chart__title">RSI ({{ indicatorsStore.rsiPeriod }})</h3>
+      <span class="rsi-chart__symbol">{{ symbol }}</span>
+      <!-- Indicateur de signal en temps réel -->
+      <div class="rsi-chart__signal" v-if="rsiData.length">
+        <span
+          class="rsi-chart__signal-badge"
+          :class="{
+            'rsi-chart__signal-badge--overbought':
+              rsiData[rsiData.length - 1]?.value >= 70,
+            'rsi-chart__signal-badge--oversold':
+              rsiData[rsiData.length - 1]?.value <= 30,
+            'rsi-chart__signal-badge--neutral':
+              rsiData[rsiData.length - 1]?.value > 30 &&
+              rsiData[rsiData.length - 1]?.value < 70,
+          }"
+        >
+          {{
+            rsiData[rsiData.length - 1]?.value >= 70
+              ? "SURACHAT"
+              : rsiData[rsiData.length - 1]?.value <= 30
+                ? "SURVENTE"
+                : "NEUTRE"
+          }}
+        </span>
+        <span class="rsi-chart__current-value">
+          {{ rsiData[rsiData.length - 1]?.value?.toFixed(1) }}
+        </span>
       </div>
     </div>
-    <div class="rsi-chart-wrap">
+    <div class="rsi-chart__content">
       <canvas ref="canvasEl"></canvas>
     </div>
-  </section>
+  </div>
 </template>
