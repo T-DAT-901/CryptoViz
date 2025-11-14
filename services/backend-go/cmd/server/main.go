@@ -12,6 +12,8 @@ import (
 	"cryptoviz-backend/database"
 	"cryptoviz-backend/internal/config"
 	"cryptoviz-backend/internal/controllers"
+	"cryptoviz-backend/internal/kafka"
+	"cryptoviz-backend/internal/kafka/consumers"
 	"cryptoviz-backend/internal/routes"
 
 	"github.com/gin-gonic/gin"
@@ -57,6 +59,41 @@ func main() {
 	db := database.GetDB()
 	deps := controllers.NewDependencies(db, redisClient, logger)
 
+	// Configuration Kafka
+	logger.Info("Configuration des consommateurs Kafka...")
+	kafkaConfig := kafka.NewKafkaConfig(cfg)
+	consumerManager := kafka.NewConsumerManager(logger)
+
+	// Enregistrer les handlers Kafka
+	candleHandler := consumers.NewCandleHandler(kafkaConfig, deps.CandleRepo, redisClient, logger)
+	tradeHandler := consumers.NewTradeHandler(kafkaConfig, deps.TradeRepo, redisClient, logger)
+	indicatorHandler := consumers.NewIndicatorHandler(kafkaConfig, deps.IndicatorRepo, redisClient, logger)
+	newsHandler := consumers.NewNewsHandler(kafkaConfig, deps.NewsRepo, redisClient, logger)
+
+	if err := consumerManager.RegisterHandler(kafkaConfig, candleHandler); err != nil {
+		log.Fatal("❌ Erreur lors de l'enregistrement du CandleHandler:", err)
+	}
+	if err := consumerManager.RegisterHandler(kafkaConfig, tradeHandler); err != nil {
+		log.Fatal("❌ Erreur lors de l'enregistrement du TradeHandler:", err)
+	}
+	if err := consumerManager.RegisterHandler(kafkaConfig, indicatorHandler); err != nil {
+		log.Fatal("❌ Erreur lors de l'enregistrement de l'IndicatorHandler:", err)
+	}
+	if err := consumerManager.RegisterHandler(kafkaConfig, newsHandler); err != nil {
+		log.Fatal("❌ Erreur lors de l'enregistrement du NewsHandler:", err)
+	}
+
+	// Assigner le consumer manager aux dépendances
+	deps.ConsumerManager = consumerManager
+
+	// Démarrer les consommateurs Kafka
+	go func() {
+		if err := consumerManager.StartAll(ctx); err != nil {
+			logger.Errorf("❌ Erreur lors du démarrage des consommateurs Kafka: %v", err)
+		}
+	}()
+	logger.Info("✅ Consommateurs Kafka démarrés")
+
 	// Configuration des routes
 	router := routes.Setup(deps, logger)
 
@@ -84,10 +121,19 @@ func main() {
 	logger.Info("🛑 Arrêt du serveur...")
 
 	// Timeout pour l'arrêt gracieux
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := server.Shutdown(ctx); err != nil {
+	// Arrêter les consommateurs Kafka
+	logger.Info("Arrêt des consommateurs Kafka...")
+	if err := consumerManager.StopAll(); err != nil {
+		logger.Errorf("❌ Erreur lors de l'arrêt des consommateurs Kafka: %v", err)
+	} else {
+		logger.Info("✅ Consommateurs Kafka arrêtés proprement")
+	}
+
+	// Arrêter le serveur HTTP
+	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Fatal("❌ Erreur lors de l'arrêt du serveur:", err)
 	}
 

@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"cryptoviz-backend/internal/kafka"
 	"cryptoviz-backend/models"
 
 	"github.com/go-redis/redis/v8"
@@ -10,15 +11,16 @@ import (
 
 // Dependencies contient toutes les dépendances nécessaires aux contrôleurs
 type Dependencies struct {
-	DB            *gorm.DB
-	Redis         *redis.Client
-	Logger        *logrus.Logger
-	CandleRepo    models.CandleRepository
-	IndicatorRepo models.IndicatorRepository
-	NewsRepo      models.NewsRepository
-	TradeRepo     models.TradeRepository
-	UserRepo      models.UserRepository
-	CurrencyRepo  models.CurrencyRepository
+	DB              *gorm.DB
+	Redis           *redis.Client
+	Logger          *logrus.Logger
+	CandleRepo      models.CandleRepository
+	IndicatorRepo   models.IndicatorRepository
+	NewsRepo        models.NewsRepository
+	TradeRepo       models.TradeRepository
+	UserRepo        models.UserRepository
+	CurrencyRepo    models.CurrencyRepository
+	ConsumerManager *kafka.ConsumerManager
 }
 
 // NewDependencies crée une nouvelle instance de Dependencies

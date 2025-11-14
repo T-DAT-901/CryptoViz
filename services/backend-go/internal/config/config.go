@@ -12,6 +12,13 @@ type Config struct {
 	RedisPort    string
 	KafkaBrokers string
 	GinMode      string
+
+	// Kafka configuration
+	KafkaGroupID           string
+	TopicRawTrades         string
+	TopicAggregatedPrefix  string
+	TopicIndicatorsPrefix  string
+	TopicNews              string
 }
 
 // Load charge la configuration depuis les variables d'environnement
@@ -22,6 +29,13 @@ func Load() *Config {
 		RedisPort:    getEnv("REDIS_PORT", "6379"),
 		KafkaBrokers: getEnv("KAFKA_BROKERS", "kafka:29092"),
 		GinMode:      getEnv("GIN_MODE", "debug"),
+
+		// Kafka topics
+		KafkaGroupID:          getEnv("KAFKA_GROUP_ID", "backend-go-consumers"),
+		TopicRawTrades:        getEnv("TOPIC_RAW_TRADES", "crypto.raw.trades"),
+		TopicAggregatedPrefix: getEnv("TOPIC_AGGREGATED_PREFIX", "crypto.aggregated."),
+		TopicIndicatorsPrefix: getEnv("TOPIC_INDICATORS_PREFIX", "crypto.indicators."),
+		TopicNews:             getEnv("TOPIC_NEWS", "crypto.news"),
 	}
 }
 

@@ -10,7 +10,7 @@ Le backend CryptoViz suit une architecture **Clean Architecture** avec séparati
 services/backend-go/
 ├── cmd/                              # Entry points
 │   └── server/
-│       └── main.go                   # Bootstrap application (94 lignes)
+│       └── main.go                   # Bootstrap application (120 lignes)
 ├── internal/                         # Private application code
 │   ├── config/                       # Configuration
 │   │   └── config.go                 # Gestion config & env vars
@@ -26,8 +26,22 @@ services/backend-go/
 │   ├── middleware/                   # Middleware HTTP
 │   │   ├── cors.go                   # CORS headers
 │   │   └── logger.go                 # Logging personnalisé
-│   └── dto/                          # Data Transfer Objects
-│       └── response.go               # Structures de réponse API
+│   ├── dto/                          # Data Transfer Objects
+│   │   └── response.go               # Structures de réponse API
+│   └── kafka/                        # Kafka integration (NEW)
+│       ├── config.go                 # Kafka configuration
+│       ├── consumer.go               # Base consumer
+│       ├── manager.go                # Consumer lifecycle management
+│       ├── handlers.go               # Message handler interfaces
+│       ├── utils/                    # Kafka utilities
+│       │   ├── headers.go            # Header parsing
+│       │   ├── deduplication.go      # Redis-based dedup
+│       │   └── retry.go              # Exponential backoff
+│       └── consumers/                # Topic-specific consumers
+│           ├── candles.go            # Candles consumer
+│           ├── trades.go             # Trades consumer
+│           ├── indicators.go         # Indicators consumer
+│           └── news.go               # News consumer
 ├── models/                           # Couche données (repository pattern)
 │   ├── candles.go
 │   ├── indicators.go
@@ -56,6 +70,7 @@ Chaque package a une responsabilité unique :
 - **routes** : Configuration des routes et middleware
 - **middleware** : Cross-cutting concerns (CORS, logging)
 - **dto** : Structures de transfert de données
+- **kafka** : Intégration Kafka (consumers, handlers, utilities)
 - **models** : Logique métier et accès données
 - **database** : Connexion et configuration DB
 
@@ -123,6 +138,8 @@ func (ctrl *CandleController) GetCandleData(c *gin.Context) {
 
 ## Flux de Requête
 
+### Flux HTTP (API REST)
+
 ```
 HTTP Request
     ↓
@@ -138,6 +155,40 @@ Database (GORM → TimescaleDB)
     ↓
 HTTP Response (DTO)
 ```
+
+### Flux Kafka (Real-time Data Ingestion) 🆕
+
+```
+data-collector (Python)
+    ↓
+Kafka Topics (crypto.aggregated.*, crypto.raw.trades, etc.)
+    ↓
+ConsumerManager (Start all consumers)
+    ↓
+BaseConsumer (Generic Kafka consumer with retry)
+    ↓
+MessageHandler (Topic-specific: Candles, Trades, Indicators, News)
+    ↓
+Utils (Header parsing, deduplication, validation)
+    ↓
+Repository (models/*.go)
+    ↓
+TimescaleDB (Hypertables with compression & tiering)
+```
+
+**Topics consommés** :
+- `crypto.aggregated.{5s,1m,15m,1h,4h,1d}` → CandleHandler → candles table
+- `crypto.raw.trades` → TradeHandler → trades table
+- `crypto.indicators.{rsi,macd,bollinger,momentum}` → IndicatorHandler → indicators table
+- `crypto.news` → NewsHandler → news table
+
+**Features clés** :
+- ✅ **Deduplication** : Redis-based avec TTL (évite les doublons)
+- ✅ **Retry logic** : Exponential backoff pour les erreurs transitoires
+- ✅ **Graceful shutdown** : Arrêt propre avec commit des offsets
+- ✅ **Consumer groups** : Load balancing automatique (`backend-go-consumers`)
+- ✅ **Error handling** : Skip permanent errors, retry transient errors
+- ✅ **Monitoring** : Health check endpoint pour status des consumers
 
 ## Comparaison Avant/Après
 
