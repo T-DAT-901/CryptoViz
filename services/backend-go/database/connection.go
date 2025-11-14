@@ -9,8 +9,6 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-
-	"cryptoviz-backend/models"
 )
 
 // DB instance globale
@@ -71,6 +69,9 @@ func Connect() error {
 		NowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
+		// Disable automatic table creation - we use init.sql
+		DisableAutomaticPing:   false,
+		SkipDefaultTransaction: true,
 	}
 
 	var err error
@@ -96,75 +97,24 @@ func Connect() error {
 	}
 
 	log.Println("✅ Connexion à TimescaleDB établie avec GORM")
+
+	// Verify TimescaleDB extension
+	if err := verifyTimescaleDB(); err != nil {
+		log.Printf("⚠️  Warning: %v", err)
+	}
+
 	return nil
 }
 
-// AutoMigrate exécute les migrations automatiques
-func AutoMigrate() error {
-	if DB == nil {
-		return fmt.Errorf("base de données non initialisée")
-	}
-
-	// Migration des modèles
-	err := DB.AutoMigrate(
-		&models.CryptoData{},
-		&models.TechnicalIndicator{},
-		&models.CryptoNews{},
-	)
+// verifyTimescaleDB vérifie que l'extension TimescaleDB est installée
+func verifyTimescaleDB() error {
+	var version string
+	err := DB.Raw("SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'").Scan(&version).Error
 	if err != nil {
-		return fmt.Errorf("erreur lors de la migration: %w", err)
+		return fmt.Errorf("TimescaleDB extension not found: %w", err)
 	}
 
-	// Configuration spécifique à TimescaleDB
-	if err := setupTimescaleDB(); err != nil {
-		log.Printf("⚠️  Avertissement TimescaleDB: %v", err)
-		// Ne pas retourner d'erreur car TimescaleDB peut ne pas être disponible en dev
-	}
-
-	log.Println("✅ Migrations GORM terminées")
-	return nil
-}
-
-// setupTimescaleDB configure les hypertables TimescaleDB
-func setupTimescaleDB() error {
-	// Créer les hypertables si elles n'existent pas
-	hypertables := []struct {
-		table      string
-		timeColumn string
-	}{
-		{"crypto_data", "time"},
-		{"crypto_indicators", "time"},
-		{"crypto_news", "time"},
-	}
-
-	for _, ht := range hypertables {
-		// Vérifier si la table est déjà une hypertable
-		var exists bool
-		query := `
-			SELECT EXISTS (
-				SELECT 1 FROM timescaledb_information.hypertables
-				WHERE hypertable_name = ?
-			)
-		`
-		if err := DB.Raw(query, ht.table).Scan(&exists).Error; err != nil {
-			log.Printf("⚠️  Impossible de vérifier l'hypertable %s: %v", ht.table, err)
-			continue
-		}
-
-		if !exists {
-			// Créer l'hypertable
-			createQuery := fmt.Sprintf(
-				"SELECT create_hypertable('%s', '%s', if_not_exists => TRUE)",
-				ht.table, ht.timeColumn,
-			)
-			if err := DB.Exec(createQuery).Error; err != nil {
-				log.Printf("⚠️  Impossible de créer l'hypertable %s: %v", ht.table, err)
-				continue
-			}
-			log.Printf("✅ Hypertable %s créée", ht.table)
-		}
-	}
-
+	log.Printf("✅ TimescaleDB version %s detected", version)
 	return nil
 }
 
@@ -199,4 +149,46 @@ func Health() error {
 	}
 
 	return sqlDB.Ping()
+}
+
+// GetDatabaseInfo retourne les informations sur la base de données
+func GetDatabaseInfo() (map[string]interface{}, error) {
+	info := make(map[string]interface{})
+
+	// Get TimescaleDB version
+	var tsVersion string
+	err := DB.Raw("SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'").Scan(&tsVersion).Error
+	if err == nil {
+		info["timescaledb_version"] = tsVersion
+	}
+
+	// Get PostgreSQL version
+	var pgVersion string
+	err = DB.Raw("SHOW server_version").Scan(&pgVersion).Error
+	if err == nil {
+		info["postgresql_version"] = pgVersion
+	}
+
+	// Get hypertables count
+	var hypertablesCount int64
+	err = DB.Raw("SELECT COUNT(*) FROM timescaledb_information.hypertables").Scan(&hypertablesCount).Error
+	if err == nil {
+		info["hypertables_count"] = hypertablesCount
+	}
+
+	// Get continuous aggregates count
+	var caggCount int64
+	err = DB.Raw("SELECT COUNT(*) FROM timescaledb_information.continuous_aggregates").Scan(&caggCount).Error
+	if err == nil {
+		info["continuous_aggregates_count"] = caggCount
+	}
+
+	// Get database size
+	var dbSize string
+	err = DB.Raw("SELECT pg_size_pretty(pg_database_size(current_database()))").Scan(&dbSize).Error
+	if err == nil {
+		info["database_size"] = dbSize
+	}
+
+	return info, nil
 }

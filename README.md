@@ -12,17 +12,24 @@ CryptoViz est une plateforme de visualisation de données crypto en temps réel,
 - **Message Broker**: Apache Kafka
 - **Microservices**: Python 3.11+
 - **Containerisation**: Docker + Docker Compose
-- **Cache**: Redis (optionnel)
+- **Cache**: Redis
+- **Object Storage**: MinIO (S3-compatible pour data tiering)
 
 ## 📊 Flux de Données
 
 ```
-Binance API (WebSocket) → Data Collector → Kafka → TimescaleDB
-                                           ↓
-Yahoo Finance → News Scraper → Kafka → Backend Go ← Frontend Vue.js
-                                           ↓
-Kafka → Indicators Calculator → TimescaleDB
+Binance API (WebSocket) → Data Collector → Kafka → TimescaleDB (HOT)
+                                           ↓              ↓
+Yahoo Finance → News Scraper → Kafka → Backend Go    MinIO (COLD)
+                                           ↓              ↑
+Kafka → Indicators Calculator → TimescaleDB ←──────────┘
+                                           ↑
+                                    Frontend Vue.js
 ```
+
+### Data Tiering Architecture
+- **Hot Storage (SSD)**: Recent 7 days - Fast queries (<50ms)
+- **Cold Storage (S3/MinIO)**: Historical data - Cost-effective (85% savings)
 
 ## 🏢 Architecture des Services
 
@@ -68,12 +75,21 @@ Kafka → Indicators Calculator → TimescaleDB
 - **Partitioning**: Par symbole et intervalle de temps
 - **Rétention**: Compression automatique après 7 jours
 - **Indexation**: Optimisée pour les requêtes temporelles
+- **Data Tiering**: Déplacement automatique vers cold storage après 7 jours
+- **Continuous Aggregates**: Agrégations temps réel incrémentales (hourly OHLCV, latest indicators)
 
-### 7. Apache Kafka
+### 7. MinIO (Data Tiering)
+- **Rôle**: Object storage S3-compatible pour cold storage
+- **Utilisation**: Stockage des données historiques (>7 jours)
+- **Console**: Interface web sur port 9001
+- **Production**: Remplaçable par AWS S3 sans changement de code
+- **Économies**: 85% de réduction des coûts de stockage
+
+### 8. Apache Kafka
 - **Rôle**: Message broker pour streaming temps réel
 - **Topics**:
-  - `crypto.raw.1s` - Données brutes 1 seconde
-  - `crypto.aggregated.{interval}` - Données agrégées
+  - `crypto.raw.trades` - Trades individuels
+  - `crypto.aggregated.{interval}` - Données agrégées (candles)
   - `crypto.indicators.{type}` - Indicateurs calculés
   - `crypto.news` - Actualités
 
@@ -156,6 +172,23 @@ make health
 # Accéder à l'interface
 open http://localhost:3000
 ```
+
+### 🎯 Demo Data Tiering (POC)
+
+CryptoViz implémente un système de data tiering pour réduire les coûts de stockage de 85%.
+
+```bash
+# Lancer la démo interactive de tiering
+./scripts/demo-tiering.sh
+
+# Accéder à MinIO Console
+open http://localhost:9001  # minioadmin / minioadmin
+```
+
+**Voir la documentation complète:**
+- [Guide Rapide](docs/TIERING-QUICK-START.md) - Démarrage en 3 commandes
+- [Démo Complète](docs/DATA-TIERING-DEMO.md) - Documentation technique
+- [Cheat Sheet](docs/DEMO-CHEAT-SHEET.md) - Points clés pour présentations
 
 ## 🛠️ Commandes Make
 
@@ -333,26 +366,80 @@ make format
 
 ## 📈 Gestion des Données
 
+### Schéma de Base de Données
+
+**Tables Hypertables (Time-Series):**
+- `trades` - Trades individuels haute fréquence
+- `candles` - Données OHLCV agrégées
+- `indicators` - Indicateurs techniques calculés
+- `news` - Actualités crypto avec sentiment
+
+**Tables Régulières:**
+- `users` - Comptes utilisateurs
+- `currencies` - Métadonnées crypto et fiat
+
+**Vues Unifiées (Hot + Cold):**
+- `all_candles` - Combine données hot et cold transparamment
+- `all_indicators` - Vue unifiée des indicateurs
+- `all_news` - Vue unifiée des actualités
+
 ### Intervalles de Temps
-- **1s**: Données brutes temps réel (rétention 24h)
-- **5s**: Agrégation (rétention 7 jours)
-- **1min**: Agrégation (rétention 30 jours)
-- **15min**: Agrégation (rétention 6 mois)
-- **1h**: Agrégation (rétention 2 ans)
+- **1s**: Trades bruts temps réel (rétention 24h)
+- **5s**: Candles agrégées (rétention 7 jours hot + tiering)
+- **1min**: Candles agrégées (rétention 30 jours hot + tiering)
+- **15min**: Candles agrégées (rétention 6 mois hot + tiering)
+- **1h**: Candles agrégées (rétention 2 ans hot + tiering)
+
+### Data Tiering (Hot/Cold Storage)
+
+```sql
+-- Configuration automatique du tiering
+-- Hot storage: 7 derniers jours sur SSD (rapide)
+-- Cold storage: Données anciennes sur MinIO/S3 (économique)
+
+-- Vérifier la distribution des données
+SELECT * FROM get_tiering_stats();
+
+-- Déclencher le tiering manuellement
+SELECT tier_old_candles();
+SELECT tier_old_indicators();
+SELECT tier_old_news();
+
+-- Requêtes transparentes (hot + cold)
+SELECT * FROM all_candles WHERE symbol = 'BTC/USDT';
+```
 
 ### Partitioning TimescaleDB
 ```sql
--- Partitioning par symbole et temps
-SELECT create_hypertable('crypto_data', 'time',
+-- Hypertable trades (haute fréquence)
+SELECT create_hypertable('trades', 'event_ts',
+    partitioning_column => 'exchange',
+    number_partitions => 10);
+
+-- Hypertable candles (OHLCV)
+SELECT create_hypertable('candles', 'window_start',
     partitioning_column => 'symbol',
     number_partitions => 50);
 
--- Compression automatique
-SELECT add_compression_policy('crypto_data', INTERVAL '7 days');
+-- Compression automatique après 7 jours
+SELECT add_compression_policy('candles', INTERVAL '7 days');
 
 -- Rétention des données
-SELECT add_retention_policy('crypto_data', INTERVAL '2 years');
+SELECT add_retention_policy('trades', INTERVAL '24 hours');
+SELECT add_retention_policy('candles', INTERVAL '2 years');
 ```
+
+### Économies de Coûts avec Tiering
+
+| Configuration | Stockage | Coût/mois | Économies |
+|---------------|----------|-----------|-----------|
+| **Sans Tiering** | 2TB SSD | $400 | - |
+| **Avec Tiering** | 100GB SSD + 1.9TB S3 | $58 | **85%** |
+
+**Performance:**
+- Hot queries (7 derniers jours): <50ms
+- Cold queries (données historiques): 200-500ms
+- Requêtes unifiées: Transparentes pour l'application
 
 ### Indicateurs Techniques Supportés
 
@@ -441,7 +528,7 @@ docker-compose -f docker-compose.test.yml up
 
 ## 📚 Documentation
 
-- **[Guide de Développement](DEV.md)** - Workflows optimisés pour les développeurs et étudiants
+- **[Guide de Développement](DEV.md)** - Workflows optimisés pour les développeurs
 - **[API Reference](docs/api.md)** - Documentation des endpoints
 - **[Wiki](https://github.com/T-DAT-901/CryptoViz/wiki)** - Documentation complète
 

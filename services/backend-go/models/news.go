@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// StringArray type personnalisé pour gérer les arrays de strings en PostgreSQL
+// StringArray type personnalisé pour gérer les arrays de strings en PostgreSQL (JSONB)
 type StringArray []string
 
 // Value implémente l'interface driver.Valuer pour la sérialisation
@@ -37,63 +37,71 @@ func (sa *StringArray) Scan(value interface{}) error {
 	}
 }
 
-// CryptoNews représente les actualités crypto
-type CryptoNews struct {
-	Time           time.Time   `json:"time" gorm:"primaryKey;column:time;index"`
+// News représente les actualités crypto
+// Table: news (hypertable TimescaleDB)
+type News struct {
+	Time           time.Time   `json:"time" gorm:"primaryKey;column:time;not null"`
 	Source         string      `json:"source" gorm:"primaryKey;column:source;size:100;not null"`
-	URL            string      `json:"url" gorm:"primaryKey;column:url;size:1000;not null"`
-	Title          string      `json:"title" gorm:"column:title;size:500;not null"`
+	URL            string      `json:"url" gorm:"primaryKey;column:url;not null"`
+	Title          string      `json:"title" gorm:"column:title;not null"`
 	Content        string      `json:"content" gorm:"column:content;type:text"`
-	SentimentScore *float64    `json:"sentiment_score" gorm:"column:sentiment_score;type:decimal(5,4)"`
-	Symbols        StringArray `json:"symbols" gorm:"column:symbols;type:jsonb"`
-	CreatedAt      time.Time   `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt      time.Time   `json:"updated_at" gorm:"autoUpdateTime"`
+	SentimentScore *float64    `json:"sentiment_score" gorm:"column:sentiment_score;type:decimal(5,2)"`
+	Symbols        StringArray `json:"symbols" gorm:"column:symbols;type:jsonb"` // Array of symbols: ["BTC/USDT", "ETH/USDT"]
+	CreatedAt      time.Time   `json:"created_at" gorm:"column:created_at;autoCreateTime"`
 }
 
 // TableName spécifie le nom de la table pour GORM
-func (CryptoNews) TableName() string {
-	return "crypto_news"
+func (News) TableName() string {
+	return "news"
 }
 
-// BeforeCreate hook GORM appelé avant la création
-func (cn *CryptoNews) BeforeCreate(tx *gorm.DB) error {
-	if cn.Time.IsZero() {
-		cn.Time = time.Now()
-	}
-	return nil
+// AllNews représente une requête sur la vue unifiée (hot + cold storage)
+// View: all_news (transparent tiering)
+type AllNews struct {
+	News
 }
 
-// CryptoNewsRepository interface pour les opérations sur CryptoNews
-type CryptoNewsRepository interface {
-	Create(news *CryptoNews) error
-	GetAll(limit int) ([]CryptoNews, error)
-	GetBySymbol(symbol string, limit int) ([]CryptoNews, error)
-	GetByTimeRange(start, end time.Time, limit int) ([]CryptoNews, error)
-	GetBySource(source string, limit int) ([]CryptoNews, error)
-	GetBySentiment(minScore, maxScore float64, limit int) ([]CryptoNews, error)
-	GetByCompositeKey(time time.Time, source, url string) (*CryptoNews, error)
-	Update(news *CryptoNews) error
+// TableName spécifie le nom de la vue pour GORM
+func (AllNews) TableName() string {
+	return "all_news"
+}
+
+// NewsRepository interface pour les opérations sur News
+type NewsRepository interface {
+	Create(news *News) error
+	GetAll(limit int) ([]News, error)
+	GetBySymbol(symbol string, limit int) ([]News, error)
+	GetByTimeRange(start, end time.Time, limit int) ([]News, error)
+	GetBySource(source string, limit int) ([]News, error)
+	GetBySentiment(minScore, maxScore float64, limit int) ([]News, error)
+	GetByCompositeKey(time time.Time, source, url string) (*News, error)
+	Update(news *News) error
 	DeleteByCompositeKey(time time.Time, source, url string) error
+
+	// Queries on unified view (hot + cold storage)
+	GetAllUnified(limit int) ([]AllNews, error)
+	GetBySymbolUnified(symbol string, limit int) ([]AllNews, error)
+	GetByTimeRangeUnified(start, end time.Time, limit int) ([]AllNews, error)
 }
 
-// cryptoNewsRepository implémentation concrète du repository
-type cryptoNewsRepository struct {
+// newsRepository implémentation concrète du repository
+type newsRepository struct {
 	db *gorm.DB
 }
 
-// NewCryptoNewsRepository crée une nouvelle instance du repository
-func NewCryptoNewsRepository(db *gorm.DB) CryptoNewsRepository {
-	return &cryptoNewsRepository{db: db}
+// NewNewsRepository crée une nouvelle instance du repository
+func NewNewsRepository(db *gorm.DB) NewsRepository {
+	return &newsRepository{db: db}
 }
 
 // Create insère une nouvelle actualité
-func (r *cryptoNewsRepository) Create(news *CryptoNews) error {
+func (r *newsRepository) Create(news *News) error {
 	return r.db.Create(news).Error
 }
 
-// GetAll récupère toutes les actualités
-func (r *cryptoNewsRepository) GetAll(limit int) ([]CryptoNews, error) {
-	var news []CryptoNews
+// GetAll récupère toutes les actualités (hot storage only)
+func (r *newsRepository) GetAll(limit int) ([]News, error) {
+	var news []News
 	err := r.db.Order("time DESC").
 		Limit(limit).
 		Find(&news).Error
@@ -101,9 +109,9 @@ func (r *cryptoNewsRepository) GetAll(limit int) ([]CryptoNews, error) {
 }
 
 // GetBySymbol récupère les actualités pour un symbole spécifique
-func (r *cryptoNewsRepository) GetBySymbol(symbol string, limit int) ([]CryptoNews, error) {
-	var news []CryptoNews
-	// Utiliser une requête JSON pour PostgreSQL
+func (r *newsRepository) GetBySymbol(symbol string, limit int) ([]News, error) {
+	var news []News
+	// Utiliser l'opérateur @> de PostgreSQL pour JSONB contains
 	err := r.db.Where("symbols @> ?", `["`+symbol+`"]`).
 		Order("time DESC").
 		Limit(limit).
@@ -112,8 +120,8 @@ func (r *cryptoNewsRepository) GetBySymbol(symbol string, limit int) ([]CryptoNe
 }
 
 // GetByTimeRange récupère les actualités dans une plage de temps
-func (r *cryptoNewsRepository) GetByTimeRange(start, end time.Time, limit int) ([]CryptoNews, error) {
-	var news []CryptoNews
+func (r *newsRepository) GetByTimeRange(start, end time.Time, limit int) ([]News, error) {
+	var news []News
 	err := r.db.Where("time BETWEEN ? AND ?", start, end).
 		Order("time DESC").
 		Limit(limit).
@@ -122,8 +130,8 @@ func (r *cryptoNewsRepository) GetByTimeRange(start, end time.Time, limit int) (
 }
 
 // GetBySource récupère les actualités par source
-func (r *cryptoNewsRepository) GetBySource(source string, limit int) ([]CryptoNews, error) {
-	var news []CryptoNews
+func (r *newsRepository) GetBySource(source string, limit int) ([]News, error) {
+	var news []News
 	err := r.db.Where("source = ?", source).
 		Order("time DESC").
 		Limit(limit).
@@ -132,8 +140,8 @@ func (r *cryptoNewsRepository) GetBySource(source string, limit int) ([]CryptoNe
 }
 
 // GetBySentiment récupère les actualités par score de sentiment
-func (r *cryptoNewsRepository) GetBySentiment(minScore, maxScore float64, limit int) ([]CryptoNews, error) {
-	var news []CryptoNews
+func (r *newsRepository) GetBySentiment(minScore, maxScore float64, limit int) ([]News, error) {
+	var news []News
 	err := r.db.Where("sentiment_score BETWEEN ? AND ?", minScore, maxScore).
 		Order("time DESC").
 		Limit(limit).
@@ -142,8 +150,8 @@ func (r *cryptoNewsRepository) GetBySentiment(minScore, maxScore float64, limit 
 }
 
 // GetByCompositeKey récupère une actualité par sa clé composite
-func (r *cryptoNewsRepository) GetByCompositeKey(time time.Time, source, url string) (*CryptoNews, error) {
-	var news CryptoNews
+func (r *newsRepository) GetByCompositeKey(time time.Time, source, url string) (*News, error) {
+	var news News
 	err := r.db.Where("time = ? AND source = ? AND url = ?", time, source, url).First(&news).Error
 	if err != nil {
 		return nil, err
@@ -152,11 +160,40 @@ func (r *cryptoNewsRepository) GetByCompositeKey(time time.Time, source, url str
 }
 
 // Update met à jour une actualité
-func (r *cryptoNewsRepository) Update(news *CryptoNews) error {
+func (r *newsRepository) Update(news *News) error {
 	return r.db.Save(news).Error
 }
 
 // DeleteByCompositeKey supprime une actualité par sa clé composite
-func (r *cryptoNewsRepository) DeleteByCompositeKey(time time.Time, source, url string) error {
-	return r.db.Where("time = ? AND source = ? AND url = ?", time, source, url).Delete(&CryptoNews{}).Error
+func (r *newsRepository) DeleteByCompositeKey(time time.Time, source, url string) error {
+	return r.db.Where("time = ? AND source = ? AND url = ?", time, source, url).Delete(&News{}).Error
+}
+
+// GetAllUnified récupère toutes les actualités (hot + cold storage via vue unifiée)
+func (r *newsRepository) GetAllUnified(limit int) ([]AllNews, error) {
+	var news []AllNews
+	err := r.db.Order("time DESC").
+		Limit(limit).
+		Find(&news).Error
+	return news, err
+}
+
+// GetBySymbolUnified récupère les actualités pour un symbole (hot + cold storage)
+func (r *newsRepository) GetBySymbolUnified(symbol string, limit int) ([]AllNews, error) {
+	var news []AllNews
+	err := r.db.Where("symbols @> ?", `["`+symbol+`"]`).
+		Order("time DESC").
+		Limit(limit).
+		Find(&news).Error
+	return news, err
+}
+
+// GetByTimeRangeUnified récupère les actualités dans une plage de temps (hot + cold storage)
+func (r *newsRepository) GetByTimeRangeUnified(start, end time.Time, limit int) ([]AllNews, error) {
+	var news []AllNews
+	err := r.db.Where("time BETWEEN ? AND ?", start, end).
+		Order("time DESC").
+		Limit(limit).
+		Find(&news).Error
+	return news, err
 }
