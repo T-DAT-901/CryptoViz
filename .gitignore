@@ -357,3 +357,5 @@ public/assets/
 .Cline/
 .claude/
 docs/
+# Data collector state files
+services/data-collector/backfill_state.json

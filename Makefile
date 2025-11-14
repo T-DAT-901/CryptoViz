@@ -34,7 +34,7 @@ start: ## Démarrer tous les services
 
 start-infra: ## Démarrer uniquement l'infrastructure (DB, Kafka, Redis)
 	@echo "$(GREEN)Démarrage de l'infrastructure...$(NC)"
-	@docker-compose up -d timescaledb zookeeper kafka redis
+	@docker-compose up -d timescaledb zookeeper kafka redis kafka-ui
 	@docker-compose up kafka-init
 
 start-services: ## Démarrer uniquement les microservices
