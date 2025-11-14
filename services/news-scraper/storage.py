@@ -1,29 +1,43 @@
 import json
 import os
+from datetime import datetime
 
-STORAGE_FILE = "articles.json"
-
+ARTICLES_FILE = "articles.json"
 
 def load_articles():
-    """Charge tous les articles stockés dans une liste de dictionnaires."""
-    if os.path.exists(STORAGE_FILE):
-        with open(STORAGE_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
+    if not os.path.exists(ARTICLES_FILE):
+        return []
 
+    try:
+        with open(ARTICLES_FILE, "r", encoding="utf-8") as f:
+            articles = json.load(f)
+    except json.JSONDecodeError:
+        return []
+
+    for a in articles:
+        if a.get("published_dt"):
+            try:
+                a["published_dt"] = datetime.fromisoformat(a["published_dt"])
+            except Exception:
+                a["published_dt"] = None
+
+    return articles
 
 def save_articles(new_articles):
-    """Ajoute de nouveaux articles au fichier JSON en évitant les doublons basés sur le lien."""
-    existing_articles = load_articles()
+    all_articles = load_articles()
 
-    existing_links = {article["link"] for article in existing_articles}
+    for a in new_articles:
+        if a.get("published_dt") and isinstance(a["published_dt"], datetime):
+            a["published_dt"] = a["published_dt"].isoformat()
 
-    filtered_new = [article for article in new_articles if article["link"] not in existing_links]
+    all_articles.extend(new_articles)
 
-    combined_articles = existing_articles + filtered_new
+    seen_links = set()
+    unique_articles = []
+    for a in all_articles:
+        if a["link"] not in seen_links:
+            unique_articles.append(a)
+            seen_links.add(a["link"])
 
-    # Sauvegarde dans le fichier JSON
-    with open(STORAGE_FILE, "w", encoding="utf-8") as f:
-        json.dump(combined_articles, f, ensure_ascii=False, indent=4)
-
-    print(f"{len(filtered_new)} nouveaux articles sauvegardés.")
+    with open(ARTICLES_FILE, "w", encoding="utf-8") as f:
+        json.dump(unique_articles, f, ensure_ascii=False, indent=2)

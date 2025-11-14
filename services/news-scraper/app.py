@@ -1,5 +1,5 @@
 import time
-from scraper import fetch_articles
+from scraper import fetch_new_articles
 from storage import save_articles, load_articles
 
 def main():
@@ -8,11 +8,15 @@ def main():
 
     while True:
         print("----- Récupération des articles -----")
-        articles = fetch_articles()
+        articles = fetch_new_articles()
 
         new_articles = [a for a in articles if a["link"] not in seen_links]
 
         if new_articles:
+            print(f"{len(new_articles)} nouveaux articles trouvés !")
+            for a in new_articles:
+                pub = a["published"] if a["published"] else "N/A"
+                print(f"{a['money'].upper():<5} | {pub} | {a['title']}")
             save_articles(new_articles)
             seen_links.update(a["link"] for a in new_articles)
         else:
