@@ -67,7 +67,7 @@ onMounted(() => {
     <div class="page-header">
       <div class="header-content">
         <div class="header-left">
-          <h1 class="page-title">Market Overview</h1>
+          <h1 class="page-title">CryptoViz</h1>
           <p class="page-subtitle">
             Real-time cryptocurrency prices and market data
           </p>

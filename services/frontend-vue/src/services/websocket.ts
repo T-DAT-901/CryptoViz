@@ -116,7 +116,7 @@ class TradingWebSocket {
       this.notifySubscribers("candle_update", simulatedCandle);
     }
 
-    // FUTUR: Quand tu auras le vrai WebSocket du back-end
+    // FUTUR: Quand le back-end sera prêt
     // if (message.type === "price_update") {
     //   this.notifySubscribers("price_update", message);
     // } else if (message.type === "candle_update") {
@@ -164,9 +164,7 @@ class TradingWebSocket {
       );
 
       setTimeout(() => {
-        this.connect().catch(() => {
-          // La reconnexion échouera et relancera handleReconnect
-        });
+        this.connect().catch(() => {});
       }, delay);
     } else {
       console.error(
@@ -184,7 +182,6 @@ class TradingWebSocket {
 
     subscribers.get(type)!.add(callback);
 
-    // Retourner une fonction de désabonnement
     return () => {
       const typeSubscribers = subscribers.get(type);
       if (typeSubscribers) {

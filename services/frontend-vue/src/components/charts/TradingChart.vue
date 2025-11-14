@@ -8,6 +8,7 @@ import {
   nextTick,
   onBeforeUnmount,
 } from "vue";
+import { useRoute } from "vue-router";
 import CandleChart from "@/components/charts/CandleChart.vue";
 import LineChart from "@/components/charts/LineChart.vue";
 import { useMarketStore } from "@/stores/market";
@@ -52,6 +53,12 @@ Chart.register(
 
 const store = useMarketStore();
 const indicatorsStore = useIndicatorsStore();
+const route = useRoute();
+
+const symbolPair = computed(() => {
+  const symbol = (route.params.symbol as string) || "btc";
+  return symbol.toUpperCase() + "USDT";
+});
 
 const { connect, disconnect, isConnected, lastUpdate } = useTradingWebSocket();
 const { priceData: livePrice } = useLivePrices("BTCUSDT");
@@ -66,12 +73,22 @@ const candleChartRef = ref();
 
 const rsiMiniChartRef = ref<HTMLCanvasElement | null>(null);
 const macdMiniChartRef = ref<HTMLCanvasElement | null>(null);
+const bollingerMiniChartRef = ref<HTMLCanvasElement | null>(null);
 let rsiMiniChart: Chart | null = null;
 let macdMiniChart: Chart | null = null;
+let bollingerMiniChart: Chart | null = null;
 
 const rsiMiniData = ref<Array<{ timestamp: number; value: number }>>([]);
 const macdMiniData = ref<
   Array<{ timestamp: number; macd: number; signal: number; histogram: number }>
+>([]);
+const bollingerMiniData = ref<
+  Array<{
+    timestamp: number;
+    upper: number;
+    middle: number;
+    lower: number;
+  }>
 >([]);
 
 // Available timeframes
@@ -156,6 +173,7 @@ async function loadIndicatorData(candleData: any[]) {
 
   rsiMiniData.value = calculateRSIFromCandles(candleData);
   macdMiniData.value = calculateMACDFromCandles(candleData);
+  bollingerMiniData.value = calculateBollingerFromCandles(candleData);
 
   await nextTick();
   buildMiniCharts();
@@ -284,10 +302,46 @@ function calculateSimpleEMA(prices: number[], period: number): number[] {
   return ema;
 }
 
+function calculateBollingerFromCandles(candles: any[]): Array<{
+  timestamp: number;
+  upper: number;
+  middle: number;
+  lower: number;
+}> {
+  const period = 20;
+  const stdDevMultiplier = 2;
+  const result: Array<{
+    timestamp: number;
+    upper: number;
+    middle: number;
+    lower: number;
+  }> = [];
+
+  for (let i = period; i < candles.length; i++) {
+    const slice = candles.slice(i - period, i);
+    const prices = slice.map((c) => c.c);
+
+    const sma = prices.reduce((sum, price) => sum + price, 0) / period;
+    const variance =
+      prices.reduce((sum, price) => sum + Math.pow(price - sma, 2), 0) / period;
+    const stdDev = Math.sqrt(variance);
+
+    result.push({
+      timestamp: candles[i].t,
+      upper: sma + stdDevMultiplier * stdDev,
+      middle: sma,
+      lower: sma - stdDevMultiplier * stdDev,
+    });
+  }
+
+  return result;
+}
+
 function buildMiniCharts() {
   setTimeout(() => {
     buildRSIMiniChart();
     buildMACDMiniChart();
+    buildBollingerMiniChart();
   }, 100);
 }
 
@@ -421,6 +475,66 @@ function buildMACDMiniChart() {
   }
 }
 
+function buildBollingerMiniChart() {
+  if (!bollingerMiniChartRef.value || bollingerMiniData.value.length === 0) {
+    return;
+  }
+
+  try {
+    bollingerMiniChart?.destroy();
+
+    const upperValues = bollingerMiniData.value.map((d) => d.upper);
+    const middleValues = bollingerMiniData.value.map((d) => d.middle);
+    const lowerValues = bollingerMiniData.value.map((d) => d.lower);
+
+    bollingerMiniChart = new Chart(bollingerMiniChartRef.value, {
+      type: "line",
+      data: {
+        labels: middleValues.map((_, index) => index),
+        datasets: [
+          {
+            data: upperValues,
+            borderColor: "rgba(239, 68, 68, 0.6)",
+            borderWidth: 1,
+            pointRadius: 0,
+            fill: false,
+            tension: 0.2,
+          },
+          {
+            data: middleValues,
+            borderColor: "#3b82f6",
+            borderWidth: 1.5,
+            pointRadius: 0,
+            fill: false,
+            tension: 0.2,
+          },
+          {
+            data: lowerValues,
+            borderColor: "rgba(239, 68, 68, 0.6)",
+            backgroundColor: "rgba(59, 130, 246, 0.08)",
+            borderWidth: 1,
+            pointRadius: 0,
+            fill: "+1",
+            tension: 0.2,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { display: false },
+          y: { display: false },
+        },
+        animation: false,
+      },
+    });
+  } catch (error) {
+    console.error("Error building Bollinger Mini Chart:", error);
+  }
+}
+
 async function changeTimeframe(
   newTimeframe: "1h" | "1d" | "7d" | "1M" | "1y" | "all"
 ) {
@@ -482,6 +596,7 @@ onUnmounted(() => {
   unsubscribeCandles();
   rsiMiniChart?.destroy();
   macdMiniChart?.destroy();
+  bollingerMiniChart?.destroy();
 });
 </script>
 
@@ -618,10 +733,12 @@ onUnmounted(() => {
                   indicatorsStore.bbStd
                 }})</span
               >
-              <span class="trading-chart-indicator-value">Upper: 45,234</span>
             </div>
             <div class="trading-chart-indicator-chart">
-              <div class="trading-chart-indicator-bands bollinger-bands"></div>
+              <canvas
+                ref="bollingerMiniChartRef"
+                class="trading-chart-mini-canvas"
+              ></canvas>
             </div>
           </div>
 

@@ -12,7 +12,6 @@ import type { ChartData, ChartOptions } from "chart.js";
 import { fetchCandles } from "@/services/markets.api";
 import type { CandleDTO } from "@/types/market";
 
-// Register Chart.js controllers/elements once
 Chart.register(
   CandlestickController,
   CandlestickElement,
@@ -25,13 +24,12 @@ Chart.register(
 
 const props = defineProps<{
   candles: CandleDTO[];
-  timeframe?: string; // Ajouter le timeframe pour ajuster les échelles
+  timeframe?: string;
 }>();
 
 const canvasEl = ref<HTMLCanvasElement | null>(null);
 let chart: Chart<"candlestick"> | null = null;
 
-// État du tooltip personnalisé
 const tooltipVisible = ref(false);
 const tooltipData = ref({
   x: 0,
@@ -47,7 +45,6 @@ const tooltipData = ref({
   isPositive: true,
 });
 
-// État des lignes de repère (crosshair)
 const crosshairVisible = ref(false);
 const crosshairPosition = ref({
   x: 0,
@@ -63,28 +60,26 @@ const options: ChartOptions<"candlestick"> = {
   responsive: true,
   maintainAspectRatio: false,
   interaction: { intersect: false, mode: "nearest" },
-  onHover: (event, activeElements) => {
-    // Supprimé le log de debug
-  },
+  onHover: (event, activeElements) => {},
   plugins: {
     legend: { display: false },
-    tooltip: { enabled: false }, // Désactiver le tooltip par défaut
+    tooltip: { enabled: false },
     zoom: {
       pan: {
         enabled: true,
-        mode: "x", // Seulement horizontal
-        modifierKey: "shift", // Maintenir Shift pour pan
+        mode: "x",
+        modifierKey: "shift",
       },
       zoom: {
         wheel: {
           enabled: true,
-          modifierKey: "ctrl", // Ctrl + scroll pour zoom
-          speed: 0.05, // Vitesse de zoom réduite (par défaut: 0.1)
+          modifierKey: "ctrl",
+          speed: 0.05,
         },
         pinch: {
           enabled: true,
         },
-        mode: "x", // Zoom horizontal seulement
+        mode: "x",
       },
     },
   },
@@ -97,7 +92,7 @@ const options: ChartOptions<"candlestick"> = {
       ticks: {
         color: "rgba(255,255,255,0.7)",
         font: { size: 11 },
-        maxTicksLimit: 8, // Limite le nombre de ticks pour éviter l'encombrement
+        maxTicksLimit: 8,
       },
       time: {
         displayFormats: {
@@ -127,7 +122,6 @@ const options: ChartOptions<"candlestick"> = {
   },
 };
 
-// Fonction pour obtenir le format temporel selon le timeframe
 function getTimeDisplayFormat(timeframe: string) {
   switch (timeframe) {
     case "1h":
@@ -196,23 +190,18 @@ function getTimeDisplayFormat(timeframe: string) {
   }
 }
 
-// Fonction pour ajuster automatiquement le zoom sur la période
 function fitChartToTimeframe() {
   if (!chart || !props.candles?.length) return;
 
-  // Réinitialiser le zoom d'abord
   chart.resetZoom();
 
-  // Obtenir les timestamps min et max des données
   const timestamps = props.candles.map((c) => c.t);
   const minTime = Math.min(...timestamps);
   const maxTime = Math.max(...timestamps);
 
-  // Ajouter une petite marge (2% de chaque côté)
   const timeRange = maxTime - minTime;
   const margin = timeRange * 0.02;
 
-  // Appliquer le zoom pour s'adapter exactement aux données
   chart.zoomScale(
     "x",
     {
@@ -222,7 +211,6 @@ function fitChartToTimeframe() {
     "default"
   );
 
-  // Mettre à jour les formats d'affichage selon le timeframe
   const timeConfig = getTimeDisplayFormat(props.timeframe || "7d");
   if (chart.options.scales?.x) {
     const xScale = chart.options.scales.x as any;
@@ -232,11 +220,10 @@ function fitChartToTimeframe() {
       displayFormats: timeConfig.displayFormats,
     };
     xScale.ticks.maxTicksLimit = timeConfig.maxTicksLimit;
-    chart.update("none"); // Mise à jour sans animation pour la fluidité
+    chart.update("none");
   }
 }
 
-// Données et construction du graphique
 function buildChart() {
   if (!canvasEl.value || !props.candles?.length) return;
 
@@ -272,12 +259,10 @@ function buildChart() {
     options: options,
   });
 
-  // Ajuster automatiquement le zoom et les échelles
   setTimeout(() => {
     fitChartToTimeframe();
-  }, 100); // Petit délai pour que le chart soit complètement initialisé
+  }, 100);
 
-  // Ajouter un événement mousemove sur le canvas
   canvasEl.value.addEventListener("mousemove", handleMouseMove);
   canvasEl.value.addEventListener("mouseleave", () => {
     tooltipVisible.value = false;
@@ -285,7 +270,6 @@ function buildChart() {
   });
 }
 
-// Gestionnaire d'événement mousemove personnalisé
 function handleMouseMove(event: MouseEvent) {
   if (!chart || !canvasEl.value) return;
 
@@ -295,7 +279,6 @@ function handleMouseMove(event: MouseEvent) {
 
   crosshairVisible.value = true;
 
-  // Obtenir les éléments à cette position (la bougie la plus proche)
   const elements = chart.getElementsAtEventForMode(
     event,
     "nearest",
@@ -309,17 +292,13 @@ function handleMouseMove(event: MouseEvent) {
     const element = elements[0].element as any;
 
     if (candle && element) {
-      // Obtenir la position X exacte du centre de la bougie (mèche)
       const candleCenterX = element.x;
 
-      // Calculer le prix à la position Y de la souris
       const yScale = chart.scales.y;
       const priceAtMouseY = yScale.getValueForPixel(y);
 
-      // Mettre à jour les positions du crosshair
       crosshairPosition.value = { x: candleCenterX, y };
 
-      // Mettre à jour les labels
       crosshairLabels.value = {
         price:
           (priceAtMouseY || 0).toLocaleString("fr-FR", {
@@ -335,7 +314,6 @@ function handleMouseMove(event: MouseEvent) {
         candleX: candleCenterX,
       };
 
-      // Calculer la variation pour le tooltip
       const change = candle.c - candle.o;
       const changePercent = (change / candle.o) * 100;
 
@@ -378,11 +356,9 @@ function handleMouseMove(event: MouseEvent) {
       tooltipVisible.value = true;
     }
   } else {
-    // Si pas de bougie trouvée, on suit quand même la souris pour la ligne horizontale
     crosshairPosition.value = { x, y };
     tooltipVisible.value = false;
 
-    // Calculer le prix pour la ligne horizontale
     const yScale = chart.scales.y;
     const priceAtMouseY = yScale.getValueForPixel(y);
 
@@ -394,13 +370,11 @@ function handleMouseMove(event: MouseEvent) {
   }
 }
 
-// Lifecycle
 onMounted(buildChart);
 watch(() => props.candles, buildChart, { deep: true });
 watch(
   () => props.timeframe,
   () => {
-    // Quand le timeframe change, ajuster le zoom
     setTimeout(() => {
       fitChartToTimeframe();
     }, 100);
@@ -414,14 +388,12 @@ onBeforeUnmount(() => {
   chart?.destroy();
 });
 
-// Fonction pour réinitialiser le zoom
 function resetZoom() {
   if (chart) {
     chart.resetZoom();
   }
 }
 
-// Exposer les méthodes pour le composant parent
 defineExpose({
   chart,
   resetZoom,
@@ -431,43 +403,36 @@ defineExpose({
 
 <template>
   <div class="candle-chart">
-    <!-- Bouton de reset du zoom -->
     <button
       class="candle-chart-reset-btn"
       @click="resetZoom"
-      title="Réinitialiser le zoom (Ctrl+scroll pour zoomer)"
+      title="Reset zoom (Ctrl+scroll to zoom)"
     >
       🔍 Reset
     </button>
 
     <canvas ref="canvasEl"></canvas>
 
-    <!-- Lignes de repère (crosshair) -->
     <div v-if="crosshairVisible" class="candle-chart-crosshair-container">
-      <!-- Ligne verticale (fixée sur la mèche de la bougie) -->
       <div
         class="candle-chart-crosshair-line candle-chart-crosshair-line--vertical"
         :style="{ left: crosshairPosition.x + 'px' }"
       >
-        <!-- Label de date en bas -->
         <div class="candle-chart-crosshair-label candle-chart-date-label">
           {{ crosshairLabels.date }}
         </div>
       </div>
 
-      <!-- Ligne horizontale -->
       <div
         class="candle-chart-crosshair-line candle-chart-crosshair-line--horizontal"
         :style="{ top: crosshairPosition.y + 'px' }"
       >
-        <!-- Label de prix à droite -->
         <div class="candle-chart-crosshair-label candle-chart-price-label">
           {{ crosshairLabels.price }}
         </div>
       </div>
     </div>
 
-    <!-- Tooltip personnalisé -->
     <div
       v-if="tooltipVisible"
       class="candle-chart-tooltip"

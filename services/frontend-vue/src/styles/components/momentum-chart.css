@@ -37,21 +37,13 @@
 
 .momentum-chart__content {
   padding: var(--space-lg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   min-height: 180px;
+  position: relative;
 }
 
-.momentum-chart__placeholder {
-  font-family: var(--font-family);
-  font-size: var(--font-size-md);
-  color: var(--text-secondary);
-  text-align: center;
-  padding: var(--space-lg);
-  border: 2px dashed var(--border-secondary);
-  border-radius: var(--radius-md);
-  background: var(--bg-secondary);
+.momentum-chart__content canvas {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 /* Responsive Design */

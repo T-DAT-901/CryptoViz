@@ -66,7 +66,7 @@ function navigatePage(direction: "prev" | "next") {
         <!-- Icône de chart Lucide -->
         <BarChart3 class="community-sentiment-icon" />
         <div class="community-sentiment-title-section">
-          <h3 class="community-sentiment-title">Community sentiment</h3>
+          <h3 class="community-sentiment-title">Sentiment</h3>
           <span class="community-sentiment-vote-count"
             >{{ formattedVotes }} votes</span
           >
