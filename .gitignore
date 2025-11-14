@@ -352,3 +352,8 @@ public/assets/
 .cache/
 .tmp/
 .temp/
+
+# Custom
+.Cline/
+.claude/
+docs/
