@@ -26,7 +26,7 @@ def safe_parse_date(date_str):
 def refresh_articles(content_frame, canvas, status_label=None, crypto_filter=None):
     """Rafraîchit la liste des articles dans l'interface."""
     if status_label:
-        status_label.config(text="🔄 Actualisation en cours...")
+        status_label.config(text="Actualisation en cours...")
         status_label.update_idletasks()
 
     # Vide le contenu avant de recharger

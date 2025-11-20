@@ -7,7 +7,6 @@ ARTICLES_FILE = "articles.json"
 def load_articles():
     if not os.path.exists(ARTICLES_FILE):
         return []
-
     try:
         with open(ARTICLES_FILE, "r", encoding="utf-8") as f:
             articles = json.load(f)

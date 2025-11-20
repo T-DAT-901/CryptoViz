@@ -17,7 +17,7 @@ CRYPTO_KEYWORDS = {
     "ltc": ["litecoin", "ltc"]
 }
 
-DAYS_BACK = 3  # Nombre de jours d'historique à récupérer
+DAYS_BACK = 5  # Nombre de jours d'historique à récupérer
 
 RSS_FEEDS = [
     "https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml",
