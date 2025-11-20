@@ -1,0 +1,1 @@
+# Fonction d'analyse de sentiment
