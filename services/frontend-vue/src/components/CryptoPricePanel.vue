@@ -1,79 +1,123 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
-import { useTradingWebSocket, useLivePrices } from "@/services/websocket";
+import { getRTClient } from "@/services/rt";
 import { Bitcoin, TrendingUp, TrendingDown } from "lucide-vue-next";
 
 const props = defineProps<{
   symbol?: string;
   cryptoName?: string;
+  fullSymbol?: string; // Symbole complet avec slash (ex: BTC/USDT)
 }>();
 
-// WebSocket pour prix en temps réel
-const { connect, disconnect, isConnected } = useTradingWebSocket();
-const { priceData: livePrice } = useLivePrices(props.symbol || "BTCUSDT");
+// État pour les prix en temps réel
+const currentPrice = ref(0);
+const high24h = ref(0);
+const low24h = ref(0);
+const priceChange = ref(0);
+const priceChangePercent = ref(0);
+const previousPrice = ref(0);
+const initialPrice = ref(0); // Garder le prix initial pour calculer le changement 1Y
 
 // État local pour le convertisseur
 const btcAmount = ref(1);
-const eurAmount = ref(94989.59);
+const eurAmount = ref(0);
+
+// Utiliser le fullSymbol ou fallback sur symbol
+const realSymbol = computed(
+  () => props.fullSymbol || props.symbol || "BTC/USDT"
+);
+
+// WebSocket real-time
+const rtClient = getRTClient();
+let unsubscribeTrade: (() => void) | null = null;
 
 // Prix et données calculées
-const currentPrice = computed(() => {
-  if (livePrice.value) {
-    return livePrice.value.price;
-  }
-  return 70337.27; // Prix de fallback selon l'image
-});
-
-const priceChange = computed(() => {
-  if (livePrice.value) {
-    return livePrice.value.change;
-  }
-  return 99.53; // Change de fallback
-});
-
-const priceChangePercent = computed(() => {
-  if (livePrice.value) {
-    return livePrice.value.changePercent;
-  }
-  return 0.14; // Pourcentage de fallback
-});
-
 const isPositive = computed(() => priceChange.value > 0);
-
-const high24h = computed(() => {
-  if (livePrice.value) {
-    return livePrice.value.high24h;
-  }
-  return 95422.12; // Haut 24h de fallback
-});
-
-const low24h = computed(() => {
-  if (livePrice.value) {
-    return livePrice.value.low24h;
-  }
-  return 91968.39; // Bas 24h de fallback
-});
 
 // Mise à jour du convertisseur
 function updateEurFromBtc() {
-  eurAmount.value = btcAmount.value * currentPrice.value;
+  if (currentPrice.value > 0) {
+    eurAmount.value = btcAmount.value * currentPrice.value;
+  }
 }
 
 function updateBtcFromEur() {
-  btcAmount.value = eurAmount.value / currentPrice.value;
+  if (currentPrice.value > 0) {
+    btcAmount.value = eurAmount.value / currentPrice.value;
+  }
 }
 
 // Lifecycle
 onMounted(async () => {
   try {
-    await connect();
+    // Connecter au WebSocket
+    if (!rtClient.isConnected()) {
+      await rtClient.connect();
+    }
+
+    // S'abonner aux trades du symbole
+    console.log("📡 Subscribing to trades for:", realSymbol.value);
+    rtClient.subscribe("trade", realSymbol.value);
+
+    // Écouter les trades
+    unsubscribeTrade = rtClient.on("trade", (message: any) => {
+      if (message.data && message.data.symbol === realSymbol.value) {
+        const price = message.data.price;
+
+        // Mettre à jour le prix
+        previousPrice.value = currentPrice.value;
+        currentPrice.value = price;
+
+        // Calculer le changement SEULEMENT si c'est le premier prix
+        if (initialPrice.value === 0) {
+          initialPrice.value = price;
+          priceChange.value = 0;
+          priceChangePercent.value = 0;
+        } else {
+          // Après, garder le pourcentage stable par rapport au prix initial
+          priceChange.value = currentPrice.value - initialPrice.value;
+          priceChangePercent.value =
+            initialPrice.value > 0
+              ? (priceChange.value / initialPrice.value) * 100
+              : 0;
+        }
+
+        // Mettre à jour les hauts/bas SEULEMENT au premier prix
+        // (après, on les garde stables pour la barre de progression)
+        if (high24h.value === 0 && low24h.value === 0) {
+          high24h.value = price;
+          low24h.value = price;
+        } else {
+          // Sinon, update seulement si VRAIMENT dépassé de beaucoup
+          // (par exemple > 5% au-dessus/au-dessous)
+          if (price > high24h.value * 1.05) {
+            high24h.value = price;
+          }
+          if (price < low24h.value * 0.95) {
+            low24h.value = price;
+          }
+        }
+
+        // Mettre à jour le convertisseur
+        eurAmount.value = btcAmount.value * currentPrice.value;
+
+        console.log(
+          `📈 ${realSymbol.value}: ${price}€ (${priceChangePercent.value.toFixed(2)}%)`
+        );
+      }
+    });
   } catch (error) {
-    console.warn("WebSocket connection failed for price panel");
+    console.warn("WebSocket connection failed for price panel:", error);
   }
 });
 
 onUnmounted(() => {
-  disconnect();
+  if (unsubscribeTrade) {
+    unsubscribeTrade();
+  }
+  if (realSymbol.value) {
+    rtClient.unsubscribe("trade", realSymbol.value);
+  }
 });
 </script>
 
@@ -85,7 +129,7 @@ onUnmounted(() => {
         <Bitcoin class="crypto-price-panel-bitcoin-icon" />
         <div class="crypto-price-panel-info">
           <h1 class="crypto-price-panel-name">{{ cryptoName || "Bitcoin" }}</h1>
-          <span class="crypto-price-panel-symbol">{{ symbol || "BTC" }}</span>
+          <span class="crypto-price-panel-symbol">{{ realSymbol }}</span>
           <span class="crypto-price-panel-rank">#1</span>
         </div>
       </div>
@@ -119,10 +163,14 @@ onUnmounted(() => {
 
     <!-- Convertisseur BTC/EUR -->
     <div class="crypto-price-panel-converter-section">
-      <h3 class="crypto-price-panel-section-title">Convertisseur BTC / EUR</h3>
+      <h3 class="crypto-price-panel-section-title">
+        Convertisseur {{ realSymbol.split("/")[0] }} / EUR
+      </h3>
       <div class="crypto-price-panel-converter">
         <div class="crypto-price-panel-currency-input">
-          <label class="crypto-price-panel-currency-label">BTC</label>
+          <label class="crypto-price-panel-currency-label">{{
+            realSymbol.split("/")[0]
+          }}</label>
           <input
             v-model.number="btcAmount"
             @input="updateEurFromBtc"
