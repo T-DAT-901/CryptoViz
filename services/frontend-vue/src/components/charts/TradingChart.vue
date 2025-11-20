@@ -110,7 +110,7 @@ const timeframes = [
   { value: "5m", label: "5m" },
   { value: "15m", label: "15m" },
   { value: "1h", label: "1h" },
-  { value: "24h", label: "24h " },
+  { value: "1d", label: "1d" },
 ] as const;
 
 const selectedTimeframe = computed({
@@ -165,7 +165,7 @@ async function loadData() {
       limit = 96; // 1 jour de 15 minutes
     else if (interval === "1h")
       limit = 168; // 1 semaine d'heures
-    else if (interval === "24h") limit = 365; // 1 an de jours
+    else if (interval === "1d") limit = 365; // 1 an de jours
 
     const rows = await fetchCandles(symbol, interval, limit);
 
@@ -595,7 +595,7 @@ function buildBollingerMiniChart() {
 }
 
 async function changeTimeframe(
-  newTimeframe: "1m" | "5m" | "15m" | "1h" | "24h"
+  newTimeframe: "1m" | "5m" | "15m" | "1h" | "1d"
 ) {
   if (loading.value || selectedTimeframe.value === newTimeframe) return;
   selectedTimeframe.value = newTimeframe;

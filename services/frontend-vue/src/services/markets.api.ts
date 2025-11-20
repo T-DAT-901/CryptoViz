@@ -29,13 +29,20 @@ export async function fetchCandles(
     return candlesMock.default as CandleDTO[];
   }
   try {
-    // Encoder le symbole pour l'URL (BTC/FDUSD -> BTC%2FFDUSD)
-    const encodedSymbol = encodeURIComponent(symbol);
-    const response = await http.get(`/api/v1/crypto/${encodedSymbol}/data`, {
-      params: { interval, limit },
+    // Backend-go uses query parameters: /api/v1/crypto/data?symbol=BTC/USDT&interval=1m&limit=120
+    const response = await http.get(`/api/v1/crypto/data`, {
+      params: { symbol, interval, limit },
     });
-    // La réponse du backend est { success: true, data: { symbol, interval, data: [] } }
-    return response.data?.data?.data || [];
+    // Transform backend format to chart format
+    const backendData = response.data?.data || [];
+    return backendData.map((candle: any) => ({
+      time: candle.window_start || candle.time,
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+      volume: candle.volume,
+    }));
   } catch (error) {
     console.error(`Error fetching candles for ${symbol}:`, error);
     return [];
@@ -62,10 +69,10 @@ export async function fetchIndicators(
     return indicatorMock.default as any[];
   }
   try {
-    const encodedSymbol = encodeURIComponent(symbol);
-    const response = await http.get(
-      `/api/v1/indicators/${encodedSymbol}/${type}`
-    );
+    // Backend-go uses query parameters: /api/v1/indicators/{type}?symbol=BTC/USDT
+    const response = await http.get(`/api/v1/indicators/${type}`, {
+      params: { symbol },
+    });
     return response.data?.data || [];
   } catch (error) {
     console.error(`Error fetching ${type} for ${symbol}:`, error);

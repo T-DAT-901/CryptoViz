@@ -72,7 +72,7 @@ def load_config() -> Config:
             logging.warning("Invalid MAX_SYMBOLS, ignoring")
 
     # Parse et valide les timeframes
-    timeframes_str = os.getenv("TIMEFRAMES", "5s,1m,15m,1h")
+    timeframes_str = os.getenv("TIMEFRAMES", "1m,5m,15m,1h,1d")
     timeframes = []
     for tf in timeframes_str.split(","):
         tf = tf.strip()

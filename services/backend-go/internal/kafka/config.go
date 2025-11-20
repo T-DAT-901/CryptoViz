@@ -47,8 +47,8 @@ func NewKafkaConfig(cfg *config.Config) *KafkaConfig {
 
 // GetAggregatedTopics retourne la liste des topics agrégés à consommer
 func (k *KafkaConfig) GetAggregatedTopics() []string {
-	// Topics: crypto.aggregated.5s, 1m, 15m, 1h, 4h, 1d
-	timeframes := []string{"5s", "1m", "15m", "1h", "4h", "1d"}
+	// Topics: crypto.aggregated.1m, 5m, 15m, 1h, 1d
+	timeframes := []string{"1m", "5m", "15m", "1h", "1d"}
 	topics := make([]string, len(timeframes))
 	for i, tf := range timeframes {
 		topics[i] = k.TopicAggregatedPrefix + tf

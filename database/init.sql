@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS candles (
     window_end TIMESTAMPTZ NOT NULL,
     exchange VARCHAR(20) NOT NULL,
     symbol VARCHAR(20) NOT NULL,
-    timeframe VARCHAR(5) NOT NULL, -- '5s', '1m', '15m', '1h', '4h', '1d'
+    timeframe VARCHAR(5) NOT NULL, -- '1m', '5m', '15m', '1h', '1d'
     open DECIMAL(20,8) NOT NULL,
     high DECIMAL(20,8) NOT NULL,
     low DECIMAL(20,8) NOT NULL,
@@ -285,21 +285,33 @@ CREATE OR REPLACE FUNCTION cleanup_old_data()
 RETURNS void AS $$
 BEGIN
     -- Les trades sont automatiquement supprimés par la retention policy (24h)
+    -- Note: Hot/cold tiering is now configured in setup-tiering.sql with .env variables
+    -- This function provides additional cleanup for total retention limits
 
-    -- Supprimer les candles 5s plus anciennes que 7 jours
-    DELETE FROM candles
-    WHERE timeframe = '5s'
-    AND window_start < NOW() - INTERVAL '7 days';
-
-    -- Supprimer les candles 1m plus anciennes que 30 jours
+    -- Supprimer les candles 1m plus anciennes que 37 jours (7 hot + 30 cold)
     DELETE FROM candles
     WHERE timeframe = '1m'
-    AND window_start < NOW() - INTERVAL '30 days';
+    AND window_start < NOW() - INTERVAL '37 days';
 
-    -- Supprimer les candles 15m plus anciennes que 6 mois
+    -- Supprimer les candles 5m plus anciennes que 104 jours (14 hot + 90 cold)
+    DELETE FROM candles
+    WHERE timeframe = '5m'
+    AND window_start < NOW() - INTERVAL '104 days';
+
+    -- Supprimer les candles 15m plus anciennes que 210 jours (30 hot + 180 cold)
     DELETE FROM candles
     WHERE timeframe = '15m'
-    AND window_start < NOW() - INTERVAL '6 months';
+    AND window_start < NOW() - INTERVAL '210 days';
+
+    -- Supprimer les candles 1h plus anciennes que 820 jours (90 hot + 730 cold)
+    DELETE FROM candles
+    WHERE timeframe = '1h'
+    AND window_start < NOW() - INTERVAL '820 days';
+
+    -- Les candles 1d sont conservées indéfiniment (low volume, high value)
+
+    -- Supprimer les anciennes données des intervalles obsolètes (1s, 5s, 4h)
+    DELETE FROM candles WHERE timeframe IN ('1s', '5s', '4h');
 
     RAISE NOTICE 'Cleanup completed';
 END;

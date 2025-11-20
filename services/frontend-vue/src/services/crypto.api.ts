@@ -112,9 +112,10 @@ export class CryptoService {
           const enrichedCryptos = await Promise.all(
             cryptos.map(async (crypto) => {
               try {
-                const response = await http.get(
-                  `/api/v1/stats/${crypto.symbol}`
-                );
+                // Backend-go uses query parameters: /api/v1/stats?symbol=BTC/USDT
+                const response = await http.get(`/api/v1/stats`, {
+                  params: { symbol: crypto.symbol },
+                });
                 const stats = response.data?.data || {};
 
                 return {
@@ -123,7 +124,7 @@ export class CryptoService {
                   change24h: stats.change24h || 0,
                   change7d: stats.change7d || 0,
                   marketCap: stats.marketCap || 0,
-                  volume24h: stats.volume24h || 0,
+                  volume24h: stats.volume24h || stats.total_volume || 0,
                   circulatingSupply: stats.circulatingSupply || 0,
                 };
               } catch (error) {

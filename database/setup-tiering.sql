@@ -51,22 +51,67 @@ CREATE TABLE IF NOT EXISTS cold_storage.news (
 -- TIERING FUNCTIONS
 -- =============================================================================
 
--- Function to manually tier candles to cold storage
+-- Function to manually tier candles to cold storage (interval-specific)
+-- Retention configured in .env:
+--   HOT_RETENTION_1M=7, HOT_RETENTION_5M=14, HOT_RETENTION_15M=30
+--   HOT_RETENTION_1H=90, HOT_RETENTION_1D=36500
 CREATE OR REPLACE FUNCTION tier_old_candles()
 RETURNS void AS $$
 DECLARE
+    rows_moved_total INTEGER := 0;
     rows_moved INTEGER;
 BEGIN
-    -- Move candles older than 7 days to cold storage
+    -- Tier 1m candles older than 7 days (HOT_RETENTION_1M)
     WITH moved AS (
         DELETE FROM candles
-        WHERE window_start < NOW() - INTERVAL '7 days'
+        WHERE timeframe = '1m' AND window_start < NOW() - INTERVAL '7 days'
         RETURNING *
     )
     INSERT INTO cold_storage.candles SELECT * FROM moved;
-
     GET DIAGNOSTICS rows_moved = ROW_COUNT;
-    RAISE NOTICE 'Tiered % candle rows to cold storage', rows_moved;
+    rows_moved_total := rows_moved_total + rows_moved;
+    RAISE NOTICE 'Tiered % rows (1m) to cold storage', rows_moved;
+
+    -- Tier 5m candles older than 14 days (HOT_RETENTION_5M)
+    WITH moved AS (
+        DELETE FROM candles
+        WHERE timeframe = '5m' AND window_start < NOW() - INTERVAL '14 days'
+        RETURNING *
+    )
+    INSERT INTO cold_storage.candles SELECT * FROM moved;
+    GET DIAGNOSTICS rows_moved = ROW_COUNT;
+    rows_moved_total := rows_moved_total + rows_moved;
+    RAISE NOTICE 'Tiered % rows (5m) to cold storage', rows_moved;
+
+    -- Tier 15m candles older than 30 days (HOT_RETENTION_15M)
+    WITH moved AS (
+        DELETE FROM candles
+        WHERE timeframe = '15m' AND window_start < NOW() - INTERVAL '30 days'
+        RETURNING *
+    )
+    INSERT INTO cold_storage.candles SELECT * FROM moved;
+    GET DIAGNOSTICS rows_moved = ROW_COUNT;
+    rows_moved_total := rows_moved_total + rows_moved;
+    RAISE NOTICE 'Tiered % rows (15m) to cold storage', rows_moved;
+
+    -- Tier 1h candles older than 90 days (HOT_RETENTION_1H)
+    WITH moved AS (
+        DELETE FROM candles
+        WHERE timeframe = '1h' AND window_start < NOW() - INTERVAL '90 days'
+        RETURNING *
+    )
+    INSERT INTO cold_storage.candles SELECT * FROM moved;
+    GET DIAGNOSTICS rows_moved = ROW_COUNT;
+    rows_moved_total := rows_moved_total + rows_moved;
+    RAISE NOTICE 'Tiered % rows (1h) to cold storage', rows_moved;
+
+    -- 1d candles stay in hot storage (HOT_RETENTION_1D=36500 days = 100 years)
+    -- No tiering for 1d interval
+
+    -- Remove obsolete intervals (1s, 5s, 4h) from cold storage if they exist
+    DELETE FROM cold_storage.candles WHERE timeframe IN ('1s', '5s', '4h');
+
+    RAISE NOTICE 'Total tiered % candle rows to cold storage', rows_moved_total;
 END;
 $$ LANGUAGE plpgsql;
 

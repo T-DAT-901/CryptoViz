@@ -9,7 +9,7 @@ export const useMarketStore = defineStore("market", {
     candles: {} as Record<string, CandleDTO[]>,
     tickers: {} as Record<string, TickerDTO>,
     rtConnected: false,
-    activeSymbol: "BTCUSDT" as string,
+    activeSymbol: "BTC/USDT" as string, // Backend-go uses BASE/QUOTE format
   }),
 
   actions: {
@@ -45,13 +45,22 @@ export const useMarketStore = defineStore("market", {
         await rt.connect();
         this.rtConnected = true;
 
-        // Subscribe to price updates
-        rt.subscribe("trades", this.activeSymbol);
-        rt.subscribe("candles", this.activeSymbol, this.interval);
+        // Subscribe to price updates (backend-go uses "trade" and "candle")
+        rt.subscribe("trade", this.activeSymbol);
+        rt.subscribe("candle", this.activeSymbol, this.interval);
 
         // Listen to candles
         rt.on("candle", (msg: WSMessage) => {
-          const candle = msg.data as CandleDTO;
+          const rawCandle = msg.data as any;
+          // Transform backend format to frontend format
+          const candle: CandleDTO = {
+            time: rawCandle.window_start || rawCandle.time,
+            open: rawCandle.open,
+            high: rawCandle.high,
+            low: rawCandle.low,
+            close: rawCandle.close,
+            volume: rawCandle.volume,
+          };
           this.addCandles(this.activeSymbol, candle);
         });
 
@@ -87,12 +96,12 @@ export const useMarketStore = defineStore("market", {
 
       // Unsubscribe from old symbol
       if (this.activeSymbol !== symbol) {
-        rt.unsubscribe("trades", this.activeSymbol);
-        rt.unsubscribe("candles", this.activeSymbol, this.interval);
+        rt.unsubscribe("trade", this.activeSymbol);
+        rt.unsubscribe("candle", this.activeSymbol, this.interval);
 
         // Subscribe to new symbol
-        rt.subscribe("trades", symbol);
-        rt.subscribe("candles", symbol, this.interval);
+        rt.subscribe("trade", symbol);
+        rt.subscribe("candle", symbol, this.interval);
 
         this.activeSymbol = symbol;
         this.candles[symbol] = this.candles[symbol] || [];
@@ -104,10 +113,10 @@ export const useMarketStore = defineStore("market", {
 
       // Unsubscribe from old interval
       if (this.interval !== interval) {
-        rt.unsubscribe("candles", this.activeSymbol, this.interval);
+        rt.unsubscribe("candle", this.activeSymbol, this.interval);
 
         // Subscribe to new interval
-        rt.subscribe("candles", this.activeSymbol, interval);
+        rt.subscribe("candle", this.activeSymbol, interval);
 
         this.interval = interval;
       }
