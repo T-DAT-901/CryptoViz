@@ -31,16 +31,16 @@ func Setup(deps *controllers.Dependencies, logger *logrus.Logger) *gin.Engine {
 	// API v1
 	v1 := router.Group("/api/v1")
 	{
-		// Routes candles
-		v1.GET("/crypto/:symbol/data", candleCtrl.GetCandleData)
-		v1.GET("/crypto/:symbol/latest", candleCtrl.GetLatestPrice)
-		v1.GET("/stats/:symbol", candleCtrl.GetStats)
+		// Routes candles (using query parameters for symbols with slashes)
+		v1.GET("/crypto/data", middleware.ValidateSymbolQuery(), candleCtrl.GetCandleData)
+		v1.GET("/crypto/latest", middleware.ValidateSymbolQuery(), candleCtrl.GetLatestPrice)
+		v1.GET("/stats", middleware.ValidateSymbolQuery(), candleCtrl.GetStats)
 
-		// Routes indicateurs
-		v1.GET("/indicators/:symbol/:type", indicatorCtrl.GetByType)
-		v1.GET("/indicators/:symbol", indicatorCtrl.GetAll)
+		// Routes indicateurs (using query parameters for symbols with slashes)
+		v1.GET("/indicators/:type", middleware.ValidateSymbolQuery(), indicatorCtrl.GetByType)
+		v1.GET("/indicators", middleware.ValidateSymbolQuery(), indicatorCtrl.GetAll)
 
-		// Routes news
+		// Routes news (symbols are single tokens like BTC, ETH, not pairs)
 		v1.GET("/news", newsCtrl.GetAll)
 		v1.GET("/news/:symbol", newsCtrl.GetBySymbol)
 	}

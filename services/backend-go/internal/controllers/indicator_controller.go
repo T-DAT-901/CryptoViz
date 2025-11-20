@@ -28,15 +28,17 @@ func NewIndicatorController(deps *Dependencies) *IndicatorController {
 // @Summary Get indicators by type
 // @Description Récupère les indicateurs techniques d'un type spécifique
 // @Tags indicators
-// @Param symbol path string true "Symbol (ex: BTC/USDT)"
+// @Param symbol query string true "Symbol (ex: BTC/USDT)"
 // @Param type path string true "Indicator type (ex: rsi, macd, bollinger)"
 // @Param interval query string false "Interval" default(1m)
 // @Param limit query int false "Limit" default(100)
 // @Success 200 {object} dto.APIResponse
 // @Failure 500 {object} dto.APIResponse
-// @Router /api/v1/indicators/{symbol}/{type} [get]
+// @Router /api/v1/indicators/{type} [get]
 func (ctrl *IndicatorController) GetByType(c *gin.Context) {
-	symbol := c.Param("symbol")
+	// Symbol is validated and normalized by middleware, stored in context
+	symbol, _ := c.Get("symbol")
+	symbolStr := symbol.(string)
 	indicatorType := c.Param("type")
 	interval := c.DefaultQuery("interval", "1m")
 	limitStr := c.DefaultQuery("limit", "100")
@@ -46,7 +48,7 @@ func (ctrl *IndicatorController) GetByType(c *gin.Context) {
 		limit = 100
 	}
 
-	data, err := ctrl.repo.GetBySymbolAndType(symbol, indicatorType, interval, limit)
+	data, err := ctrl.repo.GetBySymbolAndType(symbolStr, indicatorType, interval, limit)
 	if err != nil {
 		ctrl.logger.Error("Erreur requête indicateurs: ", err)
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse("Database error"))
@@ -60,16 +62,18 @@ func (ctrl *IndicatorController) GetByType(c *gin.Context) {
 // @Summary Get all indicators
 // @Description Récupère tous les indicateurs techniques pour un symbole
 // @Tags indicators
-// @Param symbol path string true "Symbol (ex: BTC/USDT)"
+// @Param symbol query string true "Symbol (ex: BTC/USDT)"
 // @Param interval query string false "Interval" default(1m)
 // @Success 200 {object} dto.APIResponse
 // @Failure 500 {object} dto.APIResponse
-// @Router /api/v1/indicators/{symbol} [get]
+// @Router /api/v1/indicators [get]
 func (ctrl *IndicatorController) GetAll(c *gin.Context) {
-	symbol := c.Param("symbol")
+	// Symbol is validated and normalized by middleware, stored in context
+	symbol, _ := c.Get("symbol")
+	symbolStr := symbol.(string)
 	interval := c.DefaultQuery("interval", "1m")
 
-	data, err := ctrl.repo.GetAllBySymbol(symbol, interval)
+	data, err := ctrl.repo.GetAllBySymbol(symbolStr, interval)
 	if err != nil {
 		ctrl.logger.Error("Erreur requête tous indicateurs: ", err)
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse("Database error"))
