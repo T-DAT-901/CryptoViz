@@ -37,9 +37,10 @@ type CandleMessage struct {
 // CandleHandler gère les messages de candles (OHLCV) depuis Kafka
 type CandleHandler struct {
 	kafka.BaseHandler
-	repo   models.CandleRepository
-	redis  *redis.Client
-	logger *logrus.Logger
+	repo      models.CandleRepository
+	redis     *redis.Client
+	logger    *logrus.Logger
+	broadcast BroadcastFunc
 }
 
 // NewCandleHandler crée un nouveau handler pour les candles
@@ -55,6 +56,11 @@ func NewCandleHandler(cfg *kafka.KafkaConfig, repo models.CandleRepository, redi
 		redis:  redisClient,
 		logger: logger,
 	}
+}
+
+// SetBroadcast sets the broadcast callback for WebSocket streaming
+func (h *CandleHandler) SetBroadcast(fn BroadcastFunc) {
+	h.broadcast = fn
 }
 
 // Handle traite un message de candle
@@ -120,6 +126,25 @@ func (h *CandleHandler) Handle(ctx context.Context, msg interface{}) error {
 	// Insérer dans la base de données
 	if err := h.repo.Create(candle); err != nil {
 		return fmt.Errorf("failed to insert candle: %w", err)
+	}
+
+	// Broadcast to WebSocket clients (only closed candles to reduce noise)
+	if h.broadcast != nil && candle.Closed {
+		wsData := map[string]interface{}{
+			"type":         "candle",
+			"exchange":     candle.Exchange,
+			"symbol":       candle.Symbol,
+			"timeframe":    candle.Timeframe,
+			"window_start": candle.WindowStart.UnixMilli(),
+			"window_end":   candle.WindowEnd.UnixMilli(),
+			"open":         candle.Open,
+			"high":         candle.High,
+			"low":          candle.Low,
+			"close":        candle.Close,
+			"volume":       candle.Volume,
+			"closed":       candle.Closed,
+		}
+		h.broadcast("candle", candle.Symbol, candle.Timeframe, wsData)
 	}
 
 	h.logger.WithFields(logrus.Fields{

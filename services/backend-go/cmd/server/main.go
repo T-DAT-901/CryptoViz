@@ -77,6 +77,11 @@ func main() {
 	indicatorHandler := consumers.NewIndicatorHandler(kafkaConfig, deps.IndicatorRepo, redisClient, logger)
 	newsHandler := consumers.NewNewsHandler(kafkaConfig, deps.NewsRepo, redisClient, logger)
 
+	// Connect handlers to WebSocket Hub for real-time broadcasting
+	tradeHandler.SetBroadcast(wsHub.Broadcast)
+	candleHandler.SetBroadcast(wsHub.Broadcast)
+	logger.Info("✅ WebSocket broadcast connected to Kafka handlers")
+
 	if err := consumerManager.RegisterHandler(kafkaConfig, candleHandler); err != nil {
 		log.Fatal("❌ Erreur lors de l'enregistrement du CandleHandler:", err)
 	}
