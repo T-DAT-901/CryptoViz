@@ -1,0 +1,41 @@
+/* Import du design system */
+@import "./styles/variables.css";
+@import "./styles/components.css";
+@import "./styles/utilities.css";
+
+/* Dark everywhere */
+:root {
+  color-scheme: dark;
+}
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  background: var(--bg-primary); /* Utilisation de la variable CSS */
+}
+
+/* disable viewport rubber-band / glow */
+html,
+body {
+  overscroll-behavior: none;
+}
+
+/* columns: independent scroll, no bounce propagation */
+.col {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: auto;
+}
+
+/* optional slimmer scrollbars */
+.col::-webkit-scrollbar {
+  width: 10px;
+}
+.col::-webkit-scrollbar-thumb {
+  background: var(--bg-secondary);
+  border-radius: 8px;
+}
+.col::-webkit-scrollbar-track {
+  background: transparent;
+}

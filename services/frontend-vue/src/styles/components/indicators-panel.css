@@ -1,0 +1,38 @@
+/* Indicators Panel Component Styles */
+
+.indicators-panel {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+
+.indicators-panel-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  transition: var(--transition-base);
+}
+
+.indicators-panel-item:hover {
+  background: var(--bg-secondary);
+  border-color: var(--border-secondary);
+}
+
+.indicators-panel-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--text-secondary);
+}
+
+.indicators-panel-item input[type="checkbox"] {
+  margin-right: 2px;
+}

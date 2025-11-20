@@ -1,0 +1,61 @@
+/* Converter Component Styles */
+
+.crypto-converter {
+  margin-bottom: var(--space-xl);
+}
+
+.crypto-converter-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 var(--space-md) 0;
+  color: var(--text-primary);
+}
+
+.crypto-converter-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.crypto-input-group {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  transition: var(--transition-base);
+}
+
+.crypto-input-group:focus-within {
+  border-color: var(--accent-blue);
+}
+
+.crypto-input-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.crypto-input-field {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+  width: 60%;
+  outline: none;
+}
+
+.crypto-input-field::-webkit-outer-spin-button,
+.crypto-input-field::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.crypto-input-field[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
