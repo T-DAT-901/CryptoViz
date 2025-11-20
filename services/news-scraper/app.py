@@ -68,7 +68,19 @@ class NewsScraperApp:
         with open(config_path, "r") as f:
             config = yaml.safe_load(f)
 
-        # Expand environment variables
+        # Expand environment variables in kafka config
+        if "kafka" in config:
+            for key, value in config["kafka"].items():
+                if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
+                    env_var = value[2:-1]
+                    # Extract default value if present (e.g., ${VAR:-default})
+                    if ":-" in env_var:
+                        env_var, default = env_var.split(":-", 1)
+                        config["kafka"][key] = os.getenv(env_var, default)
+                    else:
+                        config["kafka"][key] = os.getenv(env_var, value)
+
+        # Expand environment variables in sources config
         for source in config.get("sources", []):
             for key, value in source.items():
                 if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
