@@ -14,11 +14,11 @@ import LineChart from "@/components/charts/LineChart.vue";
 import { useMarketStore } from "@/stores/market";
 import { useIndicatorsStore } from "@/stores/indicators";
 import { fetchCandles, fetchIndicators } from "@/services/markets.api";
-import { transformOldCandlesArray } from "@/utils/mockTransform";
 import {
   useTradingWebSocket,
   useLivePrices,
   useLiveCandles,
+  useLiveTrades,
 } from "@/services/websocket";
 import type { CandleDTO } from "@/types/market";
 import {
@@ -67,6 +67,16 @@ const { connect, disconnect, isConnected, lastUpdate } = useTradingWebSocket();
 const { priceData: livePrice } = useLivePrices("BTCUSDT");
 const { latestCandle, unsubscribe: unsubscribeCandles } = useLiveCandles();
 
+// Get the symbol without / for WebSocket format (BTCUSDT instead of BTC/USDT)
+const symbolForWS = computed(() => {
+  return symbolPair.value.replace("/", "");
+});
+
+// Get live trades from WebSocket to populate the chart in real-time
+const { trades: liveTrades, unsubscribe: unsubscribeTrades } = useLiveTrades(
+  symbolForWS.value
+);
+
 const chartMode = ref<"candle" | "line">("line");
 const loading = ref(false);
 const candles = ref<CandleDTO[]>([]);
@@ -94,14 +104,13 @@ const bollingerMiniData = ref<
   }>
 >([]);
 
-// Available timeframes
+// Available timeframes - updated to granular intervals
 const timeframes = [
-  { value: "1h", label: "1H" },
-  { value: "1d", label: "24H" },
-  { value: "7d", label: "7D" },
-  { value: "1M", label: "1M" },
-  { value: "1y", label: "1Y" },
-  { value: "all", label: "ALL" },
+  { value: "1m", label: "1m" },
+  { value: "5m", label: "5m" },
+  { value: "15m", label: "15m" },
+  { value: "1h", label: "1h" },
+  { value: "24h", label: "24h " },
 ] as const;
 
 const selectedTimeframe = computed({
@@ -110,59 +119,59 @@ const selectedTimeframe = computed({
 });
 
 const linePoints = computed(() => {
-  const points = candles.value.map((c) => ({
+  // Commencer par les points historiques du graph
+  const historicalPoints = candles.value.map((c) => ({
     x: new Date(c.time).getTime(),
     y: c.close,
   }));
-  return points;
+
+  // Ajouter les trades en temps réel du WebSocket
+  const tradePoints = liveTrades.value.map((t) => ({
+    x: t.timestamp,
+    y: t.price,
+  }));
+
+  // Fusionner et trier par timestamp
+  const allPoints = [...historicalPoints, ...tradePoints];
+  allPoints.sort((a, b) => a.x - b.x);
+
+  // Supprimer les doublons (basés sur la proximité temporelle)
+  const uniquePoints = [];
+  for (let i = 0; i < allPoints.length; i++) {
+    if (i === 0 || allPoints[i].x - allPoints[i - 1].x > 100) {
+      // Plus de 100ms d'écart
+      uniquePoints.push(allPoints[i]);
+    }
+  }
+
+  return uniquePoints;
 });
 
 // Load data based on selected timeframe
 async function loadData() {
   loading.value = true;
   try {
-    let rows = [];
+    // Récupérer les données du backend réel avec le bon symbol et interval
+    const symbol = symbolPair.value; // BTC/USDT, ETH/FDUSD, etc.
+    const interval = selectedTimeframe.value; // 1m, 5m, 15m, 1h, 24h
 
-    if (import.meta.env.VITE_USE_MOCK === "true") {
-      const { default: unifiedData } = await import(
-        "@/services/mocks/candles_unified.json"
-      );
+    // Adapter le limit en fonction du timeframe pour avoir ~500-1000 points de données
+    let limit = 500;
+    if (interval === "1m")
+      limit = 1440; // 1 jour de minutes
+    else if (interval === "5m")
+      limit = 288; // 1 jour de 5 minutes
+    else if (interval === "15m")
+      limit = 96; // 1 jour de 15 minutes
+    else if (interval === "1h")
+      limit = 168; // 1 semaine d'heures
+    else if (interval === "24h") limit = 365; // 1 an de jours
 
-      switch (selectedTimeframe.value) {
-        case "1h":
-          const oneDayData = unifiedData["1d"] || [];
-          rows = transformOldCandlesArray(oneDayData.slice(-60));
-          break;
-        case "1d":
-          const twentyFourHourData = unifiedData["1d"] || [];
-          rows = transformOldCandlesArray(twentyFourHourData.slice(-1440));
-          break;
-        case "7d":
-          rows = transformOldCandlesArray(unifiedData["7d"] || []);
-          break;
-        case "1M":
-          rows = transformOldCandlesArray(unifiedData["1M"] || []);
-          break;
-        case "1y":
-          rows = transformOldCandlesArray(unifiedData["1y"] || []);
-          break;
-        case "all":
-          rows = transformOldCandlesArray(unifiedData["all"] || []);
-          break;
-        default:
-          const fallbackData = unifiedData["1d"] || [];
-          rows = transformOldCandlesArray(fallbackData.slice(-60));
-      }
-    } else {
-      // Récupérer les données du backend réel avec le bon symbol et interval
-      const symbol = symbolPair.value; // BTCUSDT, ETHUSDT, etc.
-      const interval = selectedTimeframe.value; // 1m, 15m, 1h, etc.
-      rows = await fetchCandles(symbol, interval, 500);
+    const rows = await fetchCandles(symbol, interval, limit);
 
-      // Si pas de données, log un warning mais continue (la DB peut être vide)
-      if (!rows || rows.length === 0) {
-        console.warn(`Pas de données reçues pour ${symbol} - ${interval}`);
-      }
+    // Si pas de données, log un warning mais continue (la DB peut être vide)
+    if (!rows || rows.length === 0) {
+      console.warn(`Pas de données reçues pour ${symbol} - ${interval}`);
     }
 
     candles.value = rows;
@@ -175,42 +184,54 @@ async function loadData() {
 }
 
 async function loadIndicatorData(candleData: any[]) {
-  if (candleData.length === 0) return;
+  // Ne pas calculer les indicateurs si pas de données
+  if (!candleData || candleData.length === 0) {
+    console.log("🔴 No candle data, clearing all indicators");
+    rsiMiniData.value = [];
+    macdMiniData.value = [];
+    bollingerMiniData.value = [];
+    return;
+  }
 
   try {
     // Charger les indicateurs depuis l'API au lieu de les calculer
     if (indicatorsStore.showRSI) {
       const rsiData = await fetchIndicators(symbolPair.value, "rsi");
+      console.log("📊 RSI API response:", rsiData.length, "points");
       if (rsiData.length > 0) {
         rsiMiniData.value = rsiData;
       } else {
-        rsiMiniData.value = calculateRSIFromCandles(candleData);
+        console.log("❌ No RSI from API, not using fallback");
+        rsiMiniData.value = [];
       }
     }
 
     if (indicatorsStore.showMACD) {
       const macdData = await fetchIndicators(symbolPair.value, "macd");
+      console.log("📊 MACD API response:", macdData.length, "points");
       if (macdData.length > 0) {
         macdMiniData.value = macdData;
       } else {
-        macdMiniData.value = calculateMACDFromCandles(candleData);
+        console.log("❌ No MACD from API, not using fallback");
+        macdMiniData.value = [];
       }
     }
 
     if (indicatorsStore.showBollinger) {
       const bbData = await fetchIndicators(symbolPair.value, "bollinger");
+      console.log("📊 Bollinger API response:", bbData.length, "points");
       if (bbData.length > 0) {
         bollingerMiniData.value = bbData;
       } else {
-        bollingerMiniData.value = calculateBollingerFromCandles(candleData);
+        console.log("❌ No Bollinger from API, not using fallback");
+        bollingerMiniData.value = [];
       }
     }
   } catch (error) {
-    console.warn("Error loading indicators from API, using fallback:", error);
-    // Fallback sur calcul local
-    rsiMiniData.value = calculateRSIFromCandles(candleData);
-    macdMiniData.value = calculateMACDFromCandles(candleData);
-    bollingerMiniData.value = calculateBollingerFromCandles(candleData);
+    console.warn("⚠️ Error loading indicators from API:", error);
+    rsiMiniData.value = [];
+    macdMiniData.value = [];
+    bollingerMiniData.value = [];
   }
 
   await nextTick();
@@ -574,7 +595,7 @@ function buildBollingerMiniChart() {
 }
 
 async function changeTimeframe(
-  newTimeframe: "1h" | "1d" | "7d" | "1M" | "1y" | "all"
+  newTimeframe: "1m" | "5m" | "15m" | "1h" | "24h"
 ) {
   if (loading.value || selectedTimeframe.value === newTimeframe) return;
   selectedTimeframe.value = newTimeframe;
@@ -632,6 +653,7 @@ onMounted(async () => {
 onUnmounted(() => {
   disconnect();
   unsubscribeCandles();
+  unsubscribeTrades();
   rsiMiniChart?.destroy();
   macdMiniChart?.destroy();
   bollingerMiniChart?.destroy();
@@ -676,7 +698,6 @@ onUnmounted(() => {
         >
           {{ tf.label }}
         </button>
-        <button class="trading-chart-tf-btn">LOG</button>
       </div>
     </div>
 
