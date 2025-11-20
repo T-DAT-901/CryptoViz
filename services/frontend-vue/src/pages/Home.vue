@@ -44,11 +44,11 @@ const navigateToChart = (crypto: CryptoData) => {
 const loadCryptos = async () => {
   try {
     loading.value = true;
-    cryptoList.value = await CryptoService.getCryptoList();
+    cryptoList.value = await CryptoService.getAvailableCryptos();
     console.log(
       "Loaded",
       cryptoList.value.length,
-      "cryptocurrencies from service"
+      "cryptocurrencies from WebSocket"
     );
   } catch (error) {
     console.error("Error loading cryptocurrencies:", error);

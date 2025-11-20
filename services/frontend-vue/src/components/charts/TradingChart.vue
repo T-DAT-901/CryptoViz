@@ -152,7 +152,15 @@ async function loadData() {
           rows = transformOldCandlesArray(fallbackData.slice(-60));
       }
     } else {
-      rows = await fetchCandles("BTC", selectedTimeframe.value, 500);
+      // Récupérer les données du backend réel avec le bon symbol et interval
+      const symbol = symbolPair.value; // BTCUSDT, ETHUSDT, etc.
+      const interval = selectedTimeframe.value; // 1m, 15m, 1h, etc.
+      rows = await fetchCandles(symbol, interval, 500);
+
+      // Si pas de données, log un warning mais continue (la DB peut être vide)
+      if (!rows || rows.length === 0) {
+        console.warn(`Pas de données reçues pour ${symbol} - ${interval}`);
+      }
     }
 
     candles.value = rows;

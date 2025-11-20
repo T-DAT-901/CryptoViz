@@ -1,6 +1,4 @@
 import { http } from "./http";
-import candlesMock from "./mocks/candles.json";
-import newsMock from "./mocks/news.json";
 import type { CandleDTO, TickerDTO, NewsDTO } from "@/types/market";
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
@@ -15,7 +13,7 @@ export async function fetchTickers(symbols: string[]): Promise<TickerDTO[]> {
     return tickers;
   }
   const { data }: { data: TickerDTO[] } = await http.get(
-    "/api/markets/tickers",
+    "/api/v1/markets/tickers",
     { params: { symbols: symbols.join(",") } }
   );
   return data;
@@ -26,16 +24,26 @@ export async function fetchCandles(
   interval = "1m",
   limit = 120
 ): Promise<CandleDTO[]> {
-  if (USE_MOCK) return candlesMock as CandleDTO[];
-  const response = await http.get(`/crypto/${symbol}/data`, {
-    params: { interval, limit },
-  });
-  return response.data.data.data || [];
+  if (USE_MOCK) {
+    const candlesMock = await import("./mocks/candles.json");
+    return candlesMock.default as CandleDTO[];
+  }
+  try {
+    const response = await http.get(`/api/v1/crypto/${symbol}/data`, {
+      params: { interval, limit },
+    });
+    // La réponse du backend est { success: true, data: { symbol, interval, data: [] } }
+    return response.data?.data?.data || [];
+  } catch (error) {
+    console.error(`Error fetching candles for ${symbol}:`, error);
+    return [];
+  }
 }
 
 export async function fetchNews(): Promise<NewsDTO[]> {
   if (USE_MOCK) {
-    return (newsMock as NewsDTO[]).slice(0, 15);
+    const newsMock = await import("./mocks/news.json");
+    return (newsMock.default as NewsDTO[]).slice(0, 15);
   }
   const response = await http.get("/api/v1/news");
   return response.data.data || [];

@@ -1,7 +1,16 @@
 import type { CandleDTO } from "@/types/market";
 
 const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:8080/ws/crypto";
-const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true"; // true seulement si "true"
+
+console.log(
+  "🔧 RT Config - WS_URL:",
+  WS_URL,
+  "USE_MOCK:",
+  USE_MOCK,
+  "VITE_USE_MOCK env:",
+  import.meta.env.VITE_USE_MOCK
+);
 
 // Types WebSocket
 export type WSMessageType =
@@ -12,7 +21,8 @@ export type WSMessageType =
   | "ack"
   | "error"
   | "pong"
-  | "subscriptions";
+  | "subscriptions"
+  | "crypto_list";
 
 export interface WSMessage {
   type: WSMessageType;
@@ -44,7 +54,15 @@ export class RTClient {
 
   private initializeHandlers() {
     // Initialize handler sets for each message type
-    ["candle", "trade", "indicator", "news", "error", "ack"].forEach((type) => {
+    [
+      "candle",
+      "trade",
+      "indicator",
+      "news",
+      "error",
+      "ack",
+      "crypto_list",
+    ].forEach((type) => {
       this.messageHandlers.set(type, new Set());
     });
   }
@@ -211,6 +229,47 @@ export class RTClient {
   // Get current subscriptions
   getSubscriptions(): string[] {
     return Array.from(this.subscriptions);
+  }
+
+  // Request list of all cryptocurrencies
+  async requestCryptoList(): Promise<any[]> {
+    return new Promise((resolve, reject) => {
+      if (!this.isConnected()) {
+        reject(new Error("WebSocket not connected"));
+        return;
+      }
+
+      // Register a one-time handler for the response
+      const handler = (message: WSMessage) => {
+        if (message.type === "crypto_list") {
+          // Remove the handler after receiving the response
+          const handlers = this.messageHandlers.get("crypto_list");
+          if (handlers) {
+            handlers.delete(handler);
+          }
+          resolve(message.data as any[]);
+        }
+      };
+
+      this.on("crypto_list", handler);
+
+      // Send the request
+      const request: ClientMessage = {
+        action: "list_subscriptions", // Or a custom action like "get_crypto_list"
+        type: "crypto_list",
+      };
+
+      this.ws?.send(JSON.stringify(request));
+
+      // Timeout after 5 seconds
+      setTimeout(() => {
+        const handlers = this.messageHandlers.get("crypto_list");
+        if (handlers) {
+          handlers.delete(handler);
+        }
+        reject(new Error("WebSocket request timeout"));
+      }, 5000);
+    });
   }
 }
 
