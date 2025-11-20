@@ -22,15 +22,14 @@ export async function fetchTickers(symbols: string[]): Promise<TickerDTO[]> {
 
 export async function fetchCandles(
   symbol: string,
-  tf = "1m",
+  interval = "1m",
   limit = 120
 ): Promise<CandleDTO[]> {
   if (USE_MOCK) return candlesMock as CandleDTO[];
-  const { data }: { data: CandleDTO[] } = await http.get(
-    "/api/markets/candles",
-    { params: { symbol, tf, limit } }
-  );
-  return data;
+  const response = await http.get(`/crypto/${symbol}/data`, {
+    params: { interval, limit },
+  });
+  return response.data.data.data || [];
 }
 
 export async function fetchNews(): Promise<NewsDTO[]> {

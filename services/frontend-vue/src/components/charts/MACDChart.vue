@@ -16,6 +16,7 @@ import {
 } from "chart.js";
 import "chartjs-adapter-date-fns";
 import { useIndicatorsStore } from "@/stores/indicators";
+import { transformOldCandlesArray } from "@/utils/mockTransform";
 
 Chart.register(
   LineController,
@@ -59,27 +60,29 @@ async function loadMockData() {
       switch (timeframe) {
         case "1h":
           const oneDayData = unifiedData["1d"] || [];
-          candleData = oneDayData.slice(-60); // Last hour in minutes
+          candleData = transformOldCandlesArray(oneDayData.slice(-60));
           break;
         case "1d":
           const twentyFourHourData = unifiedData["1d"] || [];
-          candleData = twentyFourHourData.slice(-1440); // Last 24 hours (1440 minutes)
+          candleData = transformOldCandlesArray(
+            twentyFourHourData.slice(-1440)
+          );
           break;
         case "7d":
-          candleData = unifiedData["7d"] || []; // 168 points (hours)
+          candleData = transformOldCandlesArray(unifiedData["7d"] || []);
           break;
         case "1M":
-          candleData = unifiedData["1M"] || []; // 180 points (4h intervals)
+          candleData = transformOldCandlesArray(unifiedData["1M"] || []);
           break;
         case "1y":
-          candleData = unifiedData["1y"] || []; // 365 points (days)
+          candleData = transformOldCandlesArray(unifiedData["1y"] || []);
           break;
         case "all":
-          candleData = unifiedData["all"] || []; // 520 points (weeks)
+          candleData = transformOldCandlesArray(unifiedData["all"] || []);
           break;
         default:
           const fallbackData = unifiedData["1d"] || [];
-          candleData = fallbackData.slice(-60);
+          candleData = transformOldCandlesArray(fallbackData.slice(-60));
       }
 
       // Calculate realistic MACD values based on closing prices
@@ -134,7 +137,7 @@ function calculateMACDFromCandles(candles: any[]): Array<{
   if (candles.length < 26) {
     // Not enough data to calculate MACD, return default values
     return candles.map((candle, i) => ({
-      timestamp: candle.t,
+      timestamp: candle.time,
       macd: Math.sin(i * 0.1) * 2,
       signal: Math.sin(i * 0.1 - 0.3) * 1.5,
       histogram: Math.sin(i * 0.1) * 0.5,
@@ -153,7 +156,7 @@ function calculateMACDFromCandles(candles: any[]): Array<{
   }> = [];
 
   // Calculate EMAs for MACD
-  const prices = candles.map((c) => c.c);
+  const prices = candles.map((c) => c.close);
   const fastEMA = calculateEMA(prices, fastPeriod);
   const slowEMA = calculateEMA(prices, slowPeriod);
 
@@ -184,7 +187,7 @@ function calculateMACDFromCandles(candles: any[]): Array<{
     }
 
     result.push({
-      timestamp: candles[i].t,
+      timestamp: new Date(candles[i].time).getTime(),
       macd: macd,
       signal: signal,
       histogram: histogram,

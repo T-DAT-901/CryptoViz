@@ -14,6 +14,7 @@ import {
 } from "chart.js";
 import "chartjs-adapter-date-fns";
 import { useIndicatorsStore } from "@/stores/indicators";
+import { transformOldCandlesArray } from "@/utils/mockTransform";
 
 Chart.register(
   LineController,
@@ -54,27 +55,29 @@ async function loadMockData() {
       switch (timeframe) {
         case "1h":
           const oneDayData = unifiedData["1d"] || [];
-          candleData = oneDayData.slice(-60); // Last hour in minutes
+          candleData = transformOldCandlesArray(oneDayData.slice(-60));
           break;
         case "1d":
           const twentyFourHourData = unifiedData["1d"] || [];
-          candleData = twentyFourHourData.slice(-1440); // Last 24 hours (1440 minutes)
+          candleData = transformOldCandlesArray(
+            twentyFourHourData.slice(-1440)
+          );
           break;
         case "7d":
-          candleData = unifiedData["7d"] || []; // 168 points (heures)
+          candleData = transformOldCandlesArray(unifiedData["7d"] || []);
           break;
         case "1M":
-          candleData = unifiedData["1M"] || []; // 180 points (4h)
+          candleData = transformOldCandlesArray(unifiedData["1M"] || []);
           break;
         case "1y":
-          candleData = unifiedData["1y"] || []; // 365 points (jours)
+          candleData = transformOldCandlesArray(unifiedData["1y"] || []);
           break;
         case "all":
-          candleData = unifiedData["all"] || []; // 520 points (semaines)
+          candleData = transformOldCandlesArray(unifiedData["all"] || []);
           break;
         default:
           const fallbackData = unifiedData["1d"] || [];
-          candleData = fallbackData.slice(-60);
+          candleData = transformOldCandlesArray(fallbackData.slice(-60));
       }
 
       // Calculer des valeurs RSI réalistes basées sur les prix de clôture
@@ -111,7 +114,7 @@ function calculateRSIFromCandles(
   if (candles.length < 14) {
     // Not enough data to calculate RSI, return default values
     return candles.map((candle, i) => ({
-      timestamp: candle.t,
+      timestamp: candle.time,
       value: 50 + Math.sin(i * 0.2) * 20 + Math.random() * 10,
     }));
   }
@@ -123,7 +126,7 @@ function calculateRSIFromCandles(
     if (i < rsiPeriod - 1) {
       // Les premières valeurs avant qu'on ait assez de données
       result.push({
-        timestamp: candles[i].t,
+        timestamp: new Date(candles[i].time).getTime(),
         value: 50 + Math.sin(i * 0.2) * 15,
       });
       continue;
@@ -135,7 +138,7 @@ function calculateRSIFromCandles(
 
     for (let j = i - rsiPeriod + 1; j <= i; j++) {
       if (j > 0) {
-        const priceChange = candles[j].c - candles[j - 1].c;
+        const priceChange = candles[j].close - candles[j - 1].close;
         if (priceChange > 0) {
           totalGains += priceChange;
         } else {
@@ -158,7 +161,7 @@ function calculateRSIFromCandles(
     rsi = Math.max(0, Math.min(100, rsi));
 
     result.push({
-      timestamp: candles[i].t,
+      timestamp: new Date(candles[i].time).getTime(),
       value: rsi,
     });
   }

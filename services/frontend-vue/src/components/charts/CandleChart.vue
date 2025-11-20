@@ -195,7 +195,7 @@ function fitChartToTimeframe() {
 
   chart.resetZoom();
 
-  const timestamps = props.candles.map((c) => c.t);
+  const timestamps = props.candles.map((c) => new Date(c.time).getTime());
   const minTime = Math.min(...timestamps);
   const maxTime = Math.max(...timestamps);
 
@@ -237,11 +237,11 @@ function buildChart() {
       {
         label: "BTC/USDT",
         data: props.candles.map((candle) => ({
-          x: candle.t,
-          o: candle.o,
-          h: candle.h,
-          l: candle.l,
-          c: candle.c,
+          x: candle.time,
+          o: candle.open,
+          h: candle.high,
+          l: candle.low,
+          c: candle.close,
         })),
         upColor: "#10b981",
         downColor: "#ef4444",
@@ -305,7 +305,7 @@ function handleMouseMove(event: MouseEvent) {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           }) + " €",
-        date: new Date(candle.t).toLocaleDateString("fr-FR", {
+        date: new Date(candle.time).toLocaleDateString("fr-FR", {
           day: "2-digit",
           month: "2-digit",
           hour: "2-digit",
@@ -314,13 +314,13 @@ function handleMouseMove(event: MouseEvent) {
         candleX: candleCenterX,
       };
 
-      const change = candle.c - candle.o;
-      const changePercent = (change / candle.o) * 100;
+      const change = candle.close - candle.open;
+      const changePercent = (change / candle.open) * 100;
 
       tooltipData.value = {
         x: event.clientX,
         y: event.clientY - 120,
-        date: new Date(candle.t).toLocaleDateString("fr-FR", {
+        date: new Date(candle.time).toLocaleDateString("fr-FR", {
           day: "2-digit",
           month: "2-digit",
           year: "numeric",
@@ -328,22 +328,22 @@ function handleMouseMove(event: MouseEvent) {
           minute: "2-digit",
         }),
         open:
-          candle.o.toLocaleString("fr-FR", {
+          candle.open.toLocaleString("fr-FR", {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           }) + " €",
         high:
-          candle.h.toLocaleString("fr-FR", {
+          candle.high.toLocaleString("fr-FR", {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           }) + " €",
         low:
-          candle.l.toLocaleString("fr-FR", {
+          candle.low.toLocaleString("fr-FR", {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           }) + " €",
         close:
-          candle.c.toLocaleString("fr-FR", {
+          candle.close.toLocaleString("fr-FR", {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           }) + " €",

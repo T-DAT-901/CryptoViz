@@ -33,10 +33,8 @@ class TradingWebSocket {
   private heartbeatInterval: NodeJS.Timeout | null = null;
 
   constructor(private baseUrl = "") {
-    // TODO: L'équipe back-end va fournir l'URL WebSocket
-    // Exemple : "wss://votre-api.com/ws/crypto"
-    // Pour l'instant, on utilise Binance en démo
-    this.baseUrl = baseUrl || "wss://api.binance.com/ws/btcusdt@ticker";
+    this.baseUrl =
+      baseUrl || import.meta.env.VITE_WS_URL || "ws://localhost:8080/ws/crypto";
   }
 
   connect(): Promise<void> {
@@ -80,48 +78,11 @@ class TradingWebSocket {
   }
 
   private handleMessage(message: any) {
-    // TODO: Adapter selon le format que te donne le back-end
-    // Format attendu du back-end (exemple) :
-    // {
-    //   type: "price_update",
-    //   symbol: "BTC/USDT",
-    //   price: 68150.50,
-    //   change: -120.30,
-    //   volume: 1234567,
-    //   timestamp: 1695123456
-    // }
-
-    // TEMPORAIRE: Adapter le format Binance (pour la démo)
-    if (message.e === "24hrTicker") {
-      const priceUpdate: PriceUpdate = {
-        symbol: message.s,
-        price: parseFloat(message.c),
-        change: parseFloat(message.P),
-        changePercent: parseFloat(message.P),
-        volume: parseFloat(message.v),
-        high24h: parseFloat(message.h),
-        low24h: parseFloat(message.l),
-      };
-
-      this.notifySubscribers("price_update", priceUpdate);
-
-      const simulatedCandle: CandleDTO = {
-        t: Date.now(),
-        o: parseFloat(message.o),
-        h: parseFloat(message.h),
-        l: parseFloat(message.l),
-        c: parseFloat(message.c),
-      };
-
-      this.notifySubscribers("candle_update", simulatedCandle);
+    if (message.type === "price_update") {
+      this.notifySubscribers("price_update", message);
+    } else if (message.type === "candle_update") {
+      this.notifySubscribers("candle_update", message.data);
     }
-
-    // FUTUR: Quand le back-end sera prêt
-    // if (message.type === "price_update") {
-    //   this.notifySubscribers("price_update", message);
-    // } else if (message.type === "candle_update") {
-    //   this.notifySubscribers("candle_update", message.data);
-    // }
   }
 
   private notifySubscribers(type: string, data: any) {

@@ -14,6 +14,7 @@ import LineChart from "@/components/charts/LineChart.vue";
 import { useMarketStore } from "@/stores/market";
 import { useIndicatorsStore } from "@/stores/indicators";
 import { fetchCandles } from "@/services/markets.api";
+import { transformOldCandlesArray } from "@/utils/mockTransform";
 import {
   useTradingWebSocket,
   useLivePrices,
@@ -108,13 +109,8 @@ const selectedTimeframe = computed({
 
 const linePoints = computed(() => {
   const points = candles.value.map((c) => ({
-    x:
-      typeof (c as any).ts === "number"
-        ? (c as any).ts
-        : typeof (c as any).t === "number"
-          ? (c as any).t
-          : new Date((c as any).t).getTime(),
-    y: c.c,
+    x: new Date(c.time).getTime(),
+    y: c.close,
   }));
   return points;
 });
@@ -133,27 +129,27 @@ async function loadData() {
       switch (selectedTimeframe.value) {
         case "1h":
           const oneDayData = unifiedData["1d"] || [];
-          rows = oneDayData.slice(-60);
+          rows = transformOldCandlesArray(oneDayData.slice(-60));
           break;
         case "1d":
           const twentyFourHourData = unifiedData["1d"] || [];
-          rows = twentyFourHourData.slice(-1440);
+          rows = transformOldCandlesArray(twentyFourHourData.slice(-1440));
           break;
         case "7d":
-          rows = unifiedData["7d"] || [];
+          rows = transformOldCandlesArray(unifiedData["7d"] || []);
           break;
         case "1M":
-          rows = unifiedData["1M"] || [];
+          rows = transformOldCandlesArray(unifiedData["1M"] || []);
           break;
         case "1y":
-          rows = unifiedData["1y"] || [];
+          rows = transformOldCandlesArray(unifiedData["1y"] || []);
           break;
         case "all":
-          rows = unifiedData["all"] || [];
+          rows = transformOldCandlesArray(unifiedData["all"] || []);
           break;
         default:
           const fallbackData = unifiedData["1d"] || [];
-          rows = fallbackData.slice(-60);
+          rows = transformOldCandlesArray(fallbackData.slice(-60));
       }
     } else {
       rows = await fetchCandles("BTC", selectedTimeframe.value, 500);
@@ -184,7 +180,7 @@ function calculateRSIFromCandles(
 ): Array<{ timestamp: number; value: number }> {
   if (candles.length < 14) {
     return candles.map((candle, i) => ({
-      timestamp: candle.t,
+      timestamp: candle.time,
       value: 50 + Math.sin(i * 0.2) * 20,
     }));
   }
@@ -195,7 +191,7 @@ function calculateRSIFromCandles(
   for (let i = 0; i < candles.length; i++) {
     if (i < rsiPeriod - 1) {
       result.push({
-        timestamp: candles[i].t,
+        timestamp: new Date(candles[i].time).getTime(),
         value: 50 + Math.sin(i * 0.2) * 15,
       });
       continue;
@@ -206,7 +202,7 @@ function calculateRSIFromCandles(
 
     for (let j = i - rsiPeriod + 1; j <= i; j++) {
       if (j > 0) {
-        const priceChange = candles[j].c - candles[j - 1].c;
+        const priceChange = candles[j].close - candles[j - 1].close;
         if (priceChange > 0) {
           totalGains += priceChange;
         } else {
@@ -227,7 +223,7 @@ function calculateRSIFromCandles(
     rsi = Math.max(0, Math.min(100, rsi));
 
     result.push({
-      timestamp: candles[i].t,
+      timestamp: new Date(candles[i].time).getTime(),
       value: rsi,
     });
   }
@@ -243,7 +239,7 @@ function calculateMACDFromCandles(candles: any[]): Array<{
 }> {
   if (candles.length < 26) {
     return candles.map((candle, i) => ({
-      timestamp: candle.t,
+      timestamp: candle.time,
       macd: Math.sin(i * 0.1) * 2,
       signal: Math.sin(i * 0.1 - 0.3) * 1.5,
       histogram: Math.sin(i * 0.1) * 0.5,
@@ -260,7 +256,7 @@ function calculateMACDFromCandles(candles: any[]): Array<{
     signal: number;
     histogram: number;
   }> = [];
-  const prices = candles.map((c) => c.c);
+  const prices = candles.map((c) => c.close);
 
   const fastEMA = calculateSimpleEMA(prices, fastPeriod);
   const slowEMA = calculateSimpleEMA(prices, slowPeriod);
@@ -277,7 +273,7 @@ function calculateMACDFromCandles(candles: any[]): Array<{
     }
 
     result.push({
-      timestamp: candles[i].t,
+      timestamp: new Date(candles[i].time).getTime(),
       macd: macd,
       signal: signal,
       histogram: histogram,
@@ -327,7 +323,7 @@ function calculateBollingerFromCandles(candles: any[]): Array<{
     const stdDev = Math.sqrt(variance);
 
     result.push({
-      timestamp: candles[i].t,
+      timestamp: new Date(candles[i].time).getTime(),
       upper: sma + stdDevMultiplier * stdDev,
       middle: sma,
       lower: sma - stdDevMultiplier * stdDev,

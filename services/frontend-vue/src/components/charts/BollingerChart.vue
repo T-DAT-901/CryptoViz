@@ -14,6 +14,7 @@ import {
 } from "chart.js";
 import "chartjs-adapter-date-fns";
 import { useIndicatorsStore } from "@/stores/indicators";
+import { transformOldCandlesArray } from "@/utils/mockTransform";
 
 Chart.register(
   LineController,
@@ -49,7 +50,7 @@ function calculateBollingerBands(candles: any[], period: number = 20) {
     const slice = candles.slice(i - period, i);
 
     // Calculate SMA
-    const price = slice.map((candle) => candle.c);
+    const price = slice.map((candle) => candle.close);
     const sma = price.reduce((sum, price) => sum + price, 0) / period;
 
     // Calculate standard deviation
@@ -59,7 +60,7 @@ function calculateBollingerBands(candles: any[], period: number = 20) {
 
     // Calculate bands
     result.push({
-      timestamp: candles[i].t,
+      timestamp: new Date(candles[i].time).getTime(),
       upper: sma + 2 * stdDev,
       middle: sma,
       lower: sma - 2 * stdDev,
@@ -81,22 +82,22 @@ async function loadData() {
       let candleData = [];
       switch (timeframe) {
         case "1d":
-          candleData = unifiedData["1d"] || [];
+          candleData = transformOldCandlesArray(unifiedData["1d"] || []);
           break;
         case "7d":
-          candleData = unifiedData["7d"] || [];
+          candleData = transformOldCandlesArray(unifiedData["7d"] || []);
           break;
         case "1M":
-          candleData = unifiedData["1M"] || [];
+          candleData = transformOldCandlesArray(unifiedData["1M"] || []);
           break;
         case "1y":
-          candleData = unifiedData["1y"] || [];
+          candleData = transformOldCandlesArray(unifiedData["1y"] || []);
           break;
         case "all":
-          candleData = unifiedData["all"] || [];
+          candleData = transformOldCandlesArray(unifiedData["all"] || []);
           break;
         default:
-          candleData = unifiedData["1d"] || [];
+          candleData = transformOldCandlesArray(unifiedData["1d"] || []);
       }
 
       // Calculate Bollinger Bands from price data

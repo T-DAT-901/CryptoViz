@@ -4,11 +4,12 @@ export type TickerDTO = {
   ts: number;
 };
 export type CandleDTO = {
-  t: number;
-  o: number;
-  h: number;
-  l: number;
-  c: number;
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
 };
 export type NewsDTO = {
   id: string;

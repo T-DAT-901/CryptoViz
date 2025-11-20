@@ -14,6 +14,7 @@ import {
 } from "chart.js";
 import "chartjs-adapter-date-fns";
 import { useIndicatorsStore } from "@/stores/indicators";
+import { transformOldCandlesArray } from "@/utils/mockTransform";
 
 Chart.register(
   LineController,
@@ -64,22 +65,22 @@ async function loadData() {
       let candleData = [];
       switch (timeframe) {
         case "1d":
-          candleData = unifiedData["1d"] || [];
+          candleData = transformOldCandlesArray(unifiedData["1d"] || []);
           break;
         case "7d":
-          candleData = unifiedData["7d"] || [];
+          candleData = transformOldCandlesArray(unifiedData["7d"] || []);
           break;
         case "1M":
-          candleData = unifiedData["1M"] || [];
+          candleData = transformOldCandlesArray(unifiedData["1M"] || []);
           break;
         case "1y":
-          candleData = unifiedData["1y"] || [];
+          candleData = transformOldCandlesArray(unifiedData["1y"] || []);
           break;
         case "all":
-          candleData = unifiedData["all"] || [];
+          candleData = transformOldCandlesArray(unifiedData["all"] || []);
           break;
         default:
-          candleData = unifiedData["1d"] || [];
+          candleData = transformOldCandlesArray(unifiedData["1d"] || []);
       }
 
       // Calculate momentum from price data
