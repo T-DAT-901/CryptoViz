@@ -1,12 +1,27 @@
 [
   {
+    "title": "Ark Invest Buys the Slide, Adds Almost $40M of Crypto Stocks, as Market Drops",
+    "summary": "",
+    "link": "https://www.coindesk.com/markets/2025/11/20/ark-invest-buys-the-slide-adds-almost-usd40m-of-crypto-stocks-as-market-drops",
+    "published": "Thu, 20 Nov 2025 10:03:40 +0000",
+    "published_dt": "2025-11-20T10:03:40",
+    "source": "CoinDesk",
+    "money": "other",
+    "polarite": 0.0,
+    "subjectivite": 0.0,
+    "sentiment": "Neutre"
+  },
+  {
     "title": "BlackRock Takes First Step Toward a Staked Ether ETF",
     "summary": "",
     "link": "https://www.coindesk.com/markets/2025/11/20/blackrock-takes-first-step-toward-a-staked-eth-etf",
     "published": "Thu, 20 Nov 2025 07:37:51 +0000",
     "published_dt": "2025-11-20T07:37:51",
     "source": "CoinDesk",
-    "money": "eth"
+    "money": "eth",
+    "polarite": 0.25,
+    "subjectivite": 0.3333333333333333,
+    "sentiment": "Positif"
   },
   {
     "title": "Fed December Rate Cut Odds Collapse to 30%",
@@ -15,7 +30,10 @@
     "published": "Thu, 20 Nov 2025 07:25:28 +0000",
     "published_dt": "2025-11-20T07:25:28",
     "source": "CoinDesk",
-    "money": "other"
+    "money": "other",
+    "polarite": 0.0,
+    "subjectivite": 0.0,
+    "sentiment": "Neutre"
   },
   {
     "title": "Privacy-Focused Aztec Network's Ignition Chain Lights Up on Ethereum",
@@ -24,7 +42,10 @@
     "published": "Thu, 20 Nov 2025 06:45:33 +0000",
     "published_dt": "2025-11-20T06:45:33",
     "source": "CoinDesk",
-    "money": "eth"
+    "money": "eth",
+    "polarite": 0.0,
+    "subjectivite": 0.0,
+    "sentiment": "Neutre"
   },
   {
     "title": "India's Debt-Backed ARC Token Eyes Tentative Q1 2026 Debut, Sources Say",
@@ -33,7 +54,10 @@
     "published": "Thu, 20 Nov 2025 06:23:01 +0000",
     "published_dt": "2025-11-20T06:23:01",
     "source": "CoinDesk",
-    "money": "other"
+    "money": "other",
+    "polarite": 0.0,
+    "subjectivite": 0.0,
+    "sentiment": "Neutre"
   },
   {
     "title": "Dogecoin Hits Multi-Month Lows as Exchange Flows Turn Bullish for First Time in 6 Months",
@@ -42,7 +66,10 @@
     "published": "Thu, 20 Nov 2025 06:08:32 +0000",
     "published_dt": "2025-11-20T06:08:32",
     "source": "CoinDesk",
-    "money": "doge"
+    "money": "doge",
+    "polarite": 0.25,
+    "subjectivite": 0.3333333333333333,
+    "sentiment": "Positif"
   },
   {
     "title": "XRP Slumps as $2.15 Level Collapses, Bearish Structure Deepens",
@@ -51,7 +78,10 @@
     "published": "Thu, 20 Nov 2025 06:01:23 +0000",
     "published_dt": "2025-11-20T06:01:23",
     "source": "CoinDesk",
-    "money": "xrp"
+    "money": "xrp",
+    "polarite": 0.0,
+    "subjectivite": 0.0,
+    "sentiment": "Neutre"
   },
   {
     "title": "Asia Morning Briefing: Market Turns Defensive as Bitcoin Loses Its Bid",
@@ -60,7 +90,10 @@
     "published": "Thu, 20 Nov 2025 02:15:07 +0000",
     "published_dt": "2025-11-20T02:15:07",
     "source": "CoinDesk",
-    "money": "btc"
+    "money": "btc",
+    "polarite": -0.3,
+    "subjectivite": 0.1,
+    "sentiment": "Négatif"
   },
   {
     "title": "Stablecoin Spending Goes Mainstream With Opera MiniPay’s LatAm Integration",
@@ -69,7 +102,10 @@
     "published": "Wed, 19 Nov 2025 23:43:55 +0000",
     "published_dt": "2025-11-19T23:43:55",
     "source": "CoinDesk",
-    "money": "other"
+    "money": "other",
+    "polarite": 0.0,
+    "subjectivite": 0.0,
+    "sentiment": "Neutre"
   },
   {
     "title": "Samourai Wallet Co-Founder Bill Hill Sentenced to 4 Years in Prison for Unlicensed Money Transmitting",
@@ -78,7 +114,10 @@
     "published": "Wed, 19 Nov 2025 22:53:07 +0000",
     "published_dt": "2025-11-19T22:53:07",
     "source": "CoinDesk",
-    "money": "other"
+    "money": "other",
+    "polarite": 0.0,
+    "subjectivite": 0.0,
+    "sentiment": "Neutre"
   },
   {
     "title": "Nvidia Earnings Beat, Strong Outlook Calm Jittery Markets; Bitcoin Re-Takes $90K",
@@ -87,7 +126,10 @@
     "published": "Wed, 19 Nov 2025 21:39:11 +0000",
     "published_dt": "2025-11-19T21:39:11",
     "source": "CoinDesk",
-    "money": "btc"
+    "money": "btc",
+    "polarite": 0.3666666666666667,
+    "subjectivite": 0.7416666666666667,
+    "sentiment": "Positif"
   },
   {
     "title": "DeFi Giant Spark Shelves Crypto App Plans to Focus on Institutional Infrastructure",
@@ -96,7 +138,10 @@
     "published": "Wed, 19 Nov 2025 21:34:41 +0000",
     "published_dt": "2025-11-19T21:34:41",
     "source": "CoinDesk",
-    "money": "other"
+    "money": "other",
+    "polarite": 0.0,
+    "subjectivite": 1.0,
+    "sentiment": "Neutre"
   },
   {
     "title": "Trump's Pick to Run CFTC, Selig, Tells Senators Crypto a 'Critical Mission' at Agency",
@@ -105,7 +150,10 @@
     "published": "Wed, 19 Nov 2025 21:17:42 +0000",
     "published_dt": "2025-11-19T21:17:42",
     "source": "CoinDesk",
-    "money": "other"
+    "money": "other",
+    "polarite": 0.0,
+    "subjectivite": 0.8,
+    "sentiment": "Neutre"
   },
   {
     "title": "Fed Rate-Cut Odds Plunge Further on Jobs Data Delays",
@@ -114,7 +162,10 @@
     "published": "Wed, 19 Nov 2025 20:04:24 +0000",
     "published_dt": "2025-11-19T20:04:24",
     "source": "CoinDesk",
-    "money": "other"
+    "money": "other",
+    "polarite": 0.0,
+    "subjectivite": 0.5,
+    "sentiment": "Neutre"
   },
   {
     "title": "New Hampshire Awaits Bitcoin Bond Buyer to Get First State Effort Rolling",
@@ -123,7 +174,10 @@
     "published": "Wed, 19 Nov 2025 19:26:45 +0000",
     "published_dt": "2025-11-19T19:26:45",
     "source": "CoinDesk",
-    "money": "btc"
+    "money": "btc",
+    "polarite": 0.19318181818181818,
+    "subjectivite": 0.3939393939393939,
+    "sentiment": "Positif"
   },
   {
     "title": "Crypto Leverage Hits Record High in Q3 as DeFi Dominance Reshapes Market Structure: Galaxy",
@@ -132,7 +186,10 @@
     "published": "Wed, 19 Nov 2025 19:15:08 +0000",
     "published_dt": "2025-11-19T19:15:08",
     "source": "CoinDesk",
-    "money": "other"
+    "money": "other",
+    "polarite": 0.16,
+    "subjectivite": 0.5399999999999999,
+    "sentiment": "Positif"
   },
   {
     "title": "AI Agents Need Identity and Zero-Knowledge Proofs Are the Solution",
@@ -141,7 +198,10 @@
     "published": "Wed, 19 Nov 2025 18:00:00 +0000",
     "published_dt": "2025-11-19T18:00:00",
     "source": "CoinDesk",
-    "money": "sol"
+    "money": "sol",
+    "polarite": 0.0,
+    "subjectivite": 0.0,
+    "sentiment": "Neutre"
   },
   {
     "title": "Bitcoin Slips Back Below $90K — Crypto Correction Now Ranks Among Worst Since 2017, K33 Says",
@@ -150,7 +210,10 @@
     "published": "Wed, 19 Nov 2025 17:12:41 +0000",
     "published_dt": "2025-11-19T17:12:41",
     "source": "CoinDesk",
-    "money": "btc"
+    "money": "btc",
+    "polarite": -0.5,
+    "subjectivite": 0.5,
+    "sentiment": "Négatif"
   },
   {
     "title": "Stella's XLM Token Breaks Key $0.25 Support as Altcoins Suffer Continued Drawdown",
@@ -159,7 +222,10 @@
     "published": "Wed, 19 Nov 2025 17:10:58 +0000",
     "published_dt": "2025-11-19T17:10:58",
     "source": "CoinDesk",
-    "money": "ltc"
+    "money": "ltc",
+    "polarite": 0.0,
+    "subjectivite": 1.0,
+    "sentiment": "Neutre"
   },
   {
     "title": "Coinbase Debuts DEX Trading in Brazil as ‘Everything App’ Vision Grows",
@@ -168,7 +234,10 @@
     "published": "Wed, 19 Nov 2025 16:53:07 +0000",
     "published_dt": "2025-11-19T16:53:07",
     "source": "CoinDesk",
-    "money": "other"
+    "money": "other",
+    "polarite": 0.0,
+    "subjectivite": 0.0,
+    "sentiment": "Neutre"
   },
   {
     "title": "HBAR Slides 0.5% to $0.146 as Technical Support Crumbles",
@@ -177,7 +246,10 @@
     "published": "Wed, 19 Nov 2025 16:46:14 +0000",
     "published_dt": "2025-11-19T16:46:14",
     "source": "CoinDesk",
-    "money": "other"
+    "money": "other",
+    "polarite": 0.0,
+    "subjectivite": 0.1,
+    "sentiment": "Neutre"
   },
   {
     "title": "ICP Softens as Failed Breakout Above $5.17 Shifts Market Back Into Consolidation",
@@ -186,7 +258,10 @@
     "published": "Wed, 19 Nov 2025 16:39:16 +0000",
     "published_dt": "2025-11-19T16:39:16",
     "source": "CoinDesk",
-    "money": "sol"
+    "money": "sol",
+    "polarite": -0.16666666666666666,
+    "subjectivite": 0.13333333333333333,
+    "sentiment": "Négatif"
   },
   {
     "title": "BONK Extends Slide as Key Support Break Raises Prospect of Further Downside",
@@ -195,7 +270,10 @@
     "published": "Wed, 19 Nov 2025 16:29:32 +0000",
     "published_dt": "2025-11-19T16:29:32",
     "source": "CoinDesk",
-    "money": "other"
+    "money": "other",
+    "polarite": 0.0,
+    "subjectivite": 0.75,
+    "sentiment": "Neutre"
   },
   {
     "title": "Crypto Long & Short: Licences, Liquidity and the Shifting Geography of Exchange Quality",
@@ -204,7 +282,10 @@
     "published": "Wed, 19 Nov 2025 16:23:21 +0000",
     "published_dt": "2025-11-19T16:23:21",
     "source": "CoinDesk",
-    "money": "other"
+    "money": "other",
+    "polarite": -0.025,
+    "subjectivite": 0.35,
+    "sentiment": "Neutre"
   },
   {
     "title": "Senate Banking Panel Advances FDIC's Travis Hill for Wider Confirmation Vote",
@@ -213,15 +294,21 @@
     "published": "Wed, 19 Nov 2025 16:02:09 +0000",
     "published_dt": "2025-11-19T16:02:09",
     "source": "CoinDesk",
-    "money": "other"
+    "money": "other",
+    "polarite": 0.0,
+    "subjectivite": 0.0,
+    "sentiment": "Neutre"
   },
   {
-    "title": "The Protocol: Hyperliquid Introduces Proposal to Cut Fees",
+    "title": "Abu Dhabi Investment Tripled IBIT Holdings in Q3 as Bitcoin Headed to Record High",
     "summary": "",
-    "link": "https://www.coindesk.com/tech/2025/11/19/the-protocol-hyperliquid-introduces-proposal-to-cut-fees",
-    "published": "Wed, 19 Nov 2025 15:52:02 +0000",
-    "published_dt": "2025-11-19T15:52:02",
+    "link": "https://www.coindesk.com/business/2025/11/20/abu-dhabi-investment-tripled-ibit-holdings-in-q3-as-bitcoin-headed-to-record-high",
+    "published": "Thu, 20 Nov 2025 10:59:17 +0000",
+    "published_dt": "2025-11-20T10:59:17",
     "source": "CoinDesk",
-    "money": "other"
+    "money": "btc",
+    "polarite": 0.16,
+    "subjectivite": 0.5399999999999999,
+    "sentiment": "Positif"
   }
 ]

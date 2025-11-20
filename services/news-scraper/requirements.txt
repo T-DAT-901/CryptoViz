@@ -12,6 +12,7 @@ lxml==4.9.4
 selenium==4.16.0
 scrapy==2.11.0
 
+
 # RSS and feeds
 feedparser==6.0.10
 
@@ -35,6 +36,7 @@ prometheus-client==0.19.0
 # Text processing and sentiment analysis
 nltk==3.8.1
 textblob==0.17.1
+textblob-fr
 vaderSentiment==3.3.2
 
 # Utilities

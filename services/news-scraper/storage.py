@@ -26,7 +26,7 @@ def save_articles(new_articles):
     all_articles = load_articles()
 
     for a in new_articles:
-        if a.get("published_dt") and isinstance(a["published_dt"], datetime):
+        if isinstance(a.get("published_dt"), datetime):
             a["published_dt"] = a["published_dt"].isoformat()
 
     all_articles.extend(new_articles)
@@ -34,6 +34,9 @@ def save_articles(new_articles):
     seen_links = set()
     unique_articles = []
     for a in all_articles:
+        if isinstance(a.get("published_dt"), datetime):
+            a["published_dt"] = a["published_dt"].isoformat()
+
         if a["link"] not in seen_links:
             unique_articles.append(a)
             seen_links.add(a["link"])
