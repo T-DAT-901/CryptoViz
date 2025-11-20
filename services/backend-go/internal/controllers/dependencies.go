@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"cryptoviz-backend/internal/kafka"
+	"cryptoviz-backend/internal/websocket"
 	"cryptoviz-backend/models"
 
 	"github.com/go-redis/redis/v8"
@@ -21,10 +22,11 @@ type Dependencies struct {
 	UserRepo        models.UserRepository
 	CurrencyRepo    models.CurrencyRepository
 	ConsumerManager *kafka.ConsumerManager
+	WSHub           *websocket.Hub
 }
 
 // NewDependencies crée une nouvelle instance de Dependencies
-func NewDependencies(db *gorm.DB, redis *redis.Client, logger *logrus.Logger) *Dependencies {
+func NewDependencies(db *gorm.DB, redis *redis.Client, logger *logrus.Logger, wsHub *websocket.Hub) *Dependencies {
 	return &Dependencies{
 		DB:            db,
 		Redis:         redis,
@@ -35,5 +37,6 @@ func NewDependencies(db *gorm.DB, redis *redis.Client, logger *logrus.Logger) *D
 		TradeRepo:     models.NewTradeRepository(db),
 		UserRepo:      models.NewUserRepository(db),
 		CurrencyRepo:  models.NewCurrencyRepository(db),
+		WSHub:         wsHub,
 	}
 }

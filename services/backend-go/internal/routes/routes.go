@@ -47,6 +47,7 @@ func Setup(deps *controllers.Dependencies, logger *logrus.Logger) *gin.Engine {
 
 	// WebSocket
 	router.GET("/ws/crypto", wsCtrl.Handle)
+	router.GET("/ws/stats", wsCtrl.Stats)
 
 	return router
 }

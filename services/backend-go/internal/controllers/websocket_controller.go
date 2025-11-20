@@ -2,7 +2,8 @@ package controllers
 
 import (
 	"net/http"
-	"time"
+
+	ws "cryptoviz-backend/internal/websocket"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -13,6 +14,7 @@ import (
 type WebSocketController struct {
 	upgrader websocket.Upgrader
 	logger   *logrus.Logger
+	hub      *ws.Hub
 }
 
 // NewWebSocketController crée un nouveau WebSocketController
@@ -22,8 +24,11 @@ func NewWebSocketController(deps *Dependencies) *WebSocketController {
 			CheckOrigin: func(r *http.Request) bool {
 				return true // En production, vérifier l'origine
 			},
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
 		},
 		logger: deps.Logger,
+		hub:    deps.WSHub,
 	}
 }
 
@@ -38,44 +43,28 @@ func (ctrl *WebSocketController) Handle(c *gin.Context) {
 		ctrl.logger.Error("Erreur upgrade WebSocket: ", err)
 		return
 	}
-	defer conn.Close()
 
-	ctrl.logger.Info("Nouvelle connexion WebSocket")
+	// Register client with Hub
+	client := ctrl.hub.RegisterClient(conn)
 
-	// Boucle de lecture des messages
-	for {
-		var msg map[string]interface{}
-		err := conn.ReadJSON(&msg)
-		if err != nil {
-			ctrl.logger.Error("Erreur lecture WebSocket: ", err)
-			break
-		}
+	ctrl.logger.WithField("client_id", client.GetSubscriptions()).Info("Nouvelle connexion WebSocket")
 
-		// Traiter le message (subscribe/unsubscribe)
-		if action, ok := msg["action"].(string); ok {
-			switch action {
-			case "subscribe":
-				if symbol, ok := msg["symbol"].(string); ok {
-					ctrl.logger.Infof("Subscription à %s", symbol)
-					// Ici, on pourrait implémenter la logique de subscription
-				}
-			case "unsubscribe":
-				if symbol, ok := msg["symbol"].(string); ok {
-					ctrl.logger.Infof("Unsubscription de %s", symbol)
-				}
-			}
-		}
+	// Start client pumps
+	go client.WritePump()
+	go client.ReadPump()
+}
 
-		// Echo pour test
-		response := map[string]interface{}{
-			"type":      "response",
-			"message":   "Message reçu",
-			"timestamp": time.Now(),
-		}
-
-		if err := conn.WriteJSON(response); err != nil {
-			ctrl.logger.Error("Erreur écriture WebSocket: ", err)
-			break
-		}
-	}
+// Stats retourne les statistiques du Hub WebSocket
+// @Summary WebSocket stats
+// @Description Statistiques des connexions WebSocket
+// @Tags websocket
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /ws/stats [get]
+func (ctrl *WebSocketController) Stats(c *gin.Context) {
+	stats := ctrl.hub.GetStats()
+	c.JSON(http.StatusOK, gin.H{
+		"status": "ok",
+		"data":   stats,
+	})
 }

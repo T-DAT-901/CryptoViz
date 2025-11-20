@@ -15,6 +15,7 @@ import (
 	"cryptoviz-backend/internal/kafka"
 	"cryptoviz-backend/internal/kafka/consumers"
 	"cryptoviz-backend/internal/routes"
+	ws "cryptoviz-backend/internal/websocket"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
@@ -55,9 +56,15 @@ func main() {
 	defer redisClient.Close()
 	logger.Info("✅ Connexion à Redis établie")
 
+	// Initialisation du WebSocket Hub
+	logger.Info("Initialisation du WebSocket Hub...")
+	wsHub := ws.NewHub(logger)
+	go wsHub.Run()
+	logger.Info("✅ WebSocket Hub démarré")
+
 	// Initialisation des dépendances
 	db := database.GetDB()
-	deps := controllers.NewDependencies(db, redisClient, logger)
+	deps := controllers.NewDependencies(db, redisClient, logger, wsHub)
 
 	// Configuration Kafka
 	logger.Info("Configuration des consommateurs Kafka...")
