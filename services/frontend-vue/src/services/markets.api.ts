@@ -1,5 +1,6 @@
 import { http } from "./http";
 import candlesMock from "./mocks/candles.json";
+import newsMock from "./mocks/news.json";
 import type { CandleDTO, TickerDTO, NewsDTO } from "@/types/market";
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
@@ -34,8 +35,8 @@ export async function fetchCandles(
 
 export async function fetchNews(): Promise<NewsDTO[]> {
   if (USE_MOCK) {
-    return [] as NewsDTO[];
+    return (newsMock as NewsDTO[]).slice(0, 15);
   }
-  const { data }: { data: NewsDTO[] } = await http.get("/api/news");
-  return data;
+  const response = await http.get("/api/v1/news");
+  return response.data.data || [];
 }
