@@ -13,7 +13,7 @@ import CandleChart from "@/components/charts/CandleChart.vue";
 import LineChart from "@/components/charts/LineChart.vue";
 import { useMarketStore } from "@/stores/market";
 import { useIndicatorsStore } from "@/stores/indicators";
-import { fetchCandles } from "@/services/markets.api";
+import { fetchCandles, fetchIndicators } from "@/services/markets.api";
 import { transformOldCandlesArray } from "@/utils/mockTransform";
 import {
   useTradingWebSocket,
@@ -56,9 +56,11 @@ const store = useMarketStore();
 const indicatorsStore = useIndicatorsStore();
 const route = useRoute();
 
+// Utiliser le symbolPair du Dashboard (ex: BTC/USDT)
 const symbolPair = computed(() => {
-  const symbol = (route.params.symbol as string) || "btc";
-  return symbol.toUpperCase() + "USDT";
+  const symbol = (route.params.symbol as string) || "btc/usdt";
+  // Décoder le symbole s'il est encodé en URL
+  return decodeURIComponent(symbol).toUpperCase();
 });
 
 const { connect, disconnect, isConnected, lastUpdate } = useTradingWebSocket();
@@ -175,9 +177,41 @@ async function loadData() {
 async function loadIndicatorData(candleData: any[]) {
   if (candleData.length === 0) return;
 
-  rsiMiniData.value = calculateRSIFromCandles(candleData);
-  macdMiniData.value = calculateMACDFromCandles(candleData);
-  bollingerMiniData.value = calculateBollingerFromCandles(candleData);
+  try {
+    // Charger les indicateurs depuis l'API au lieu de les calculer
+    if (indicatorsStore.showRSI) {
+      const rsiData = await fetchIndicators(symbolPair.value, "rsi");
+      if (rsiData.length > 0) {
+        rsiMiniData.value = rsiData;
+      } else {
+        rsiMiniData.value = calculateRSIFromCandles(candleData);
+      }
+    }
+
+    if (indicatorsStore.showMACD) {
+      const macdData = await fetchIndicators(symbolPair.value, "macd");
+      if (macdData.length > 0) {
+        macdMiniData.value = macdData;
+      } else {
+        macdMiniData.value = calculateMACDFromCandles(candleData);
+      }
+    }
+
+    if (indicatorsStore.showBollinger) {
+      const bbData = await fetchIndicators(symbolPair.value, "bollinger");
+      if (bbData.length > 0) {
+        bollingerMiniData.value = bbData;
+      } else {
+        bollingerMiniData.value = calculateBollingerFromCandles(candleData);
+      }
+    }
+  } catch (error) {
+    console.warn("Error loading indicators from API, using fallback:", error);
+    // Fallback sur calcul local
+    rsiMiniData.value = calculateRSIFromCandles(candleData);
+    macdMiniData.value = calculateMACDFromCandles(candleData);
+    bollingerMiniData.value = calculateBollingerFromCandles(candleData);
+  }
 
   await nextTick();
   buildMiniCharts();

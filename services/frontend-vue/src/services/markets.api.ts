@@ -29,7 +29,9 @@ export async function fetchCandles(
     return candlesMock.default as CandleDTO[];
   }
   try {
-    const response = await http.get(`/api/v1/crypto/${symbol}/data`, {
+    // Encoder le symbole pour l'URL (BTC/FDUSD -> BTC%2FFDUSD)
+    const encodedSymbol = encodeURIComponent(symbol);
+    const response = await http.get(`/api/v1/crypto/${encodedSymbol}/data`, {
       params: { interval, limit },
     });
     // La réponse du backend est { success: true, data: { symbol, interval, data: [] } }
@@ -47,4 +49,26 @@ export async function fetchNews(): Promise<NewsDTO[]> {
   }
   const response = await http.get("/api/v1/news");
   return response.data.data || [];
+}
+
+// Charger les indicateurs depuis l'API
+export async function fetchIndicators(
+  symbol: string,
+  type: "rsi" | "macd" | "bollinger" | "momentum"
+): Promise<any[]> {
+  if (USE_MOCK) {
+    const mockName = `ind_${type}`;
+    const indicatorMock = await import(`./mocks/${mockName}.json`);
+    return indicatorMock.default as any[];
+  }
+  try {
+    const encodedSymbol = encodeURIComponent(symbol);
+    const response = await http.get(
+      `/api/v1/indicators/${encodedSymbol}/${type}`
+    );
+    return response.data?.data || [];
+  } catch (error) {
+    console.error(`Error fetching ${type} for ${symbol}:`, error);
+    return [];
+  }
 }

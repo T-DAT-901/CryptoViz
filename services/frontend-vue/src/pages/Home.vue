@@ -36,7 +36,9 @@ const getChangeIcon = (change: number) => {
 };
 
 const navigateToChart = (symbol: string) => {
-  router.push(`/dashboard/${symbol.toLowerCase()}`);
+  // Encoder le symbole pour l'URL (ex: BTC/USDT -> BTC%2FUSDT)
+  const encodedSymbol = encodeURIComponent(symbol);
+  router.push(`/dashboard/${encodedSymbol}`);
 };
 
 const cryptoList = computed(() => cryptoStore.sortedCryptos);
