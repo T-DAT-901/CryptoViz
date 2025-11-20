@@ -34,7 +34,7 @@ start: ## Démarrer tous les services
 
 start-infra: ## Démarrer uniquement l'infrastructure (DB, Kafka, Redis)
 	@echo "$(GREEN)Démarrage de l'infrastructure...$(NC)"
-	@docker-compose up -d timescaledb zookeeper kafka redis
+	@docker-compose up -d timescaledb zookeeper kafka redis kafka-ui
 	@docker-compose up kafka-init
 
 start-services: ## Démarrer uniquement les microservices
@@ -142,7 +142,13 @@ kafka-console-consumer: ## Écouter un topic Kafka (usage: make kafka-console-co
 # Développement
 dev-backend: ## Démarrer le backend en mode développement
 	@echo "$(GREEN)Démarrage du backend en mode développement...$(NC)"
-	@cd services/backend-go && go run main.go
+	@if [ -f .env.local ]; then \
+		echo "$(YELLOW)Utilisation de .env.local pour le développement local$(NC)"; \
+		set -a && . ./.env.local && set +a && cd services/backend-go && go run main.go; \
+	else \
+		echo "$(RED)Fichier .env.local non trouvé. Exécutez 'make setup' d'abord.$(NC)"; \
+		exit 1; \
+	fi
 
 dev-frontend: ## Démarrer le frontend en mode développement
 	@echo "$(GREEN)Démarrage du frontend en mode développement...$(NC)"
@@ -216,6 +222,10 @@ setup: ## Configuration initiale du projet
 		cp .env.example .env; \
 		echo "$(YELLOW)Fichier .env créé. Veuillez le configurer avec vos clés API.$(NC)"; \
 	fi
+	@if [ ! -f .env.local ]; then \
+		cp .env.local.example .env.local; \
+		echo "$(YELLOW)Fichier .env.local créé pour le développement local.$(NC)"; \
+	fi
 	@chmod +x scripts/*.sh
 	@echo "$(GREEN)Configuration terminée!$(NC)"
 
@@ -229,9 +239,9 @@ monitor: ## Ouvrir les interfaces de monitoring
 	@echo "$(GREEN)Ouverture des interfaces de monitoring...$(NC)"
 	@echo "Frontend: http://localhost:3000"
 	@echo "Backend API: http://localhost:8080"
-	@echo "TimescaleDB: localhost:5432"
+	@echo "TimescaleDB: localhost:7432"
 	@echo "Kafka: localhost:9092"
-	@echo "Redis: localhost:6379"
+	@echo "Redis: localhost:7379"
 
 # Production
 prod-build: ## Construire pour la production

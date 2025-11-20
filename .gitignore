@@ -341,7 +341,8 @@ docker-compose.local.yml
 
 # Database dumps
 *.dump
-*.sql
+# Note: *.sql was here but removed to allow tracking schema files in database/
+# Use *.sql.gz or move dumps to a specific ignored directory instead
 
 # Compiled assets
 public/build/
@@ -352,3 +353,10 @@ public/assets/
 .cache/
 .tmp/
 .temp/
+
+# Custom
+.Cline/
+.claude/
+docs/
+# Data collector state files
+services/data-collector/backfill_state.json

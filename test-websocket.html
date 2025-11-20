@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CryptoViz WebSocket Test</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #00ff00;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #00ff00;
+            text-align: center;
+        }
+        .controls {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #00cc00;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .status.connected {
+            background: #004400;
+            border-left: 4px solid #00ff00;
+        }
+        .status.disconnected {
+            background: #440000;
+            border-left: 4px solid #ff0000;
+            color: #ff6666;
+        }
+        .messages {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            height: 600px;
+            overflow-y: auto;
+        }
+        .message {
+            padding: 8px;
+            margin: 5px 0;
+            border-left: 3px solid #00ff00;
+            background: #1a1a1a;
+            font-size: 12px;
+        }
+        .message.trade {
+            border-left-color: #00ccff;
+        }
+        .message.candle {
+            border-left-color: #ffaa00;
+        }
+        .message.ack {
+            border-left-color: #00ff00;
+        }
+        .message.error {
+            border-left-color: #ff0000;
+            color: #ff6666;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .stat-box {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00ff00;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CryptoViz WebSocket Test Client</h1>
+
+        <div class="controls">
+            <div id="status" class="status disconnected">Status: Disconnected</div>
+
+            <div>
+                <button onclick="connect()">Connect</button>
+                <button onclick="disconnect()">Disconnect</button>
+                <button onclick="clearMessages()">Clear Messages</button>
+            </div>
+
+            <div style="margin-top: 15px;">
+                <h3>Quick Subscriptions:</h3>
+                <button onclick="subscribeAll()">Subscribe All Trades</button>
+                <button onclick="subscribeBTC()">Subscribe BTC/USDT Trades</button>
+                <button onclick="subscribeETH()">Subscribe ETH/USDT Trades</button>
+                <button onclick="subscribe5sCandles()">Subscribe 5s Candles (All)</button>
+                <button onclick="subscribe1mCandles()">Subscribe 1m Candles (BTC)</button>
+            </div>
+
+            <div style="margin-top: 15px;">
+                <h3>Custom Subscribe:</h3>
+                Type: <select id="type">
+                    <option value="trade">Trade</option>
+                    <option value="candle">Candle</option>
+                </select>
+                Symbol: <input type="text" id="symbol" value="BTC/USDT" placeholder="BTC/USDT or *">
+                Timeframe: <input type="text" id="timeframe" value="" placeholder="5s, 1m, etc (candles only)">
+                <button onclick="customSubscribe()">Subscribe</button>
+                <button onclick="customUnsubscribe()">Unsubscribe</button>
+            </div>
+        </div>
+
+        <div class="stats" id="stats">
+            <div class="stat-box">
+                <div class="stat-value" id="tradeCount">0</div>
+                <div class="stat-label">Trades Received</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="candleCount">0</div>
+                <div class="stat-label">Candles Received</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="messageCount">0</div>
+                <div class="stat-label">Total Messages</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="latestPrice">-</div>
+                <div class="stat-label">Latest Price</div>
+            </div>
+        </div>
+
+        <div class="messages" id="messages">
+            <div class="message">Click "Connect" to start receiving real-time data...</div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let tradeCount = 0;
+        let candleCount = 0;
+        let messageCount = 0;
+
+        function connect() {
+            const url = `ws://localhost:8080/ws/crypto`;
+            ws = new WebSocket(url);
+
+            ws.onopen = () => {
+                updateStatus(true);
+                addMessage('Connected to WebSocket server', 'ack');
+            };
+
+            ws.onclose = () => {
+                updateStatus(false);
+                addMessage('Disconnected from server', 'error');
+            };
+
+            ws.onerror = (error) => {
+                addMessage(`WebSocket error: ${error}`, 'error');
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleMessage(data);
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function updateStatus(connected) {
+            const statusDiv = document.getElementById('status');
+            if (connected) {
+                statusDiv.className = 'status connected';
+                statusDiv.textContent = 'Status: Connected ✓';
+            } else {
+                statusDiv.className = 'status disconnected';
+                statusDiv.textContent = 'Status: Disconnected ✗';
+            }
+        }
+
+        function handleMessage(data) {
+            messageCount++;
+            document.getElementById('messageCount').textContent = messageCount;
+
+            if (data.type === 'trade') {
+                tradeCount++;
+                document.getElementById('tradeCount').textContent = tradeCount;
+                document.getElementById('latestPrice').textContent = `$${data.data.price.toFixed(2)}`;
+
+                addMessage(`[TRADE] ${data.data.symbol} ${data.data.side.toUpperCase()} ${data.data.amount} @ $${data.data.price}`, 'trade');
+            } else if (data.type === 'candle') {
+                candleCount++;
+                document.getElementById('candleCount').textContent = candleCount;
+
+                const d = data.data;
+                addMessage(`[CANDLE] ${d.symbol} ${d.timeframe} | O:${d.open} H:${d.high} L:${d.low} C:${d.close} V:${d.volume}`, 'candle');
+            } else if (data.type === 'subscribed' || data.type === 'unsubscribed' || data.type === 'pong') {
+                addMessage(`[ACK] ${data.type}: ${JSON.stringify(data.data)}`, 'ack');
+            } else if (data.type === 'error') {
+                addMessage(`[ERROR] ${data.data.message}`, 'error');
+            } else {
+                addMessage(`[${data.type.toUpperCase()}] ${JSON.stringify(data)}`, 'message');
+            }
+        }
+
+        function addMessage(text, type = 'message') {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            messageDiv.textContent = `[${timestamp}] ${text}`;
+            messagesDiv.insertBefore(messageDiv, messagesDiv.firstChild);
+
+            // Keep only last 100 messages
+            while (messagesDiv.children.length > 100) {
+                messagesDiv.removeChild(messagesDiv.lastChild);
+            }
+        }
+
+        function send(message) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(message));
+            } else {
+                alert('Not connected to WebSocket server');
+            }
+        }
+
+        function subscribeAll() {
+            send({ action: 'subscribe', type: 'trade', symbol: '*' });
+        }
+
+        function subscribeBTC() {
+            send({ action: 'subscribe', type: 'trade', symbol: 'BTC/USDT' });
+        }
+
+        function subscribeETH() {
+            send({ action: 'subscribe', type: 'trade', symbol: 'ETH/USDT' });
+        }
+
+        function subscribe5sCandles() {
+            send({ action: 'subscribe', type: 'candle', symbol: '*', timeframe: '5s' });
+        }
+
+        function subscribe1mCandles() {
+            send({ action: 'subscribe', type: 'candle', symbol: 'BTC/USDT', timeframe: '1m' });
+        }
+
+        function customSubscribe() {
+            const type = document.getElementById('type').value;
+            const symbol = document.getElementById('symbol').value;
+            const timeframe = document.getElementById('timeframe').value;
+            send({ action: 'subscribe', type, symbol, timeframe });
+        }
+
+        function customUnsubscribe() {
+            const type = document.getElementById('type').value;
+            const symbol = document.getElementById('symbol').value;
+            const timeframe = document.getElementById('timeframe').value;
+            send({ action: 'unsubscribe', type, symbol, timeframe });
+        }
+
+        function clearMessages() {
+            document.getElementById('messages').innerHTML = '';
+            tradeCount = 0;
+            candleCount = 0;
+            messageCount = 0;
+            document.getElementById('tradeCount').textContent = '0';
+            document.getElementById('candleCount').textContent = '0';
+            document.getElementById('messageCount').textContent = '0';
+        }
+    </script>
+</body>
+</html>

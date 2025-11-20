@@ -1,0 +1,55 @@
+/* Historical Data Component Styles */
+
+.crypto-historical {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.crypto-historical-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.crypto-historical-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.crypto-historical-label {
+  font-size: 12px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.crypto-historical-price {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.crypto-historical-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.crypto-historical-date {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.crypto-historical-change {
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.crypto-historical-change--positive {
+  color: var(--accent-green);
+}
+
+.crypto-historical-change--negative {
+  color: var(--accent-red);
+}

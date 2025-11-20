@@ -1,0 +1,322 @@
+/* CryptoPricePanel Component - Unified with Dashboard design */
+.crypto-price-panel {
+  background: #070e10;
+  border-radius: 12px;
+  padding: 16px;
+  color: #e8f0f0;
+  border: 1px solid #1d2626;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  max-width: 100%;
+  height: fit-content;
+  box-sizing: border-box;
+}
+
+/* Header */
+.crypto-price-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.crypto-price-panel-icon-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.crypto-price-panel-bitcoin-icon {
+  width: 24px;
+  height: 24px;
+  color: #f7931a;
+  stroke-width: 2;
+}
+
+.crypto-price-panel-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.crypto-price-panel-name {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  color: #e8f0f0;
+}
+
+.crypto-price-panel-symbol {
+  font-size: 12px;
+  color: #7a9393;
+  font-weight: 500;
+}
+
+.crypto-price-panel-rank {
+  font-size: 10px;
+  background: #1d2626;
+  color: #7a9393;
+  padding: 2px 6px;
+  border-radius: 8px;
+  width: fit-content;
+}
+
+.crypto-price-panel-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.crypto-price-panel-action-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: #1d2626;
+  color: #7a9393;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.crypto-price-panel-action-btn:hover {
+  background: #2d3e3e;
+  color: #e8f0f0;
+  transform: translateY(-1px);
+}
+
+.crypto-price-panel-action-icon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+/* Main Price */
+.crypto-price-panel-main-price {
+  margin-bottom: 16px;
+}
+
+.crypto-price-panel-price-value {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 6px 0;
+  color: #e8f0f0;
+  letter-spacing: -1px;
+  line-height: 1.1;
+}
+
+.crypto-price-panel-price-change {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.crypto-price-panel-price-change--positive {
+  color: #10b981;
+}
+
+.crypto-price-panel-price-change--negative {
+  color: #ef4444;
+}
+
+.crypto-price-panel-change-icon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+/* Sections */
+.crypto-price-panel-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+  color: #e8f0f0;
+}
+
+.crypto-price-panel-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.crypto-price-panel-timeframe-select {
+  background: #1d2626;
+  border: 1px solid #2d3e3e;
+  border-radius: 6px;
+  color: #e8f0f0;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+/* Converter */
+.crypto-price-panel-converter-section {
+  margin-bottom: 20px;
+}
+
+.crypto-price-panel-converter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crypto-price-panel-currency-input {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #1d2626;
+  border: 1px solid #2d3e3e;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.crypto-price-panel-currency-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #7a9393;
+}
+
+.crypto-price-panel-amount-input {
+  background: none;
+  border: none;
+  color: #e8f0f0;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+  width: 60%;
+  outline: none;
+}
+
+.crypto-price-panel-amount-input::-webkit-outer-spin-button,
+.crypto-price-panel-amount-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.crypto-price-panel-amount-input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+/* Performance */
+.crypto-price-panel-performance-section {
+  margin-bottom: 20px;
+}
+
+.crypto-price-panel-performance-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.crypto-price-panel-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.crypto-price-panel-stat-label {
+  font-size: 12px;
+  color: #7a9393;
+}
+
+.crypto-price-panel-stat-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e8f0f0;
+}
+
+.crypto-price-panel-price-range-bar {
+  margin-top: 12px;
+}
+
+.crypto-price-panel-range-track {
+  width: 100%;
+  height: 4px;
+  background: #2d3e3e;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.crypto-price-panel-range-progress {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #4f46e5);
+  transition: width 0.3s ease;
+}
+
+/* Historical */
+.crypto-price-panel-historical-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.crypto-price-panel-historical-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.crypto-price-panel-historical-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.crypto-price-panel-historical-label {
+  font-size: 12px;
+  color: #e8f0f0;
+  font-weight: 500;
+}
+
+.crypto-price-panel-historical-price {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e8f0f0;
+}
+
+.crypto-price-panel-historical-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.crypto-price-panel-historical-date {
+  font-size: 10px;
+  color: #7a9393;
+}
+
+.crypto-price-panel-historical-change {
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.crypto-price-panel-historical-change--positive {
+  color: #10b981;
+}
+
+.crypto-price-panel-historical-change--negative {
+  color: #ef4444;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .crypto-price-panel {
+    padding: 12px;
+  }
+
+  .crypto-price-panel-price-value {
+    font-size: 24px;
+  }
+
+  .crypto-price-panel-header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+}
