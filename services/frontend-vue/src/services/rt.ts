@@ -18,6 +18,7 @@ export type WSMessageType =
   | "trade"
   | "indicator"
   | "news"
+  | "stats"
   | "ack"
   | "error"
   | "pong"
@@ -59,6 +60,7 @@ export class RTClient {
       "trade",
       "indicator",
       "news",
+      "stats",
       "error",
       "ack",
       "crypto_list",
@@ -94,10 +96,64 @@ export class RTClient {
 
         this.ws.onmessage = (event) => {
           try {
-            const message: WSMessage = JSON.parse(event.data);
-            this.handleMessage(message);
+            // Debug: Log raw message
+            console.log("📨 Raw WS message:", event.data.substring(0, 200));
+
+            // Try to parse as single JSON first
+            try {
+              const message: WSMessage = JSON.parse(event.data);
+              this.handleMessage(message);
+            } catch (singleError) {
+              // If single parse fails, try to extract multiple JSON objects
+              const data = event.data;
+              let startIdx = 0;
+              let braceCount = 0;
+              let inString = false;
+              let escapeNext = false;
+
+              for (let i = 0; i < data.length; i++) {
+                const char = data[i];
+
+                if (escapeNext) {
+                  escapeNext = false;
+                  continue;
+                }
+
+                if (char === "\\" && inString) {
+                  escapeNext = true;
+                  continue;
+                }
+
+                if (char === '"' && !escapeNext) {
+                  inString = !inString;
+                  continue;
+                }
+
+                if (!inString) {
+                  if (char === "{") {
+                    if (braceCount === 0) startIdx = i;
+                    braceCount++;
+                  } else if (char === "}") {
+                    braceCount--;
+                    if (braceCount === 0) {
+                      try {
+                        const jsonStr = data.substring(startIdx, i + 1);
+                        const message: WSMessage = JSON.parse(jsonStr);
+                        this.handleMessage(message);
+                      } catch (parseError) {
+                        console.warn(
+                          "⚠️ Could not parse JSON chunk:",
+                          data.substring(startIdx, i + 1)
+                        );
+                      }
+                    }
+                  }
+                }
+              }
+            }
           } catch (err) {
-            console.error("Failed to parse WebSocket message:", err);
+            console.error("❌ Failed to process WebSocket message:", err);
+            console.error("Raw data:", event.data.substring(0, 500));
           }
         };
 

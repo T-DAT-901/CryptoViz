@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
+import { useCryptoStore } from "@/stores/crypto";
 import { TrendingUp, TrendingDown } from "lucide-vue-next";
-import { CryptoService, type CryptoData } from "@/services/crypto.api";
 
 const router = useRouter();
-
-const loading = ref(true);
-const cryptoList = ref<CryptoData[]>([]);
+const cryptoStore = useCryptoStore();
 
 const formatPrice = (price: number): string => {
   return price.toLocaleString("fr-FR", {
@@ -37,28 +35,20 @@ const getChangeIcon = (change: number) => {
   return change >= 0 ? TrendingUp : TrendingDown;
 };
 
-const navigateToChart = (crypto: CryptoData) => {
-  router.push(`/dashboard/${crypto.symbol.toLowerCase()}`);
+const navigateToChart = (symbol: string) => {
+  router.push(`/dashboard/${symbol.toLowerCase()}`);
 };
 
-const loadCryptos = async () => {
-  try {
-    loading.value = true;
-    cryptoList.value = await CryptoService.getAvailableCryptos();
-    console.log(
-      "Loaded",
-      cryptoList.value.length,
-      "cryptocurrencies from WebSocket"
-    );
-  } catch (error) {
-    console.error("Error loading cryptocurrencies:", error);
-  } finally {
-    loading.value = false;
-  }
-};
+const cryptoList = computed(() => cryptoStore.sortedCryptos);
+const loading = computed(() => cryptoStore.loading);
 
 onMounted(() => {
-  loadCryptos();
+  console.log("Home.vue mounted - initializing crypto store from WebSocket");
+  cryptoStore.initializeFromWebSocket();
+});
+
+onUnmounted(() => {
+  console.log("Home.vue unmounted");
 });
 </script>
 
@@ -113,7 +103,7 @@ onMounted(() => {
             v-for="crypto in cryptoList"
             :key="crypto.id"
             class="crypto-row"
-            @click="navigateToChart(crypto)"
+            @click="navigateToChart(crypto.symbol)"
           >
             <td class="col-rank">
               <div class="rank-cell">

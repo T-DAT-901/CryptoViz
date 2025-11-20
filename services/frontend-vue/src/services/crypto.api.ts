@@ -24,7 +24,8 @@ import { http } from "./http";
 export class CryptoService {
   /**
    * Récupère la liste des cryptos disponibles via WebSocket
-   * Écoute les trades en temps réel et extrait les symboles uniques
+   * Prices depuis /ws/crypto (trades)
+   * Stats depuis l'API REST (WebSocket stats non dispo)
    */
   static async getAvailableCryptos(): Promise<CryptoData[]> {
     return new Promise(async (resolve) => {
@@ -33,49 +34,49 @@ export class CryptoService {
 
         // Connecte si pas encore connecté
         if (!rt.isConnected()) {
-          console.log("📡 Connecting to WebSocket...");
+          console.log("📡 Connecting to Trades WebSocket...");
           await rt.connect();
         }
 
-        console.log("📡 Subscribing to all trades via WebSocket...");
+        console.log("📡 Subscribing to trades via /ws/crypto...");
 
-        // S'abonner aux trades de tous les symboles
+        // S'abonner SEULEMENT aux trades (stats pas dispo sur WebSocket)
         rt.subscribe("trade", "*");
 
-        // Collecter les symboles uniques
-        const symbols = new Set<string>();
-        let unsubscribeHandler: (() => void) | null = null;
+        // Collecter les symboles et prix
+        const pricesMap = new Map<string, number>();
+        let tradeHandler: (() => void) | null = null;
 
-        const handler = (message: any) => {
-          console.log("📥 Trade received:", message);
-          if (message.data && message.data.symbol) {
-            console.log("✨ Symbol collected:", message.data.symbol);
-            symbols.add(message.data.symbol);
+        // Handler pour les trades (prix)
+        const onTrade = (message: any) => {
+          if (message.data && message.data.symbol && message.data.price) {
+            const symbol = message.data.symbol;
+            console.log("✨ Trade:", symbol, "@", message.data.price);
+            pricesMap.set(symbol, message.data.price);
           }
         };
 
-        // Enregistrer le handler pour les trades
-        unsubscribeHandler = rt.on("trade", handler);
+        // Enregistrer le handler
+        tradeHandler = rt.on("trade", onTrade);
 
-        // Attendre un peu pour collecter les symboles
-        // puis se désabonner et retourner les résultats
+        // Attendre pour collecter les données
         setTimeout(async () => {
           // Retirer le handler
-          if (unsubscribeHandler) {
-            unsubscribeHandler();
-          }
+          if (tradeHandler) tradeHandler();
 
           // Désabonner
           rt.unsubscribe("trade", "*");
 
-          // Construire un tableau de CryptoData basique à partir des symboles
-          const cryptos: CryptoData[] = Array.from(symbols).map(
-            (symbol, index) => ({
+          console.log("📥 Collected prices from trades:", pricesMap);
+
+          // Construire un tableau de CryptoData avec les prix du WebSocket
+          let cryptos: CryptoData[] = Array.from(pricesMap).map(
+            ([symbol, price], index) => ({
               id: symbol,
               rank: index + 1,
               name: symbol.split("/")[0], // BTC de BTC/USDT
               symbol: symbol,
-              price: 0,
+              price: price,
               change1h: 0,
               change24h: 0,
               change7d: 0,
@@ -86,7 +87,7 @@ export class CryptoService {
             })
           );
 
-          console.log("✅ Collected cryptos from WebSocket:", cryptos);
+          console.log("✅ Collected cryptos with prices:", cryptos);
 
           // Si aucune crypto collectée, fallback sur les mocks
           if (cryptos.length === 0) {
@@ -103,16 +104,46 @@ export class CryptoService {
               console.error("❌ Error loading mock cryptos:", mockError);
               resolve([]);
             }
-          } else {
-            resolve(cryptos);
+            return;
           }
-        }, 5000); // Augmenté à 5 secondes pour collecter plus de trades
+
+          // Enrichir avec les stats de l'API REST pour chaque crypto
+          console.log("📊 Fetching stats from API for each symbol...");
+          const enrichedCryptos = await Promise.all(
+            cryptos.map(async (crypto) => {
+              try {
+                const response = await http.get(
+                  `/api/v1/stats/${crypto.symbol}`
+                );
+                const stats = response.data?.data || {};
+
+                return {
+                  ...crypto,
+                  change1h: stats.change1h || 0,
+                  change24h: stats.change24h || 0,
+                  change7d: stats.change7d || 0,
+                  marketCap: stats.marketCap || 0,
+                  volume24h: stats.volume24h || 0,
+                  circulatingSupply: stats.circulatingSupply || 0,
+                };
+              } catch (error) {
+                console.warn(
+                  `⚠️ Could not fetch stats for ${crypto.symbol}:`,
+                  error
+                );
+                return crypto; // Retourner les données partielles
+              }
+            })
+          );
+
+          console.log("✅ Enriched cryptos with stats:", enrichedCryptos);
+          resolve(enrichedCryptos);
+        }, 5000); // Attendre 5 secondes
       } catch (error) {
         console.error(
           "❌ Error fetching available cryptos via WebSocket:",
           error
         );
-        // Fallback sur les mocks si WebSocket échoue
         console.log("📦 Falling back to mock cryptos...");
         try {
           const cryptosData = await import("./mocks/cryptos.json");
