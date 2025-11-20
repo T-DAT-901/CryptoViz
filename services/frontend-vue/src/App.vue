@@ -1,8 +1,8 @@
-<!-- Page Dashboard -->
+<!-- Application principale avec routeur -->
 <template>
-  <Dashboard />
+  <RouterView />
 </template>
 
 <script setup lang="ts">
-import Dashboard from "./pages/Dashboard.vue";
+import { RouterView } from "vue-router";
 </script>

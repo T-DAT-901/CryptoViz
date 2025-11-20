@@ -1,0 +1,205 @@
+.candle-chart {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  position: relative;
+}
+
+.candle-chart canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  background: transparent;
+}
+
+.candle-chart-reset-btn {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  z-index: 10;
+  background: rgba(7, 14, 16, 0.9);
+  border: 1px solid var(--bg-interactive);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  padding: 6px 10px;
+  font-size: var(--font-size-xs);
+  font-family: var(--font-family);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--letter-spacing-wide);
+  cursor: pointer;
+  transition: var(--transition-base);
+  backdrop-filter: blur(8px);
+}
+
+.candle-chart-reset-btn:hover {
+  background: var(--bg-interactive);
+  color: var(--text-primary);
+}
+
+.candle-chart-crosshair-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.candle-chart-crosshair-line {
+  position: absolute;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.candle-chart-crosshair-line--vertical {
+  width: 0;
+  height: 100%;
+  border-left: 1px dashed rgba(232, 240, 240, 0.4);
+  filter: drop-shadow(0 0 1px rgba(232, 240, 240, 0.2));
+}
+
+.candle-chart-crosshair-line--horizontal {
+  width: 100%;
+  height: 0;
+  border-top: 1px dashed rgba(232, 240, 240, 0.4);
+  filter: drop-shadow(0 0 1px rgba(232, 240, 240, 0.2));
+}
+
+.candle-chart-crosshair-container {
+  animation: candle-chart-fade-in 0.2s ease-in-out;
+}
+
+@keyframes candle-chart-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.candle-chart-crosshair-label {
+  position: absolute;
+  background: rgba(7, 14, 16, 0.95);
+  border: 1px solid var(--bg-interactive);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-sm);
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-family);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--letter-spacing-wide);
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-subtle);
+}
+
+.candle-chart-date-label {
+  bottom: 0px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent-green);
+  border-color: var(--accent-green);
+  color: var(--bg-primary);
+}
+
+.candle-chart-price-label {
+  right: var(--space-sm);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--text-primary) !important;
+  border-color: var(--text-secondary);
+  color: var(--bg-primary);
+}
+
+.candle-chart-tooltip {
+  position: fixed;
+  background: rgba(7, 14, 16, 0.95);
+  border: 1px solid var(--bg-interactive);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  letter-spacing: var(--letter-spacing-tight);
+  z-index: 1000;
+  pointer-events: none;
+  box-shadow: var(--shadow-card);
+  min-width: 180px;
+}
+
+.candle-chart-tooltip-date {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-base);
+  margin-bottom: var(--space-sm);
+  text-align: center;
+}
+
+.candle-chart-tooltip-ohlc {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.candle-chart-ohlc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.candle-chart-ohlc-label {
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-semibold);
+  width: 20px;
+}
+
+.candle-chart-ohlc-value {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.candle-chart-ohlc-value--high {
+  color: var(--accent-green);
+}
+
+.candle-chart-ohlc-value--low {
+  color: var(--accent-red);
+}
+
+.candle-chart-tooltip-change {
+  text-align: center;
+  font-weight: var(--font-weight-semibold);
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--bg-interactive);
+}
+
+.candle-chart-change--positive {
+  color: var(--accent-green);
+}
+
+.candle-chart-change--negative {
+  color: var(--accent-red);
+}
+
+@media (max-width: 768px) {
+  .candle-chart {
+    border-radius: var(--radius-md);
+  }
+
+  .candle-chart-reset-btn {
+    top: var(--space-sm);
+    right: var(--space-sm);
+    padding: var(--space-xs) var(--space-sm);
+    font-size: 10px;
+  }
+
+  .candle-chart-tooltip {
+    min-width: 160px;
+    font-size: var(--font-size-xs);
+  }
+}

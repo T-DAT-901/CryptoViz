@@ -2,6 +2,9 @@
 asyncio==3.4.3
 requests==2.31.0
 aiohttp==3.9.1
+numpy==2.2.6
+pandas==2.3.2
+tzdata==2025.2
 
 # Web scraping
 beautifulsoup4==4.12.2

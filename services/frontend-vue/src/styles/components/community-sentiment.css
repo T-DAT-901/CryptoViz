@@ -1,0 +1,249 @@
+.community-sentiment {
+  background: #070e10;
+  border-radius: 12px;
+  padding: 16px;
+  color: #e8f0f0;
+  border: 1px solid #1d2626;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.community-sentiment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.community-sentiment-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.community-sentiment-icon {
+  width: 16px;
+  height: 16px;
+  color: #7a9393;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+}
+
+.community-sentiment-title-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.community-sentiment-title {
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0;
+  color: #e8f0f0;
+  letter-spacing: -0.01em;
+}
+
+.community-sentiment-vote-count {
+  font-size: 11px;
+  color: #7a9393;
+  font-weight: 400;
+}
+
+.community-sentiment-pagination {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.community-sentiment-nav-btn {
+  background: transparent;
+  border: 1px solid #2d3e3e;
+  border-radius: 4px;
+  color: #7a9393;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.community-sentiment-nav-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.community-sentiment-nav-btn:hover:not(:disabled) {
+  background: rgba(45, 62, 62, 0.5);
+  border-color: #7a9393;
+  color: #e8f0f0;
+}
+
+.community-sentiment-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.community-sentiment-page-info {
+  font-size: 11px;
+  color: #7a9393;
+  min-width: 26px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.community-sentiment-sentiment-section {
+  margin-bottom: 16px;
+}
+
+.community-sentiment-percentage-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.community-sentiment-bullish-section,
+.community-sentiment-bearish-section {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.community-sentiment-trend-icon {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+}
+
+.community-sentiment-trend-icon--bullish {
+  color: #10b981;
+}
+
+.community-sentiment-trend-icon--bearish {
+  color: #ef4444;
+}
+
+.community-sentiment-percentage {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.community-sentiment-bullish-section .community-sentiment-percentage {
+  color: #10b981;
+}
+
+.community-sentiment-bearish-section .community-sentiment-percentage {
+  color: #ef4444;
+}
+
+/* Progress bar */
+.community-sentiment-bar {
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  background: #2d3e3e;
+  margin-bottom: 16px;
+  border: 1px solid #1d2626;
+}
+
+.community-sentiment-bullish-fill {
+  background: #10b981;
+  transition: width 0.3s ease;
+}
+
+.community-sentiment-bearish-fill {
+  background: #ef4444;
+  transition: width 0.3s ease;
+}
+
+/* Vote Buttons */
+.community-sentiment-vote-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.community-sentiment-vote-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.community-sentiment-vote-btn--bullish {
+  border-color: #10b981;
+  color: #10b981;
+}
+
+.community-sentiment-vote-btn--bullish:hover {
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.community-sentiment-vote-btn--bearish {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.community-sentiment-vote-btn--bearish:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.community-sentiment-vote-icon {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+}
+
+.community-sentiment-vote-label {
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .community-sentiment {
+    padding: 14px;
+  }
+
+  .community-sentiment-header {
+    margin-bottom: 20px;
+  }
+
+  .community-sentiment-title {
+    font-size: 14px;
+  }
+
+  .community-sentiment-vote-count {
+    font-size: 10px;
+  }
+
+  .community-sentiment-percentage {
+    font-size: 16px;
+  }
+
+  .community-sentiment-vote-btn {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .community-sentiment-vote-icon {
+    width: 12px;
+    height: 12px;
+  }
+}

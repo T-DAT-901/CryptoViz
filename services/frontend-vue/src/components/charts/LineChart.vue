@@ -1,0 +1,346 @@
+<script setup lang="ts">
+import { onMounted, onBeforeUnmount, ref, watch } from "vue";
+import {
+  Chart,
+  LineController,
+  LineElement,
+  PointElement,
+  LinearScale,
+  TimeScale,
+  Tooltip,
+  Filler,
+  type ChartData,
+  type ChartOptions,
+} from "chart.js";
+import "chartjs-adapter-date-fns";
+
+Chart.register(
+  LineController,
+  LineElement,
+  PointElement,
+  LinearScale,
+  TimeScale,
+  Tooltip,
+  Filler
+);
+
+type InPt = { x: number | string | Date; y: number };
+const props = defineProps<{
+  points: InPt[];
+  timeframe?: string;
+}>();
+
+const canvasEl = ref<HTMLCanvasElement | null>(null);
+const tooltipEl = ref<HTMLDivElement | null>(null);
+let chart: Chart<"line"> | null = null;
+
+const tooltipVisible = ref(false);
+const tooltipData = ref({
+  x: 0,
+  y: 0,
+  date: "",
+  price: "",
+  change: "",
+  isPositive: true,
+});
+
+function toNumericPoints(src: InPt[]) {
+  return src.map((p) => ({
+    x: typeof p.x === "number" ? p.x : new Date(p.x).getTime(),
+    y: p.y,
+  }));
+}
+
+function getTimeDisplayFormat(timeframe: string) {
+  switch (timeframe) {
+    case "1h":
+      return {
+        unit: "minute",
+        displayFormats: {
+          minute: "HH:mm",
+          hour: "HH:mm",
+        },
+        maxTicksLimit: 12,
+      };
+    case "1d":
+      return {
+        unit: "hour",
+        displayFormats: {
+          hour: "HH:mm",
+          minute: "HH:mm",
+        },
+        maxTicksLimit: 12,
+      };
+    case "7d":
+      return {
+        unit: "day",
+        displayFormats: {
+          day: "dd/MM",
+          hour: "dd/MM HH:mm",
+        },
+        maxTicksLimit: 7,
+      };
+    case "1M":
+      return {
+        unit: "week",
+        displayFormats: {
+          week: "dd/MM",
+          day: "dd/MM",
+        },
+        maxTicksLimit: 8,
+      };
+    case "1y":
+      return {
+        unit: "month",
+        displayFormats: {
+          month: "MMM yyyy",
+          week: "dd/MM",
+        },
+        maxTicksLimit: 12,
+      };
+    case "all":
+      return {
+        unit: "year",
+        displayFormats: {
+          year: "yyyy",
+          month: "MMM yyyy",
+        },
+        maxTicksLimit: 10,
+      };
+    default:
+      return {
+        unit: "minute",
+        displayFormats: {
+          minute: "HH:mm",
+          hour: "HH:mm",
+        },
+        maxTicksLimit: 12,
+      };
+  }
+}
+
+function fitChartToTimeframe() {
+  if (!chart || !props.points?.length) return;
+
+  const numericPoints = toNumericPoints(props.points);
+  const timestamps = numericPoints.map((p) => p.x);
+  const minTime = Math.min(...timestamps);
+  const maxTime = Math.max(...timestamps);
+
+  const timeRange = maxTime - minTime;
+  const margin = timeRange * 0.02;
+
+  const timeConfig = getTimeDisplayFormat(props.timeframe || "7d");
+  if (chart.options.scales?.x) {
+    const xScale = chart.options.scales.x as any;
+    xScale.time = {
+      ...xScale.time,
+      unit: timeConfig.unit,
+      displayFormats: timeConfig.displayFormats,
+    };
+    xScale.ticks.maxTicksLimit = timeConfig.maxTicksLimit;
+    xScale.min = minTime - margin;
+    xScale.max = maxTime + margin;
+    chart.update("none");
+  }
+}
+
+function hideTooltip() {
+  tooltipVisible.value = false;
+}
+
+function build() {
+  if (!canvasEl.value) return;
+
+  const ctx = canvasEl.value.getContext("2d")!;
+  const grad = ctx.createLinearGradient(0, 0, 0, canvasEl.value.height);
+  grad.addColorStop(0, "rgba(16,185,129,0.2)");
+  grad.addColorStop(1, "rgba(16,185,129,0)");
+
+  const numericPoints = toNumericPoints(props.points);
+
+  const data: ChartData<"line"> = {
+    datasets: [
+      {
+        label: "Prix",
+        data: numericPoints,
+        parsing: false,
+        borderColor: "#10b981",
+        backgroundColor: grad,
+        borderWidth: 2,
+        fill: true,
+        tension: 0.1,
+        pointRadius: 0,
+        pointHoverRadius: 6,
+        pointBackgroundColor: "#10b981",
+        pointBorderColor: "#ffffff",
+        pointBorderWidth: 2,
+      },
+    ],
+  };
+
+  const options: ChartOptions<"line"> = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { intersect: false, mode: "index" },
+    onHover: (event, activeElements) => {
+      if (activeElements.length > 0) {
+        const dataIndex = activeElements[0].index;
+        const datasetIndex = activeElements[0].datasetIndex;
+        const point = chart?.data.datasets[datasetIndex].data[dataIndex] as any;
+        const element = activeElements[0].element;
+
+        if (point && canvasEl.value && element) {
+          const rect = canvasEl.value.getBoundingClientRect();
+
+          const tooltipX = rect.left + element.x;
+          const tooltipY = rect.top + element.y - 100;
+
+          const date = new Date(point.x);
+          const price = point.y;
+
+          let change = 0;
+          let changePercent = 0;
+          if (dataIndex > 0) {
+            const previousPoint = chart?.data.datasets[datasetIndex].data[
+              dataIndex - 1
+            ] as any;
+            change = price - previousPoint.y;
+            changePercent = (change / previousPoint.y) * 100;
+          }
+
+          tooltipData.value = {
+            x: tooltipX,
+            y: tooltipY,
+            date:
+              date.toLocaleDateString("fr-FR", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              }) +
+              " " +
+              date.toLocaleTimeString("fr-FR", {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+            price:
+              price.toLocaleString("fr-FR", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              }) + " €",
+            change: `${change > 0 ? "+" : ""}${change.toFixed(2)} € (${change > 0 ? "+" : ""}${changePercent.toFixed(2)}%)`,
+            isPositive: change >= 0,
+          };
+
+          tooltipVisible.value = true;
+        }
+      } else {
+        tooltipVisible.value = false;
+      }
+    },
+    scales: {
+      x: {
+        type: "time",
+        grid: {
+          color: "rgba(255,255,255,0.08)",
+        },
+        ticks: {
+          color: "rgba(255,255,255,0.7)",
+          font: { size: 11 },
+          maxTicksLimit: 8, // Limite le nombre de ticks
+        },
+        time: {
+          displayFormats: {
+            minute: "HH:mm",
+            hour: "HH:mm",
+            day: "dd/MM",
+            week: "dd/MM",
+            month: "MMM yyyy",
+            quarter: "MMM yyyy",
+            year: "yyyy",
+          },
+        },
+      },
+      y: {
+        position: "right",
+        grid: {
+          color: "rgba(255,255,255,0.08)",
+        },
+        ticks: {
+          color: "rgba(255,255,255,0.7)",
+          font: { size: 11 },
+          callback: function (value) {
+            return Number(value).toLocaleString("fr-FR") + " €";
+          },
+        },
+      },
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        enabled: false,
+      },
+    },
+    elements: {
+      point: { radius: 0, hoverRadius: 6 },
+    },
+  };
+
+  chart?.destroy();
+  chart = new Chart(canvasEl.value, {
+    type: "line",
+    data,
+    options,
+  });
+
+  setTimeout(() => {
+    fitChartToTimeframe();
+  }, 100);
+}
+
+onMounted(build);
+watch(() => props.points, build, { deep: true });
+watch(
+  () => props.timeframe,
+  () => {
+    setTimeout(() => {
+      fitChartToTimeframe();
+    }, 100);
+  },
+  { immediate: false }
+);
+onBeforeUnmount(() => chart?.destroy());
+
+defineExpose({
+  chart,
+  fitChartToTimeframe,
+});
+</script>
+
+<template>
+  <div class="line-chart" @mouseleave="hideTooltip">
+    <canvas ref="canvasEl"></canvas>
+
+    <div
+      v-if="tooltipVisible"
+      ref="tooltipEl"
+      class="line-chart-tooltip"
+      :style="{
+        left: tooltipData.x + 'px',
+        top: tooltipData.y + 'px',
+      }"
+    >
+      <div class="line-chart-tooltip-date">{{ tooltipData.date }}</div>
+      <div class="line-chart-tooltip-price">Prix: {{ tooltipData.price }}</div>
+      <div
+        class="line-chart-tooltip-change"
+        :class="{
+          'line-chart-tooltip-change--positive': tooltipData.isPositive,
+          'line-chart-tooltip-change--negative': !tooltipData.isPositive,
+        }"
+      >
+        {{ tooltipData.change }}
+      </div>
+    </div>
+  </div>
+</template>
