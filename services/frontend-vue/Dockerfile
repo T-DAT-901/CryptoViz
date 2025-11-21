@@ -4,6 +4,16 @@ FROM node:20-alpine AS builder
 # Définir le répertoire de travail
 WORKDIR /app
 
+# Declare build arguments that will be passed from docker-compose
+ARG VITE_API_URL
+ARG VITE_WS_URL
+ARG VITE_USE_MOCK
+
+# Set them as environment variables for the build process
+ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_WS_URL=${VITE_WS_URL}
+ENV VITE_USE_MOCK=${VITE_USE_MOCK}
+
 # Copier les fichiers de dépendances
 COPY package*.json ./
 

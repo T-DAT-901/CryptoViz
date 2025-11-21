@@ -6,7 +6,7 @@
 
 # Variables
 COMPOSE_FILE = docker-compose.yml
-SERVICES = timescaledb zookeeper kafka kafka-ui redis minio data-collector news-scraper backend-go frontend-vue
+SERVICES = timescaledb zookeeper kafka kafka-ui redis minio data-collector news-scraper backend-go frontend-vue prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter gatus
 
 # Couleurs pour l'affichage
 GREEN = \033[0;32m
@@ -45,6 +45,10 @@ start-services: ## Démarrer uniquement les microservices
 start-app: ## Démarrer uniquement l'application (backend + frontend)
 	@echo "$(GREEN)Démarrage de l'application...$(NC)"
 	@docker-compose up -d backend-go frontend-vue
+
+start-monitoring: ## Démarrer uniquement la stack de monitoring
+	@echo "$(GREEN)Démarrage du monitoring...$(NC)"
+	@docker-compose up -d prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter gatus
 
 stop: ## Arrêter tous les services
 	@echo "$(YELLOW)Arrêt de CryptoViz...$(NC)"
@@ -148,6 +152,21 @@ minio-console: ## Afficher les informations de connexion MinIO
 	@echo "  Username: minioadmin"
 	@echo "  Password: minioadmin"
 
+# Monitoring
+grafana-console: ## Afficher les informations de connexion Grafana
+	@echo "$(GREEN)Grafana Dashboard Access:$(NC)"
+	@echo "  URL: http://localhost:3001"
+	@echo "  Username: admin"
+	@echo "  Password: admin"
+	@echo "  $(YELLOW)Note: Changez le mot de passe à la première connexion$(NC)"
+
+prometheus-ui: ## Afficher les informations de Prometheus
+	@echo "$(GREEN)Prometheus Access:$(NC)"
+	@echo "  URL: http://localhost:9090"
+	@echo "  Targets: http://localhost:9090/targets"
+	@echo "  Graph: http://localhost:9090/graph"
+	@echo "  Metrics: http://localhost:9090/metrics"
+
 # Développement
 dev-backend: ## Démarrer le backend en mode développement
 	@echo "$(GREEN)Démarrage du backend en mode développement...$(NC)"
@@ -243,14 +262,27 @@ update: ## Mettre à jour les dépendances
 # Monitoring
 monitor: ## Ouvrir les interfaces de monitoring
 	@echo "$(GREEN)Ouverture des interfaces de monitoring...$(NC)"
+	@echo ""
+	@echo "$(GREEN)=== Application ===$(NC)"
 	@echo "Frontend: http://localhost:3000 (Docker) ou http://localhost:5173 (dev)"
 	@echo "Backend API: http://localhost:8080"
+	@echo ""
+	@echo "$(GREEN)=== Infrastructure ===$(NC)"
 	@echo "TimescaleDB: localhost:7432"
 	@echo "Kafka UI: http://localhost:8082"
 	@echo "Kafka: localhost:9092"
 	@echo "Redis: localhost:7379"
 	@echo "MinIO API: http://localhost:9000"
 	@echo "MinIO Console: http://localhost:9001"
+	@echo ""
+	@echo "$(GREEN)=== Monitoring Stack ===$(NC)"
+	@echo "Grafana: http://localhost:3001 (admin/admin)"
+	@echo "Prometheus: http://localhost:9090"
+	@echo "Gatus (Health): http://localhost:8084"
+	@echo "cAdvisor (Containers): http://localhost:8083"
+	@echo "Node Exporter (System): http://localhost:9100/metrics"
+	@echo "Postgres Exporter (DB): http://localhost:9187/metrics"
+	@echo "Redis Exporter (Cache): http://localhost:9121/metrics"
 
 # Production
 prod-build: ## Construire pour la production
