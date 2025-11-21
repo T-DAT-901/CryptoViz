@@ -12,9 +12,10 @@ import {
   type ChartData,
   type ChartOptions,
 } from "chart.js";
+import zoomPlugin from "chartjs-plugin-zoom";
 import "chartjs-adapter-date-fns";
 import { useIndicatorsStore } from "@/stores/indicators";
-import { transformOldCandlesArray } from "@/utils/mockTransform";
+import { fetchIndicators } from "@/services/markets.api";
 
 Chart.register(
   LineController,
@@ -23,7 +24,8 @@ Chart.register(
   LinearScale,
   TimeScale,
   Tooltip,
-  Filler
+  Filler,
+  zoomPlugin
 );
 
 const props = defineProps<{ symbol: string }>();
@@ -35,59 +37,21 @@ let chart: Chart | null = null;
 const momentumData = ref<Array<{ timestamp: number; value: number }>>([]);
 
 // Calculate momentum as percentage change over 14 periods
-function calculateMomentum(candles: any[], period: number = 14) {
-  const momentum = [];
-
-  for (let i = period; i < candles.length; i++) {
-    const currentPrice = candles[i].c;
-    const pastPrice = candles[i - period].c;
-    const momentumValue = ((currentPrice - pastPrice) / pastPrice) * 100;
-
-    momentum.push({
-      timestamp: candles[i].t,
-      value: momentumValue,
-    });
-  }
-
-  return momentum;
-}
-
-// Load candle data and calculate momentum
+// Load Momentum data from API
 async function loadData() {
   try {
-    const timeframe = indicatorsStore.selectedTimeframe;
+    console.log(`Loading Momentum data for: ${props.symbol}`);
+    const data = await fetchIndicators(props.symbol, "momentum");
 
-    if (import.meta.env.VITE_USE_MOCK === "true") {
-      const { default: unifiedData } = await import(
-        "@/services/mocks/candles_unified.json"
-      );
-
-      let candleData = [];
-      switch (timeframe) {
-        case "1d":
-          candleData = transformOldCandlesArray(unifiedData["1d"] || []);
-          break;
-        case "7d":
-          candleData = transformOldCandlesArray(unifiedData["7d"] || []);
-          break;
-        case "1M":
-          candleData = transformOldCandlesArray(unifiedData["1M"] || []);
-          break;
-        case "1y":
-          candleData = transformOldCandlesArray(unifiedData["1y"] || []);
-          break;
-        case "all":
-          candleData = transformOldCandlesArray(unifiedData["all"] || []);
-          break;
-        default:
-          candleData = transformOldCandlesArray(unifiedData["1d"] || []);
-      }
-
-      // Calculate momentum from price data
-      momentumData.value = calculateMomentum(candleData, 14);
+    if (data && data.length > 0) {
+      momentumData.value = data;
+      console.log(`Loaded ${momentumData.value.length} Momentum data points`);
+    } else {
+      console.warn("No Momentum data received from API");
+      momentumData.value = [];
     }
   } catch (error) {
-    console.error("Error loading momentum data:", error);
+    console.error("Error loading Momentum data:", error);
     momentumData.value = [];
   }
 }
@@ -168,6 +132,24 @@ const chartOptions = computed(
             const value = context.parsed.y;
             return `Momentum: ${value.toFixed(2)}%`;
           },
+        },
+      },
+      zoom: {
+        pan: {
+          enabled: true,
+          mode: "x",
+          modifierKey: undefined,
+        },
+        zoom: {
+          wheel: {
+            enabled: true,
+            modifierKey: "ctrl",
+            speed: 0.05,
+          },
+          pinch: {
+            enabled: true,
+          },
+          mode: "x",
         },
       },
     },
