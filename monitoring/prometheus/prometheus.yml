@@ -38,6 +38,20 @@ scrape_configs:
       - targets: ['cadvisor:8080']
         labels:
           service: 'containers'
+    metric_relabel_configs:
+      # Extract container ID and name from systemd docker scope format
+      - source_labels: [id]
+        regex: '/system\.slice/docker-([a-f0-9]+)\.scope'
+        target_label: container_id
+        replacement: '$1'
+      - source_labels: [id]
+        regex: '/system\.slice/docker-([a-f0-9]+)\.scope'
+        target_label: name
+        replacement: '$1'
+      - source_labels: [id]
+        regex: '/system\.slice/docker-([a-f0-9]+)\.scope'
+        target_label: container_name
+        replacement: '$1'
 
   # PostgreSQL/TimescaleDB Exporter
   - job_name: 'postgres'
