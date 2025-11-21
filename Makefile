@@ -132,7 +132,7 @@ kafka-create-topic: ## Créer un topic Kafka (usage: make kafka-create-topic TOP
 	fi
 	@docker-compose exec kafka kafka-topics --create --topic $(TOPIC) --bootstrap-server localhost:9092 --partitions 3 --replication-factor 1
 
-kafka-console-consumer: ## Écouter un topic Kafka (usage: make kafka-console-consumer TOPIC=crypto.raw.1s)
+kafka-console-consumer: ## Écouter un topic Kafka (usage: make kafka-console-consumer TOPIC=crypto.raw.trades)
 	@if [ -z "$(TOPIC)" ]; then \
 		echo "$(RED)Erreur: Spécifiez le topic avec TOPIC=nom_du_topic$(NC)"; \
 		exit 1; \
@@ -144,7 +144,7 @@ dev-backend: ## Démarrer le backend en mode développement
 	@echo "$(GREEN)Démarrage du backend en mode développement...$(NC)"
 	@if [ -f .env.local ]; then \
 		echo "$(YELLOW)Utilisation de .env.local pour le développement local$(NC)"; \
-		set -a && . ./.env.local && set +a && cd services/backend-go && go run main.go; \
+		set -a && . ./.env.local && set +a && cd services/backend-go && go run cmd/server/main.go; \
 	else \
 		echo "$(RED)Fichier .env.local non trouvé. Exécutez 'make setup' d'abord.$(NC)"; \
 		exit 1; \
@@ -237,7 +237,7 @@ update: ## Mettre à jour les dépendances
 # Monitoring
 monitor: ## Ouvrir les interfaces de monitoring
 	@echo "$(GREEN)Ouverture des interfaces de monitoring...$(NC)"
-	@echo "Frontend: http://localhost:3000"
+	@echo "Frontend: http://localhost:3000 (Docker) ou http://localhost:5173 (dev)"
 	@echo "Backend API: http://localhost:8080"
 	@echo "TimescaleDB: localhost:7432"
 	@echo "Kafka: localhost:9092"
@@ -271,12 +271,12 @@ api-test: ## Tester l'API backend
 	@echo "$(GREEN)Test de l'API backend...$(NC)"
 	@curl -s http://localhost:8080/health | jq . || echo "Backend non disponible"
 
-api-crypto: ## Tester l'endpoint crypto (usage: make api-crypto SYMBOL=BTCUSDT)
+api-crypto: ## Tester l'endpoint crypto (usage: make api-crypto SYMBOL=BTC/USDT)
 	@if [ -z "$(SYMBOL)" ]; then \
-		echo "$(RED)Erreur: Spécifiez le symbole avec SYMBOL=BTCUSDT$(NC)"; \
+		echo "$(RED)Erreur: Spécifiez le symbole avec SYMBOL=BTC/USDT$(NC)"; \
 		exit 1; \
 	fi
-	@curl -s "http://localhost:8080/api/v1/crypto/$(SYMBOL)/latest" | jq . || echo "Endpoint non disponible"
+	@curl -s "http://localhost:8080/api/v1/crypto/latest?symbol=$(SYMBOL)" | jq . || echo "Endpoint non disponible"
 
 # Maintenance
 prune: ## Nettoyer Docker (images, conteneurs, volumes orphelins)
@@ -307,7 +307,7 @@ info: ## Afficher les informations du projet
 	@echo "Fichier compose: $(COMPOSE_FILE)"
 	@echo ""
 	@echo "$(GREEN)URLs d'accès:$(NC)"
-	@echo "  Frontend: http://localhost:3000"
+	@echo "  Frontend: http://localhost:3000 (Docker) ou http://localhost:5173 (dev)"
 	@echo "  Backend API: http://localhost:8080"
 	@echo "  Health Check: http://localhost:8080/health"
 	@echo ""
