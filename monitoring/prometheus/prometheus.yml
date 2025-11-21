@@ -1,0 +1,97 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'cryptoviz'
+    environment: 'production'
+
+# Alertmanager configuration (optional - uncomment if needed)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  # - "alerts/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # Node Exporter - System metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'system'
+
+  # cAdvisor - Container metrics
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          service: 'containers'
+
+  # PostgreSQL/TimescaleDB Exporter
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'timescaledb'
+          database: 'cryptoviz'
+
+  # Redis Exporter
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
+
+  # Kafka Exporter
+  - job_name: 'kafka'
+    static_configs:
+      - targets: ['kafka-exporter:9308']
+        labels:
+          service: 'kafka'
+
+  # Backend Go Service (if exposing Prometheus metrics)
+  - job_name: 'backend-go'
+    static_configs:
+      - targets: ['backend-go:8080']
+        labels:
+          service: 'backend'
+    metrics_path: '/metrics'
+    # Uncomment if your backend doesn't expose metrics yet
+    # scrape_interval: 30s
+    # scrape_timeout: 10s
+
+  # Data Collector Service (if exposing Prometheus metrics)
+  # - job_name: 'data-collector'
+  #   static_configs:
+  #     - targets: ['data-collector:8080']
+  #       labels:
+  #         service: 'data-collector'
+  #   metrics_path: '/metrics'
+
+  # News Scraper Service (if exposing Prometheus metrics)
+  # - job_name: 'news-scraper'
+  #   static_configs:
+  #     - targets: ['news-scraper:8080']
+  #       labels:
+  #         service: 'news-scraper'
+  #   metrics_path: '/metrics'
+
+  # Indicators Calculator Service (if exposing Prometheus metrics)
+  # - job_name: 'indicators-calculator'
+  #   static_configs:
+  #     - targets: ['indicators-calculator:8080']
+  #       labels:
+  #         service: 'indicators-calculator'
+  #   metrics_path: '/metrics'

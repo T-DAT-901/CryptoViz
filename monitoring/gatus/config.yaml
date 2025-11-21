@@ -1,0 +1,139 @@
+storage:
+  type: sqlite
+  path: /data/gatus.db
+
+metrics: true
+
+web:
+  port: 8080
+
+ui:
+  title: CryptoViz Health Status
+  header: CryptoViz Monitoring
+  logo: "https://cryptologos.cc/logos/bitcoin-btc-logo.svg"
+  link: "https://github.com/yourusername/cryptoviz"
+
+# Alert configuration (optional)
+alerting:
+  discord:
+    webhook-url: "${DISCORD_WEBHOOK_URL}"
+    default-alert:
+      enabled: false
+      description: "Health check failed"
+      send-on-resolved: true
+      failure-threshold: 3
+      success-threshold: 2
+
+endpoints:
+  # Infrastructure Services
+  - name: TimescaleDB
+    group: Infrastructure
+    url: "tcp://timescaledb:5432"
+    interval: 30s
+    conditions:
+      - "[CONNECTED] == true"
+    alerts:
+      - type: discord
+        enabled: false
+        failure-threshold: 3
+        success-threshold: 2
+
+  - name: Kafka
+    group: Infrastructure
+    url: "tcp://kafka:29092"
+    interval: 30s
+    conditions:
+      - "[CONNECTED] == true"
+
+  - name: Redis
+    group: Infrastructure
+    url: "tcp://redis:6379"
+    interval: 30s
+    conditions:
+      - "[CONNECTED] == true"
+
+  - name: MinIO
+    group: Infrastructure
+    url: "http://minio:9000/minio/health/live"
+    interval: 30s
+    conditions:
+      - "[STATUS] == 200"
+
+  # Application Services
+  - name: Backend Go API
+    group: Application
+    url: "http://backend-go:8080/health"
+    interval: 15s
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 500"
+    alerts:
+      - type: discord
+        enabled: false
+        failure-threshold: 3
+
+  - name: Backend Go WebSocket
+    group: Application
+    url: "http://backend-go:8080/ws/crypto"
+    interval: 30s
+    conditions:
+      - "[STATUS] < 500"
+
+  # Monitoring Stack
+  - name: Prometheus
+    group: Monitoring
+    url: "http://prometheus:9090/-/healthy"
+    interval: 30s
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: Grafana
+    group: Monitoring
+    url: "http://grafana:3000/api/health"
+    interval: 30s
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY].database == ok"
+
+  - name: Kafka UI
+    group: Monitoring
+    url: "http://kafka-ui:8080"
+    interval: 30s
+    conditions:
+      - "[STATUS] == 200"
+
+  # Exporters
+  - name: Node Exporter
+    group: Exporters
+    url: "http://node-exporter:9100/metrics"
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: cAdvisor
+    group: Exporters
+    url: "http://cadvisor:8080/healthz"
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: Postgres Exporter
+    group: Exporters
+    url: "http://postgres-exporter:9187/metrics"
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: Redis Exporter
+    group: Exporters
+    url: "http://redis-exporter:9121/metrics"
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: Kafka Exporter
+    group: Exporters
+    url: "http://kafka-exporter:9308/metrics"
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
