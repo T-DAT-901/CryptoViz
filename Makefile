@@ -2,25 +2,47 @@
 # CryptoViz Makefile
 # =============================================================================
 
-.PHONY: help start stop restart build clean logs status test lint format
+.PHONY: help start stop restart build clean logs status test lint format mac-start mac-start-monitoring mac-build mac-clean mac-reset-backfill debug-backfill debug-timescale check-docker-resources
 
 # Variables
 COMPOSE_FILE = docker-compose.yml
 SERVICES = timescaledb zookeeper kafka kafka-ui redis minio data-collector news-scraper backend-go frontend-vue prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter gatus
 
+# Mac Detection and Override
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+	MAC_OVERRIDE = -f docker-compose.mac.yml
+	IS_MAC = true
+	PLATFORM = Mac
+else
+	MAC_OVERRIDE =
+	IS_MAC = false
+	PLATFORM = Linux
+endif
+
 # Couleurs pour l'affichage
 GREEN = \033[0;32m
 YELLOW = \033[1;33m
 RED = \033[0;31m
+BLUE = \033[0;34m
 NC = \033[0m # No Color
 
 # Aide par défaut
 help: ## Afficher cette aide
-	@echo "$(GREEN)CryptoViz - Commandes disponibles:$(NC)"
+	@echo "$(GREEN)CryptoViz - Commandes disponibles ($(PLATFORM)):$(NC)"
 	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-20s$(NC) %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-25s$(NC) %s\n", $$1, $$2}'
 	@echo ""
 	@echo "$(GREEN)Exemples d'utilisation:$(NC)"
+ifeq ($(IS_MAC),true)
+	@echo "  $(BLUE)Sur Mac, utilisez les commandes 'mac-*' pour une meilleure compatibilité:$(NC)"
+	@echo "  make mac-start           # Démarrer l'application (Mac Docker Desktop)"
+	@echo "  make mac-start-monitoring # Démarrer la stack de monitoring (Mac)"
+	@echo "  make mac-clean           # Nettoyer Docker + stale networks (Mac)"
+	@echo "  make debug-backfill      # Vérifier l'état du backfill historique"
+	@echo ""
+	@echo "  $(YELLOW)Commandes standards (utilisent aussi l'override Mac automatiquement):$(NC)"
+endif
 	@echo "  make start               # Démarrer l'application (sans monitoring)"
 	@echo "  make start-monitoring    # Démarrer la stack de monitoring"
 	@echo "  make logs                # Voir les logs en temps réel"
@@ -167,6 +189,142 @@ prometheus-ui: ## Afficher les informations de Prometheus
 	@echo "  Targets: http://localhost:9090/targets"
 	@echo "  Graph: http://localhost:9090/graph"
 	@echo "  Metrics: http://localhost:9090/metrics"
+
+# =============================================================================
+# Mac Docker Desktop - Commandes spécifiques
+# =============================================================================
+
+mac-start: ## [Mac] Démarrer avec docker-compose.mac.yml (fix mount issues)
+	@echo "$(BLUE)Démarrage de CryptoViz sur Mac Docker Desktop...$(NC)"
+	@echo "$(YELLOW)Nettoyage des réseaux Docker obsolètes...$(NC)"
+	@docker network prune -f 2>/dev/null || true
+	@echo "$(GREEN)Construction des images...$(NC)"
+	@docker-compose -f docker-compose.yml $(MAC_OVERRIDE) build --no-cache
+	@echo "$(GREEN)Démarrage de l'infrastructure...$(NC)"
+	@docker-compose -f docker-compose.yml $(MAC_OVERRIDE) up -d timescaledb zookeeper kafka redis minio
+	@sleep 20
+	@docker-compose -f docker-compose.yml $(MAC_OVERRIDE) up minio-init
+	@docker-compose -f docker-compose.yml $(MAC_OVERRIDE) up kafka-init
+	@echo "$(GREEN)Démarrage des microservices...$(NC)"
+	@docker-compose -f docker-compose.yml $(MAC_OVERRIDE) up -d data-collector news-scraper
+	@echo "$(GREEN)Démarrage de l'application...$(NC)"
+	@docker-compose -f docker-compose.yml $(MAC_OVERRIDE) up -d backend-go frontend-vue
+	@echo "$(GREEN)✓ CryptoViz démarré sur Mac$(NC)"
+	@echo ""
+	@echo "$(BLUE)Accès:$(NC)"
+	@echo "  Frontend: http://localhost:3000"
+	@echo "  Backend API: http://localhost:8080"
+	@echo "  Monitoring: make mac-start-monitoring"
+
+mac-start-monitoring: ## [Mac] Démarrer la stack de monitoring sur Mac
+	@echo "$(BLUE)Démarrage du monitoring sur Mac...$(NC)"
+	@docker-compose -f docker-compose.yml $(MAC_OVERRIDE) up -d kafka-ui prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter gatus
+	@echo "$(GREEN)✓ Monitoring démarré$(NC)"
+	@echo ""
+	@echo "$(BLUE)Accès monitoring:$(NC)"
+	@echo "  Grafana: http://localhost:3001 (admin/admin)"
+	@echo "  Prometheus: http://localhost:9090"
+	@echo "  Kafka UI: http://localhost:8082"
+
+mac-build: ## [Mac] Construire les images avec override Mac
+	@echo "$(BLUE)Construction des images pour Mac...$(NC)"
+	@docker-compose -f docker-compose.yml $(MAC_OVERRIDE) build --no-cache
+
+mac-clean: ## [Mac] Nettoyer Docker + stale networks/volumes (Mac)
+	@echo "$(BLUE)Nettoyage Docker pour Mac...$(NC)"
+	@docker-compose -f docker-compose.yml $(MAC_OVERRIDE) down -v --remove-orphans
+	@echo "$(YELLOW)Nettoyage des réseaux obsolètes...$(NC)"
+	@docker network prune -f
+	@echo "$(YELLOW)Nettoyage des volumes orphelins...$(NC)"
+	@docker volume prune -f
+	@echo "$(YELLOW)Nettoyage des images...$(NC)"
+	@docker image prune -f
+	@echo "$(GREEN)✓ Nettoyage Mac terminé$(NC)"
+
+mac-reset-backfill: ## [Mac] Supprimer l'état du backfill et redémarrer
+	@echo "$(YELLOW)Suppression de l'état du backfill...$(NC)"
+	@rm -f services/data-collector/backfill_state.json
+	@echo "$(GREEN)✓ État du backfill supprimé$(NC)"
+	@echo "$(BLUE)Au prochain démarrage, le backfill sera réexécuté$(NC)"
+	@echo "Voulez-vous redémarrer le data-collector maintenant? (Ctrl+C pour annuler)"
+	@read -p "Appuyez sur Entrée pour continuer..."
+	@docker-compose -f docker-compose.yml $(MAC_OVERRIDE) restart data-collector
+	@echo "$(GREEN)✓ Data-collector redémarré$(NC)"
+
+# =============================================================================
+# Debugging - Diagnostic des problèmes multi-machines
+# =============================================================================
+
+debug-backfill: ## Vérifier l'état du backfill historique
+	@echo "$(GREEN)=== Vérification du Backfill ===$(NC)"
+	@echo ""
+	@echo "$(YELLOW)1. État du fichier backfill_state.json:$(NC)"
+	@if [ -f services/data-collector/backfill_state.json ]; then \
+		echo "$(GREEN)✓ Fichier trouvé$(NC)"; \
+		ls -lh services/data-collector/backfill_state.json; \
+		echo ""; \
+		echo "$(YELLOW)Contenu (premiers symboles):$(NC)"; \
+		head -20 services/data-collector/backfill_state.json 2>/dev/null || cat services/data-collector/backfill_state.json; \
+	else \
+		echo "$(RED)✗ Fichier NON trouvé - Le backfill n'a jamais été exécuté$(NC)"; \
+	fi
+	@echo ""
+	@echo "$(YELLOW)2. Variable ENABLE_BACKFILL dans .env:$(NC)"
+	@grep -i "ENABLE_BACKFILL" .env || echo "$(RED)Variable non trouvée dans .env$(NC)"
+	@echo ""
+	@echo "$(YELLOW)3. Logs du data-collector (dernières 30 lignes):$(NC)"
+	@docker logs cryptoviz-data-collector 2>&1 | grep -i "backfill" | tail -30 || echo "$(RED)Container non trouvé ou pas de logs backfill$(NC)"
+	@echo ""
+	@echo "$(YELLOW)4. État du container data-collector:$(NC)"
+	@docker ps -a | grep data-collector || echo "$(RED)Container non trouvé$(NC)"
+
+debug-timescale: ## Vérifier les données historiques dans TimescaleDB
+	@echo "$(GREEN)=== Vérification des Données Historiques ===$(NC)"
+	@echo ""
+	@echo "$(YELLOW)1. Comptage par intervalle:$(NC)"
+	@docker exec cryptoviz-timescaledb psql -U postgres -d cryptoviz -c "\
+		SELECT interval, COUNT(*) as count, \
+		       MIN(open_time) as first_candle, \
+		       MAX(open_time) as last_candle \
+		FROM ohlcv_1m \
+		GROUP BY interval \
+		ORDER BY interval;" 2>/dev/null || echo "$(RED)Erreur: TimescaleDB non accessible$(NC)"
+	@echo ""
+	@echo "$(YELLOW)2. Symboles collectés:$(NC)"
+	@docker exec cryptoviz-timescaledb psql -U postgres -d cryptoviz -c "\
+		SELECT symbol, COUNT(*) as candles \
+		FROM ohlcv_1m \
+		WHERE interval = '1m' \
+		GROUP BY symbol \
+		ORDER BY candles DESC \
+		LIMIT 10;" 2>/dev/null || echo "$(RED)Erreur: TimescaleDB non accessible$(NC)"
+	@echo ""
+	@echo "$(YELLOW)3. Données récentes (dernière heure):$(NC)"
+	@docker exec cryptoviz-timescaledb psql -U postgres -d cryptoviz -c "\
+		SELECT COUNT(*) as recent_candles \
+		FROM ohlcv_1m \
+		WHERE open_time > NOW() - INTERVAL '1 hour';" 2>/dev/null || echo "$(RED)Erreur: TimescaleDB non accessible$(NC)"
+
+check-docker-resources: ## Nettoyer les ressources Docker obsolètes
+	@echo "$(GREEN)=== Nettoyage des Ressources Docker Obsolètes ===$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Réseaux Docker:$(NC)"
+	@docker network ls
+	@echo ""
+	@echo "$(YELLOW)Nettoyage des réseaux non utilisés...$(NC)"
+	@docker network prune -f
+	@echo ""
+	@echo "$(YELLOW)Volumes Docker:$(NC)"
+	@docker volume ls
+	@echo ""
+	@echo "$(YELLOW)Voulez-vous nettoyer les volumes non utilisés? (peut supprimer des données)$(NC)"
+	@read -p "Tapez 'yes' pour confirmer: " confirm; \
+	if [ "$$confirm" = "yes" ]; then \
+		docker volume prune -f; \
+		echo "$(GREEN)✓ Volumes nettoyés$(NC)"; \
+	else \
+		echo "$(YELLOW)Nettoyage des volumes annulé$(NC)"; \
+	fi
 
 # Développement
 dev-backend: ## Démarrer le backend en mode développement
@@ -343,15 +501,33 @@ reset: ## Reset complet du projet (ATTENTION: supprime toutes les données)
 # Informations
 info: ## Afficher les informations du projet
 	@echo "$(GREEN)=== CryptoViz - Informations du Projet ===$(NC)"
+	@echo "Plateforme détectée: $(PLATFORM)"
+ifeq ($(IS_MAC),true)
+	@echo "$(BLUE)Override Mac: docker-compose.mac.yml (actif)$(NC)"
+endif
 	@echo "Version Docker: $(shell docker --version)"
 	@echo "Version Docker Compose: $(shell docker-compose --version)"
 	@echo "Services configurés: $(SERVICES)"
 	@echo "Fichier compose: $(COMPOSE_FILE)"
 	@echo ""
+ifeq ($(IS_MAC),true)
+	@echo "$(BLUE)=== Informations Mac ===$(NC)"
+	@echo "Utilisez 'make mac-start' pour un démarrage optimisé Mac"
+	@echo "Les commandes standards utilisent automatiquement l'override Mac"
+	@echo "Limitations connues:"
+	@echo "  - node-exporter: métriques système réduites (pas de rslave)"
+	@echo "  - cAdvisor: mode non-privilégié (moins de métriques)"
+	@echo ""
+endif
 	@echo "$(GREEN)URLs d'accès:$(NC)"
 	@echo "  Frontend: http://localhost:3000 (Docker) ou http://localhost:5173 (dev)"
 	@echo "  Backend API: http://localhost:8080"
 	@echo "  Health Check: http://localhost:8080/health"
+	@echo ""
+	@echo "$(GREEN)Debugging:$(NC)"
+	@echo "  make debug-backfill          - Vérifier l'état du backfill"
+	@echo "  make debug-timescale         - Vérifier les données historiques"
+	@echo "  make check-docker-resources  - Nettoyer les ressources obsolètes"
 	@echo ""
 
 # Par défaut, afficher l'aide
