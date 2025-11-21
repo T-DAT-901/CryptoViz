@@ -14,6 +14,7 @@ services:
       - timescaledb_data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./database/setup-tiering.sql:/docker-entrypoint-initdb.d/02-setup-tiering.sql
+      - ./database/setup-indicators.sql:/docker-entrypoint-initdb.d/03-setup-indicators.sql
     networks:
       - cryptoviz-network
     restart: unless-stopped
@@ -472,6 +473,31 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+  # Indicators Scheduler Service
+  # Remplace les TimescaleDB jobs (bug "cache lookup failed")
+  indicators-scheduler:
+    build:
+      context: ./services/indicators-scheduler
+      dockerfile: Dockerfile
+    container_name: cryptoviz-indicators-scheduler
+    environment:
+      PGHOST: timescaledb
+      PGPORT: 5432
+      PGDATABASE: cryptoviz
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   timescaledb_data:
