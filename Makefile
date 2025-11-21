@@ -21,20 +21,21 @@ help: ## Afficher cette aide
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-20s$(NC) %s\n", $$1, $$2}'
 	@echo ""
 	@echo "$(GREEN)Exemples d'utilisation:$(NC)"
-	@echo "  make start          # Démarrer tous les services"
-	@echo "  make logs           # Voir les logs en temps réel"
-	@echo "  make stop           # Arrêter tous les services"
-	@echo "  make restart        # Redémarrer tous les services"
+	@echo "  make start               # Démarrer l'application (sans monitoring)"
+	@echo "  make start-monitoring    # Démarrer la stack de monitoring"
+	@echo "  make logs                # Voir les logs en temps réel"
+	@echo "  make stop                # Arrêter tous les services"
+	@echo "  make monitor             # Afficher toutes les URLs"
 	@echo ""
 
 # Gestion des services
-start: ## Démarrer tous les services
+start: ## Démarrer l'application (infrastructure + services + app, sans monitoring)
 	@echo "$(GREEN)Démarrage de CryptoViz...$(NC)"
 	@./scripts/start.sh
 
 start-infra: ## Démarrer uniquement l'infrastructure (DB, Kafka, Redis, MinIO)
 	@echo "$(GREEN)Démarrage de l'infrastructure...$(NC)"
-	@docker-compose up -d timescaledb zookeeper kafka redis minio kafka-ui
+	@docker-compose up -d timescaledb zookeeper kafka redis minio
 	@docker-compose up minio-init
 	@docker-compose up kafka-init
 
@@ -48,7 +49,7 @@ start-app: ## Démarrer uniquement l'application (backend + frontend)
 
 start-monitoring: ## Démarrer uniquement la stack de monitoring
 	@echo "$(GREEN)Démarrage du monitoring...$(NC)"
-	@docker-compose up -d prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter gatus
+	@docker-compose up -d kafka-ui prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter gatus
 
 stop: ## Arrêter tous les services
 	@echo "$(YELLOW)Arrêt de CryptoViz...$(NC)"
