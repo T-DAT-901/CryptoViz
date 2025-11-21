@@ -25,6 +25,13 @@ Chart.register(
 const props = defineProps<{
   candles: CandleDTO[];
   timeframe?: string;
+  buildingCandle?: {
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+  } | null;
 }>();
 
 const canvasEl = ref<HTMLCanvasElement | null>(null);
@@ -232,25 +239,49 @@ function buildChart() {
     chart = null;
   }
 
+  const datasets: any[] = [
+    {
+      label: "BTC/USDT",
+      data: props.candles.map((candle) => ({
+        x: new Date(candle.time).getTime(),
+        o: candle.open,
+        h: candle.high,
+        l: candle.low,
+        c: candle.close,
+      })),
+      upColor: "#10b981",
+      downColor: "#ef4444",
+      borderUpColor: "#10b981",
+      borderDownColor: "#ef4444",
+      wickUpColor: "#10b981",
+      wickDownColor: "#ef4444",
+    } as any,
+  ];
+
+  // Ajouter la candle en construction si elle existe
+  if (props.buildingCandle) {
+    datasets.push({
+      label: "Candle en construction",
+      data: [
+        {
+          x: Date.now(),
+          o: props.buildingCandle.open,
+          h: props.buildingCandle.high,
+          l: props.buildingCandle.low,
+          c: props.buildingCandle.close,
+        },
+      ],
+      upColor: "rgba(16,185,129,0.4)",
+      downColor: "rgba(239,68,68,0.4)",
+      borderUpColor: "rgba(16,185,129,0.6)",
+      borderDownColor: "rgba(239,68,68,0.6)",
+      wickUpColor: "rgba(16,185,129,0.6)",
+      wickDownColor: "rgba(239,68,68,0.6)",
+    } as any);
+  }
+
   const chartData: ChartData<"candlestick"> = {
-    datasets: [
-      {
-        label: "BTC/USDT",
-        data: props.candles.map((candle) => ({
-          x: new Date(candle.time).getTime(),
-          o: candle.open,
-          h: candle.high,
-          l: candle.low,
-          c: candle.close,
-        })),
-        upColor: "#10b981",
-        downColor: "#ef4444",
-        borderUpColor: "#10b981",
-        borderDownColor: "#ef4444",
-        wickUpColor: "#10b981",
-        wickDownColor: "#ef4444",
-      } as any,
-    ],
+    datasets,
   };
 
   chart = new Chart(canvasEl.value, {
@@ -370,8 +401,24 @@ function handleMouseMove(event: MouseEvent) {
   }
 }
 
-onMounted(buildChart);
+onMounted(() => {
+  console.log("✅ CandleChart mounted");
+  buildChart();
+});
+
 watch(() => props.candles, buildChart, { deep: true });
+
+watch(
+  () => props.buildingCandle,
+  (newBuilding) => {
+    console.log("🔄 CandleChart: buildingCandle changed", newBuilding);
+    if (newBuilding) {
+      console.log("  → Rebuilding chart with building candle");
+      buildChart();
+    }
+  },
+  { deep: true }
+);
 watch(
   () => props.timeframe,
   () => {

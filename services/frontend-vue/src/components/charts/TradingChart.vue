@@ -94,6 +94,8 @@ const currentBuildingCandle = ref<{
   close: number;
   volume: number;
 } | null>(null);
+let lastProcessedTradeIndex = 0;
+let tradeProcessingInterval: ReturnType<typeof setInterval> | null = null;
 
 const rsiMiniChartRef = ref<HTMLCanvasElement | null>(null);
 const macdMiniChartRef = ref<HTMLCanvasElement | null>(null);
@@ -127,6 +129,20 @@ const timeframes = [
 const selectedTimeframe = computed({
   get: () => indicatorsStore.selectedTimeframe,
   set: (value) => indicatorsStore.setTimeframe(value),
+});
+
+// Computed qui force Vue à détecter les changements du building candle
+// en créant une nouvelle référence à chaque fois
+const buildingCandleForChart = computed(() => {
+  if (selectedTimeframe.value === "1m" && currentBuildingCandle.value) {
+    const candle = { ...currentBuildingCandle.value };
+    console.log("📤 TradingChart: buildingCandleForChart computed", {
+      timeframe: selectedTimeframe.value,
+      candle,
+    });
+    return candle;
+  }
+  return null;
 });
 
 const linePoints = computed(() => {
@@ -631,6 +647,7 @@ function initializeCandleBuilder() {
   if (selectedTimeframe.value !== "1m") return;
 
   candleBuilder.value = new RealtimeCandleBuilder();
+  lastProcessedTradeIndex = 0;
 
   // When a candle is completed, add it to the candles array
   candleBuilder.value.onCandleCompleted((completedCandle, timestamp) => {
@@ -649,18 +666,22 @@ function initializeCandleBuilder() {
       volume: completedCandle.volume,
     };
 
-    // Ajouter à l'array des candles
-    candles.value.push(newCandle);
+    // Ajouter à l'array des candles (force Vue reactivity)
+    candles.value = [...candles.value, newCandle];
     console.log(`Total candles: ${candles.value.length}`);
     currentBuildingCandle.value = null;
   });
 
   // When a candle is being built, update the current building candle
   candleBuilder.value.onCandleUpdated((updatingCandle) => {
-    console.log(
-      `🟡 Candle en construction: OHLC ${updatingCandle.open.toFixed(2)}/${updatingCandle.high.toFixed(2)}/${updatingCandle.low.toFixed(2)}/${updatingCandle.close.toFixed(2)}`
-    );
-    currentBuildingCandle.value = updatingCandle;
+    // Force Vue reactivity by creating a new object
+    currentBuildingCandle.value = {
+      open: updatingCandle.open,
+      high: updatingCandle.high,
+      low: updatingCandle.low,
+      close: updatingCandle.close,
+      volume: updatingCandle.volume,
+    };
   });
 
   // Process existing trades to rebuild current minute candle
@@ -669,39 +690,38 @@ function initializeCandleBuilder() {
       candleBuilder.value?.addTrade(trade.price, 0, trade.timestamp);
     });
   }
-}
 
-// Process incoming trades through the candle builder
-watch(liveTrades, (newTrades, oldTrades) => {
-  if (!candleBuilder.value || selectedTimeframe.value !== "1m") return;
+  // Start polling for new trades every 100ms
+  if (tradeProcessingInterval) {
+    clearInterval(tradeProcessingInterval);
+  }
 
-  // Only process new trades that haven't been processed yet
-  const newTradesCount = newTrades.length - oldTrades.length;
-  if (newTradesCount > 0) {
-    console.log(`📊 ${newTradesCount} nouveau(x) trade(s) reçu(s)`);
-    const startIndex = Math.max(0, newTrades.length - newTradesCount);
-    for (let i = startIndex; i < newTrades.length; i++) {
-      const trade = newTrades[i];
+  tradeProcessingInterval = setInterval(() => {
+    if (!candleBuilder.value || selectedTimeframe.value !== "1m") {
+      return;
+    }
+
+    const newTrades = liveTrades.value.slice(lastProcessedTradeIndex);
+    if (newTrades.length > 0) {
       console.log(
-        `   Trade: ${trade.price.toFixed(2)}€ @ ${new Date(trade.timestamp).toLocaleTimeString("fr-FR")}`
+        `📊 ${newTrades.length} nouveau(x) trade(s) trouvé(s) via polling`
       );
-      candleBuilder.value.addTrade(trade.price, 0, trade.timestamp);
-    }
-  }
-});
-
-// Re-initialize builder when timeframe changes
-watch(
-  () => selectedTimeframe.value,
-  (newTimeframe) => {
-    if (newTimeframe === "1m") {
-      initializeCandleBuilder();
+      newTrades.forEach((trade) => {
+        candleBuilder.value?.addTrade(trade.price, 0, trade.timestamp);
+      });
+      lastProcessedTradeIndex = liveTrades.value.length;
     } else {
-      candleBuilder.value = null;
-      currentBuildingCandle.value = null;
+      // Même sans nouveaux trades, force le re-render de la candle en construction
+      // pour que les petites modifications s'affichent
+      if (currentBuildingCandle.value) {
+        currentBuildingCandle.value = {
+          ...currentBuildingCandle.value,
+        };
+      }
     }
-  }
-);
+  }, 100);
+} // Process incoming trades through the candle builder via polling in initializeCandleBuilder
+// (removed watch-based approach in favor of setInterval polling)
 
 watch(latestCandle, (newCandle) => {
   if (newCandle && candles.value.length > 0) {
@@ -713,7 +733,23 @@ watch(latestCandle, (newCandle) => {
 watch(
   () => indicatorsStore.selectedTimeframe,
   async (newTimeframe) => {
+    // Toujours charger les données pour cette timeframe
     await loadData();
+
+    // Si c'est 1m, réinitialiser le builder pour qu'il refonctionne
+    if (newTimeframe === "1m") {
+      console.log("Reinitializing builder after loadData");
+      initializeCandleBuilder();
+    } else {
+      // Arrêter le builder pour les autres timeframes
+      if (tradeProcessingInterval) {
+        clearInterval(tradeProcessingInterval);
+        tradeProcessingInterval = null;
+      }
+      candleBuilder.value = null;
+      currentBuildingCandle.value = null;
+      lastProcessedTradeIndex = 0;
+    }
   }
 );
 
@@ -730,11 +766,18 @@ watch(
 );
 
 onMounted(async () => {
+  console.log("🔧 TradingChart mounted, initializing...");
   await loadData();
 
   // Initialize real-time candle builder for 1m timeframe
   if (selectedTimeframe.value === "1m") {
+    console.log("🟢 Initializing candle builder for 1m");
     initializeCandleBuilder();
+  } else {
+    console.log(
+      "🔴 Not initializing builder - timeframe is:",
+      selectedTimeframe.value
+    );
   }
 
   try {
@@ -743,11 +786,13 @@ onMounted(async () => {
     console.warn("WebSocket connection failed, using polling fallback");
   }
 });
-
 onUnmounted(() => {
   disconnect();
   unsubscribeCandles();
   unsubscribeTrades();
+  if (tradeProcessingInterval) {
+    clearInterval(tradeProcessingInterval);
+  }
   rsiMiniChart?.destroy();
   macdMiniChart?.destroy();
   bollingerMiniChart?.destroy();
@@ -830,6 +875,7 @@ onUnmounted(() => {
             v-else-if="chartMode === 'candle'"
             :candles="candles"
             :timeframe="selectedTimeframe"
+            :building-candle="buildingCandleForChart"
             ref="candleChartRef"
           />
         </div>
