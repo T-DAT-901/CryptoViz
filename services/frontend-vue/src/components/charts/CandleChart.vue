@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch, onBeforeUnmount } from "vue";
+import { onMounted, ref, watch, onBeforeUnmount, computed } from "vue";
 import { useMarketStore } from "@/stores/market";
 import { Chart, Tooltip, Legend, TimeScale, LinearScale } from "chart.js";
 import zoomPlugin from "chartjs-plugin-zoom";
@@ -39,8 +39,6 @@ let chart: Chart<"candlestick"> | null = null;
 
 const tooltipVisible = ref(false);
 const tooltipData = ref({
-  x: 0,
-  y: 0,
   date: "",
   open: "",
   high: "",
@@ -50,6 +48,7 @@ const tooltipData = ref({
   changePercent: "",
   volume: "",
   isPositive: true,
+  candleIndex: 0,
 });
 
 const crosshairVisible = ref(false);
@@ -61,6 +60,40 @@ const crosshairLabels = ref({
   price: "",
   date: "",
   candleX: 0,
+});
+
+const tooltipPositionStyle = computed(() => {
+  if (!chart || !canvasEl.value) return {};
+  const element = chart.getDatasetMeta(0).data[
+    tooltipData.value.candleIndex
+  ] as any;
+  if (!element) return {};
+
+  const rect = canvasEl.value.getBoundingClientRect();
+  const candleX = element.x;
+  const candleY = element.y || 0;
+
+  // Estimé de la taille de la tooltip (en pixels)
+  const tooltipWidth = 220;
+  const tooltipHeight = 150;
+
+  let left = candleX + 15;
+  let top = Math.max(10, candleY - 80);
+
+  // Vérifier si la tooltip sort par la droite
+  if (left + tooltipWidth > rect.width) {
+    left = Math.max(5, candleX - tooltipWidth - 15);
+  }
+
+  // Vérifier si la tooltip sort par le bas
+  if (top + tooltipHeight > rect.height) {
+    top = Math.max(5, candleY - tooltipHeight - 10);
+  }
+
+  return {
+    left: left + "px",
+    top: top + "px",
+  };
 });
 
 const options: ChartOptions<"candlestick"> = {
@@ -75,7 +108,29 @@ const options: ChartOptions<"candlestick"> = {
       pan: {
         enabled: true,
         mode: "x",
-        modifierKey: "shift",
+        modifierKey: undefined,
+        onPanRejected: ({ chart }) => {
+          // Gentle limit: don't allow panning beyond data range
+          const xScale = chart.scales.x as any;
+          if (!xScale) return;
+
+          // Get the min/max from the data
+          const timestamps =
+            props.candles.length > 0
+              ? props.candles.map((c) => new Date(c.time).getTime())
+              : [];
+
+          const minTime =
+            timestamps.length > 0 ? Math.min(...timestamps) : null;
+          const maxTime =
+            timestamps.length > 0 ? Math.max(...timestamps) : null;
+
+          if (minTime !== null && maxTime !== null) {
+            // If we've panned outside bounds, set the scale limits
+            xScale.min = minTime;
+            xScale.max = maxTime;
+          }
+        },
       },
       zoom: {
         wheel: {
@@ -349,8 +404,6 @@ function handleMouseMove(event: MouseEvent) {
       const changePercent = (change / candle.open) * 100;
 
       tooltipData.value = {
-        x: event.clientX,
-        y: event.clientY - 120,
         date: new Date(candle.time).toLocaleDateString("fr-FR", {
           day: "2-digit",
           month: "2-digit",
@@ -382,6 +435,7 @@ function handleMouseMove(event: MouseEvent) {
         changePercent: `${change > 0 ? "+" : ""}${changePercent.toFixed(2)}%`,
         volume: "Volume: N/A",
         isPositive: change >= 0,
+        candleIndex: dataIndex,
       };
 
       tooltipVisible.value = true;
@@ -458,7 +512,9 @@ defineExpose({
       🔍 Reset
     </button>
 
-    <canvas ref="canvasEl"></canvas>
+    <div class="candle-chart-canvas-wrapper">
+      <canvas ref="canvasEl"></canvas>
+    </div>
 
     <div v-if="crosshairVisible" class="candle-chart-crosshair-container">
       <div
@@ -483,32 +539,43 @@ defineExpose({
     <div
       v-if="tooltipVisible"
       class="candle-chart-tooltip"
-      :style="{
-        left: tooltipData.x + 'px',
-        top: tooltipData.y + 'px',
-      }"
+      :style="tooltipPositionStyle"
     >
       <div class="candle-chart-tooltip-date">{{ tooltipData.date }}</div>
       <div class="candle-chart-tooltip-ohlc">
-        <div class="candle-chart-ohlc-row">
-          <span class="candle-chart-ohlc-label">O:</span>
-          <span class="candle-chart-ohlc-value">{{ tooltipData.open }}</span>
-        </div>
-        <div class="candle-chart-ohlc-row">
-          <span class="candle-chart-ohlc-label">H:</span>
-          <span class="candle-chart-ohlc-value candle-chart-ohlc-value--high">{{
-            tooltipData.high
-          }}</span>
-        </div>
-        <div class="candle-chart-ohlc-row">
-          <span class="candle-chart-ohlc-label">L:</span>
-          <span class="candle-chart-ohlc-value candle-chart-ohlc-value--low">{{
-            tooltipData.low
-          }}</span>
-        </div>
-        <div class="candle-chart-ohlc-row">
-          <span class="candle-chart-ohlc-label">C:</span>
-          <span class="candle-chart-ohlc-value">{{ tooltipData.close }}</span>
+        <div class="candle-chart-ohlc-columns">
+          <!-- Colonne gauche: Open et Close -->
+          <div class="candle-chart-ohlc-column">
+            <div class="candle-chart-ohlc-row">
+              <span class="candle-chart-ohlc-label">Open:</span>
+              <span class="candle-chart-ohlc-value">{{
+                tooltipData.open
+              }}</span>
+            </div>
+            <div class="candle-chart-ohlc-row">
+              <span class="candle-chart-ohlc-label">Close:</span>
+              <span class="candle-chart-ohlc-value">{{
+                tooltipData.close
+              }}</span>
+            </div>
+          </div>
+          <!-- Colonne droite: Low et High -->
+          <div class="candle-chart-ohlc-column">
+            <div class="candle-chart-ohlc-row">
+              <span class="candle-chart-ohlc-label">Low:</span>
+              <span
+                class="candle-chart-ohlc-value candle-chart-ohlc-value--low"
+                >{{ tooltipData.low }}</span
+              >
+            </div>
+            <div class="candle-chart-ohlc-row">
+              <span class="candle-chart-ohlc-label">High:</span>
+              <span
+                class="candle-chart-ohlc-value candle-chart-ohlc-value--high"
+                >{{ tooltipData.high }}</span
+              >
+            </div>
+          </div>
         </div>
       </div>
       <div class="candle-chart-tooltip-change">
@@ -524,3 +591,180 @@ defineExpose({
     </div>
   </div>
 </template>
+
+<style scoped>
+.candle-chart {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.candle-chart-canvas-wrapper {
+  width: 100%;
+  height: 100%;
+}
+
+.candle-chart-reset-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+  padding: 6px 12px;
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.5);
+  color: #10b981;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.candle-chart-reset-btn:hover {
+  background: rgba(16, 185, 129, 0.4);
+  border-color: #10b981;
+}
+
+.candle-chart-crosshair-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.candle-chart-crosshair-line {
+  position: absolute;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.candle-chart-crosshair-line--vertical {
+  top: 0;
+  width: 1px;
+  height: 100%;
+  border-left: 1px dashed rgba(255, 255, 255, 0.3);
+}
+
+.candle-chart-crosshair-line--horizontal {
+  left: 0;
+  width: 100%;
+  height: 1px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.3);
+}
+
+.candle-chart-crosshair-label {
+  position: absolute;
+  background: rgba(31, 41, 55, 0.9);
+  color: rgba(255, 255, 255, 0.8);
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 3px;
+  white-space: nowrap;
+  z-index: 20;
+}
+
+.candle-chart-date-label {
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: -24px;
+}
+
+.candle-chart-price-label {
+  right: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-right: -60px;
+}
+
+.candle-chart-tooltip {
+  position: absolute;
+  background: rgba(7, 14, 16, 0.95);
+  border: 1px solid rgba(232, 240, 240, 0.15);
+  border-radius: 4px;
+  padding: 7px 9px;
+  z-index: 1000;
+  color: rgba(232, 240, 240, 0.9);
+  font-size: 9px;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  max-width: 200px;
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+}
+
+.candle-chart-tooltip-date {
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: rgba(232, 240, 240, 0.95);
+  border-bottom: 1px solid rgba(232, 240, 240, 0.1);
+  padding-bottom: 4px;
+  font-size: 9px;
+  text-align: center;
+}
+
+.candle-chart-tooltip-ohlc {
+  margin-bottom: 6px;
+}
+
+.candle-chart-ohlc-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.candle-chart-ohlc-column {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.candle-chart-ohlc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 9px;
+  gap: 4px;
+}
+
+.candle-chart-ohlc-label {
+  color: rgba(232, 240, 240, 0.6);
+  font-weight: 500;
+  min-width: 40px;
+  text-align: left;
+  flex-shrink: 0;
+}
+
+.candle-chart-ohlc-value {
+  color: rgba(232, 240, 240, 0.9);
+  font-family: "Monaco", "Courier New", monospace;
+  text-align: right;
+  font-size: 9px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.candle-chart-ohlc-value--high {
+  color: #10b981;
+}
+
+.candle-chart-ohlc-value--low {
+  color: #ef4444;
+}
+
+.candle-chart-tooltip-change {
+  text-align: center;
+  font-weight: 600;
+  font-size: 9px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(232, 240, 240, 0.1);
+}
+
+.candle-chart-change--positive {
+  color: #10b981;
+}
+
+.candle-chart-change--negative {
+  color: #ef4444;
+}
+</style>

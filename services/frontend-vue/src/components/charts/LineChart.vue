@@ -209,7 +209,7 @@ function build() {
   const options: ChartOptions<"line"> = {
     responsive: true,
     maintainAspectRatio: false,
-    interaction: { intersect: false, mode: "index" },
+    interaction: { intersect: false, mode: "nearest" },
     onHover: (event, activeElements) => {
       if (activeElements.length > 0) {
         const dataIndex = activeElements[0].index;
@@ -267,11 +267,12 @@ function build() {
     },
     plugins: {
       tooltip: { enabled: false },
+      legend: { display: false },
       zoom: {
         pan: {
           enabled: true,
           mode: "x",
-          modifierKey: "shift",
+          modifierKey: undefined,
         },
         zoom: {
           wheel: {
@@ -321,12 +322,6 @@ function build() {
             return Number(value).toLocaleString("fr-FR") + " €";
           },
         },
-      },
-    },
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        enabled: false,
       },
     },
     elements: {

@@ -161,7 +161,7 @@ const chartOptions = computed(
         pan: {
           enabled: true,
           mode: "x",
-          modifierKey: "shift",
+          modifierKey: undefined,
         },
         zoom: {
           wheel: {

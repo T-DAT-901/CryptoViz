@@ -218,7 +218,7 @@ const options: ChartOptions = {
       pan: {
         enabled: true,
         mode: "x",
-        modifierKey: "shift",
+        modifierKey: undefined,
       },
       zoom: {
         wheel: {
