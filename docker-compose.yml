@@ -267,10 +267,6 @@ services:
     container_name: cryptoviz-frontend-vue
     depends_on:
       - backend-go
-    environment:
-      - VITE_API_URL=${VITE_API_URL:-http://localhost:8080}
-      - VITE_WS_URL=${VITE_WS_URL:-ws://localhost:8080/ws/crypto}
-      - VITE_USE_MOCK=${VITE_USE_MOCK:-false}
     ports:
       - "${FRONTEND_PORT:-3000}:80"
     networks:
