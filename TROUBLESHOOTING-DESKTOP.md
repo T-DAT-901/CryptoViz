@@ -1,17 +1,20 @@
-# CryptoViz - Mac Docker Desktop Troubleshooting Guide
+# CryptoViz - Docker Desktop Troubleshooting Guide
 
-> **Quick Start for Mac Users**: Run `make mac-start` instead of `make start`
+> **Quick Start**:
+> - **Mac**: Run `make mac-start` instead of `make start`
+> - **Windows/WSL2**: Run `make windows-start` instead of `make start`
 
 ## Table of Contents
-- [Mac-Specific Issues](#mac-specific-issues)
+- [Docker Desktop Issues (Mac + Windows/WSL2)](#docker-desktop-issues-mac--windowswsl2)
 - [Quick Fixes](#quick-fixes)
 - [Debugging Commands](#debugging-commands)
 - [Understanding Backfill Behavior](#understanding-backfill-behavior)
 - [Common Error Messages](#common-error-messages)
+- [Platform-Specific Notes](#platform-specific-notes)
 
 ---
 
-## Mac-Specific Issues
+## Docker Desktop Issues (Mac + Windows/WSL2)
 
 ### Issue 1: Network Not Found Error
 ```
@@ -25,8 +28,12 @@ Error response from daemon: network b4f2c0f8e93c not found
 # Clean stale networks
 docker network prune -f
 
-# Then start with Mac commands
+# Then start with platform-specific commands
+# Mac:
 make mac-start
+
+# Windows/WSL2:
+make windows-start
 ```
 
 ### Issue 2: Mount Propagation Error
@@ -34,21 +41,27 @@ make mac-start
 Error response from daemon: path / is mounted on / but it is not a shared or slave mount
 ```
 
-**Cause**: Mac Docker Desktop doesn't support `rslave` bind propagation used by `node-exporter`
+**Cause**: Docker Desktop (Mac/Windows WSL2) doesn't support `rslave` bind propagation used by `node-exporter`
 
 **Fix**: The `docker-compose.mac.yml` override file automatically fixes this. Use:
 ```bash
+# Mac:
 make mac-start              # Start application
 make mac-start-monitoring   # Start monitoring stack
+
+# Windows/WSL2:
+make windows-start              # Start application
+make windows-start-monitoring   # Start monitoring stack
 ```
 
 ---
 
 ## Quick Fixes
 
-### Complete Fresh Start (Recommended for Mac)
+### Complete Fresh Start (Recommended for Docker Desktop)
 
 ```bash
+# Mac:
 # 1. Clean everything
 make mac-clean
 
@@ -62,13 +75,41 @@ make mac-start
 make mac-start-monitoring
 ```
 
+```bash
+# Windows/WSL2:
+# 1. Clean everything
+make windows-clean
+
+# 2. Clean stale networks (important!)
+docker network prune -f
+
+# 3. Rebuild and start
+make windows-start
+
+# 4. Start monitoring (optional)
+make windows-start-monitoring
+```
+
 ### Reset Historical Data Collection
 
 If you're not getting historical data:
 
 ```bash
+# Mac:
 # 1. Remove backfill state file
 make mac-reset-backfill
+
+# 2. Check if backfill is running
+make debug-backfill
+
+# 3. Monitor logs in real-time
+docker logs -f cryptoviz-data-collector | grep -i backfill
+```
+
+```bash
+# Windows/WSL2:
+# 1. Remove backfill state file
+make windows-reset-backfill
 
 # 2. Check if backfill is running
 make debug-backfill
@@ -259,21 +300,54 @@ docker logs cryptoviz-frontend-vue
 
 ---
 
-## Mac-Specific Limitations
+## Platform-Specific Notes
 
-Due to Mac Docker Desktop architecture, some monitoring features are limited:
+### Mac Docker Desktop
 
-### node-exporter
+**Architecture**: Uses HyperKit or Virtualization.framework for VM
+**Filesystem**: osxfs or virtio-fs (newer versions)
+**Limitations**:
+- No rslave mount propagation support
+- No direct access to /dev/kmsg
+- Slightly slower I/O due to filesystem virtualization
+
+**Commands**:
+- `make mac-start`
+- `make mac-start-monitoring`
+- `make mac-clean`
+- `make mac-reset-backfill`
+
+### Windows Docker Desktop (WSL2)
+
+**Architecture**: Uses WSL2 (Windows Subsystem for Linux) backend
+**Filesystem**: virtio-fs (fast, native-like performance)
+**Limitations**:
+- Same mount propagation restrictions as Mac
+- No direct device access
+- WSL2-specific networking considerations
+
+**Detection**: System shows as "Linux" but kernel includes "microsoft"
+**Commands**:
+- `make windows-start`
+- `make windows-start-monitoring`
+- `make windows-clean`
+- `make windows-reset-backfill`
+
+### Docker Desktop Limitations (Both Platforms)
+
+Due to Docker Desktop architecture (virtualization), some monitoring features are limited:
+
+#### node-exporter
 - **Limitation**: Reduced system metrics (no rslave mount access)
 - **Impact**: Fewer disk and filesystem metrics
 - **Workaround**: None needed, core functionality unaffected
 
-### cAdvisor
+#### cAdvisor
 - **Limitation**: Non-privileged mode, no /dev/kmsg access
 - **Impact**: Fewer low-level container metrics
 - **Workaround**: None needed, basic container metrics still available
 
-### Performance
+#### Performance
 - **Limitation**: Docker Desktop uses virtualization (slower than native Linux)
 - **Impact**: Slightly slower build times and I/O operations
 - **Workaround**: Use `.dockerignore` and multi-stage builds (already implemented)
@@ -312,7 +386,9 @@ docker logs cryptoviz-data-collector > data-collector_$(date +%Y%m%d_%H%M%S).log
 
 ---
 
-## Summary of Mac Commands
+## Summary of Commands
+
+### Mac Docker Desktop
 
 | Command | Purpose |
 |---------|---------|
@@ -325,8 +401,25 @@ docker logs cryptoviz-data-collector > data-collector_$(date +%Y%m%d_%H%M%S).log
 | `make debug-timescale` | Verify historical data |
 | `make check-docker-resources` | Clean stale Docker resources |
 
+### Windows Docker Desktop (WSL2)
+
+| Command | Purpose |
+|---------|---------|
+| `make windows-start` | Start with Windows/WSL2 overrides (recommended) |
+| `make windows-start-monitoring` | Start monitoring stack on Windows/WSL2 |
+| `make windows-build` | Build images with Windows/WSL2 overrides |
+| `make windows-clean` | Clean Docker + stale networks |
+| `make windows-reset-backfill` | Reset backfill state and restart |
+| `make debug-backfill` | Check backfill status (all platforms) |
+| `make debug-timescale` | Verify historical data (all platforms) |
+| `make check-docker-resources` | Clean stale Docker resources (all platforms) |
+
+### Platform Detection
+
+Run `make info` or `make help` to see platform-specific commands based on auto-detection.
+
 ---
 
 **Last Updated**: 2025-11-21
-**For**: Mac Docker Desktop users
+**For**: Docker Desktop users (Mac + Windows/WSL2)
 **CryptoViz Version**: 0.7.0
