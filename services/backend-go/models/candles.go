@@ -13,7 +13,7 @@ type Candle struct {
 	WindowEnd     time.Time `json:"window_end" gorm:"column:window_end;not null"`
 	Exchange      string    `json:"exchange" gorm:"column:exchange;size:20;not null"`
 	Symbol        string    `json:"symbol" gorm:"column:symbol;size:20;not null"`
-	Timeframe     string    `json:"timeframe" gorm:"column:timeframe;size:5;not null"` // '5s', '1m', '15m', '1h', '4h', '1d'
+	Timeframe     string    `json:"timeframe" gorm:"column:timeframe;size:5;not null"` // '1m', '5m', '15m', '1h', '1d'
 	Open          float64   `json:"open" gorm:"column:open;type:decimal(20,8);not null"`
 	High          float64   `json:"high" gorm:"column:high;type:decimal(20,8);not null"`
 	Low           float64   `json:"low" gorm:"column:low;type:decimal(20,8);not null"`

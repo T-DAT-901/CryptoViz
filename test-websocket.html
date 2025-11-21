@@ -124,7 +124,7 @@
                 <button onclick="subscribeAll()">Subscribe All Trades</button>
                 <button onclick="subscribeBTC()">Subscribe BTC/USDT Trades</button>
                 <button onclick="subscribeETH()">Subscribe ETH/USDT Trades</button>
-                <button onclick="subscribe5sCandles()">Subscribe 5s Candles (All)</button>
+                <button onclick="subscribe5mCandles()">Subscribe 5m Candles (All)</button>
                 <button onclick="subscribe1mCandles()">Subscribe 1m Candles (BTC)</button>
             </div>
 
@@ -135,7 +135,7 @@
                     <option value="candle">Candle</option>
                 </select>
                 Symbol: <input type="text" id="symbol" value="BTC/USDT" placeholder="BTC/USDT or *">
-                Timeframe: <input type="text" id="timeframe" value="" placeholder="5s, 1m, etc (candles only)">
+                Timeframe: <input type="text" id="timeframe" value="" placeholder="1m, 5m, 15m, 1h, 1d (candles only)">
                 <button onclick="customSubscribe()">Subscribe</button>
                 <button onclick="customUnsubscribe()">Unsubscribe</button>
             </div>
@@ -272,8 +272,8 @@
             send({ action: 'subscribe', type: 'trade', symbol: 'ETH/USDT' });
         }
 
-        function subscribe5sCandles() {
-            send({ action: 'subscribe', type: 'candle', symbol: '*', timeframe: '5s' });
+        function subscribe5mCandles() {
+            send({ action: 'subscribe', type: 'candle', symbol: '*', timeframe: '5m' });
         }
 
         function subscribe1mCandles() {

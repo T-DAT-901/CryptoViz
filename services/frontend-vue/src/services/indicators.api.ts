@@ -1,8 +1,4 @@
 import { http } from "./http";
-import rsiMock from "./mocks/ind_rsi.json";
-import macdMock from "./mocks/ind_macd.json";
-import bbMock from "./mocks/ind_bollinger.json";
-import momMock from "./mocks/ind_momentum.json";
 import {
   RSIPoint,
   MACDPoint,
@@ -17,11 +13,15 @@ export async function fetchRSI(
   tf: string,
   period = 14
 ): Promise<RSIPoint[]> {
-  if (USE_MOCK) return rsiMock as RSIPoint[];
-  const { data }: { data: RSIPoint[] } = await http.get(`/indicators/rsi`, {
-    params: { symbol, tf, period },
+  if (USE_MOCK) {
+    const rsiMock = await import("./mocks/ind_rsi.json");
+    return rsiMock.default as RSIPoint[];
+  }
+  // Backend-go uses query parameters: /api/v1/indicators/rsi?symbol=BTC/USDT&interval=1m
+  const response = await http.get(`/api/v1/indicators/rsi`, {
+    params: { symbol, interval: tf, limit: 100 },
   });
-  return data as RSIPoint[];
+  return response.data?.data || [];
 }
 
 export async function fetchMACD(
@@ -31,11 +31,15 @@ export async function fetchMACD(
   slow = 26,
   signal = 9
 ): Promise<MACDPoint[]> {
-  if (USE_MOCK) return macdMock as MACDPoint[];
-  const { data }: { data: MACDPoint[] } = await http.get(`/indicators/macd`, {
-    params: { symbol, tf, fast, slow, signal },
+  if (USE_MOCK) {
+    const macdMock = await import("./mocks/ind_macd.json");
+    return macdMock.default as MACDPoint[];
+  }
+  // Backend-go uses query parameters: /api/v1/indicators/macd?symbol=BTC/USDT&interval=1m
+  const response = await http.get(`/api/v1/indicators/macd`, {
+    params: { symbol, interval: tf, limit: 100 },
   });
-  return data as MACDPoint[];
+  return response.data?.data || [];
 }
 
 export async function fetchBollinger(
@@ -44,12 +48,15 @@ export async function fetchBollinger(
   period = 20,
   stdDev = 2
 ): Promise<BollingerPoint[]> {
-  if (USE_MOCK) return bbMock as BollingerPoint[];
-  const { data }: { data: BollingerPoint[] } = await http.get(
-    `/indicators/bollinger`,
-    { params: { symbol, tf, period, stdDev } }
-  );
-  return data as BollingerPoint[];
+  if (USE_MOCK) {
+    const bbMock = await import("./mocks/ind_bollinger.json");
+    return bbMock.default as BollingerPoint[];
+  }
+  // Backend-go uses query parameters: /api/v1/indicators/bollinger?symbol=BTC/USDT&interval=1m
+  const response = await http.get(`/api/v1/indicators/bollinger`, {
+    params: { symbol, interval: tf, limit: 100 },
+  });
+  return response.data?.data || [];
 }
 
 export async function fetchMomentum(
@@ -57,10 +64,13 @@ export async function fetchMomentum(
   tf: string,
   period = 10
 ): Promise<MomentumPoint[]> {
-  if (USE_MOCK) return momMock as MomentumPoint[];
-  const { data }: { data: MomentumPoint[] } = await http.get(
-    `/indicators/momentum`,
-    { params: { symbol, tf, period } }
-  );
-  return data as MomentumPoint[];
+  if (USE_MOCK) {
+    const momMock = await import("./mocks/ind_momentum.json");
+    return momMock.default as MomentumPoint[];
+  }
+  // Backend-go uses query parameters: /api/v1/indicators/momentum?symbol=BTC/USDT&interval=1m
+  const response = await http.get(`/api/v1/indicators/momentum`, {
+    params: { symbol, interval: tf, limit: 100 },
+  });
+  return response.data?.data || [];
 }

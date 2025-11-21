@@ -225,4 +225,31 @@ export function useLiveCandles() {
   };
 }
 
+// Hook pour les trades en temps réel (pour peupler le graph)
+export function useLiveTrades(symbol = "BTCUSDT") {
+  const trades = ref<Array<{ timestamp: number; price: number }>>([]);
+
+  const { subscribe } = useTradingWebSocket();
+
+  const unsubscribe = subscribe("trade", (trade: any) => {
+    // trade devrait avoir: { symbol, price, timestamp, ... }
+    if (trade.symbol === symbol) {
+      trades.value.push({
+        timestamp: new Date(trade.timestamp).getTime(),
+        price: parseFloat(trade.price) || 0,
+      });
+
+      // Garder seulement les 1000 derniers trades
+      if (trades.value.length > 1000) {
+        trades.value = trades.value.slice(-1000);
+      }
+    }
+  });
+
+  return {
+    trades,
+    unsubscribe,
+  };
+}
+
 export default tradingWS;

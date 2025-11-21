@@ -29,9 +29,10 @@ type NewsMessage struct {
 // NewsHandler gère les messages d'actualités depuis Kafka
 type NewsHandler struct {
 	kafka.BaseHandler
-	repo   models.NewsRepository
-	redis  *redis.Client
-	logger *logrus.Logger
+	repo      models.NewsRepository
+	redis     *redis.Client
+	logger    *logrus.Logger
+	broadcast BroadcastFunc
 }
 
 // NewNewsHandler crée un nouveau handler pour les actualités
@@ -45,6 +46,11 @@ func NewNewsHandler(cfg *kafka.KafkaConfig, repo models.NewsRepository, redisCli
 		redis:  redisClient,
 		logger: logger,
 	}
+}
+
+// SetBroadcast sets the broadcast callback for WebSocket streaming
+func (h *NewsHandler) SetBroadcast(fn BroadcastFunc) {
+	h.broadcast = fn
 }
 
 // Handle traite un message d'actualité
@@ -104,6 +110,25 @@ func (h *NewsHandler) Handle(ctx context.Context, msg interface{}) error {
 		"symbols": news.Symbols,
 		"time":    news.Time.Format(time.RFC3339),
 	}).Debug("News inserted successfully")
+
+	// Broadcast to WebSocket clients if callback is set
+	if h.broadcast != nil {
+		// Prepare WebSocket data
+		wsData := map[string]interface{}{
+			"time":            news.Time.UnixMilli(),
+			"source":          news.Source,
+			"url":             news.URL,
+			"title":           news.Title,
+			"content":         news.Content,
+			"sentiment_score": news.SentimentScore,
+			"symbols":         news.Symbols,
+		}
+
+		// Broadcast to each symbol the news mentions
+		for _, symbol := range newsMsg.Symbols {
+			h.broadcast("news", symbol, "", wsData)
+		}
+	}
 
 	return nil
 }

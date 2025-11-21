@@ -16,25 +16,45 @@ import { useIndicatorsStore } from "@/stores/indicators";
 
 const route = useRoute();
 const router = useRouter();
-const symbol = computed(() => (route.params.symbol as string) || "btc");
-const symbolPair = computed(() => symbol.value.toUpperCase() + "USDT");
+const symbol = computed(() => {
+  const encoded = (route.params.symbol as string) || "btc";
+  // Décoder le symbole (ex: BTC%2FUSDT -> BTC/USDT)
+  return decodeURIComponent(encoded).toUpperCase();
+});
+const symbolPair = computed(() => symbol.value);
 
 const indicatorsStore = useIndicatorsStore();
 const cryptoNames: Record<string, string> = {
-  btc: "Bitcoin",
-  eth: "Ethereum",
-  usdt: "Tether",
-  xrp: "XRP",
-  bnb: "BNB",
-  sol: "Solana",
-  usdc: "USD Coin",
-  trx: "TRON",
-  doge: "Dogecoin",
+  "BTC/USDT": "Bitcoin",
+  "BTC/FDUSD": "Bitcoin",
+  "ETH/USDT": "Ethereum",
+  "ETH/FDUSD": "Ethereum",
+  "USDT/USDT": "Tether",
+  "XRP/USDT": "XRP",
+  "XRP/FDUSD": "XRP",
+  "BNB/USDT": "BNB",
+  "BNB/FDUSD": "BNB",
+  "SOL/USDT": "Solana",
+  "SOL/FDUSD": "Solana",
+  "USDC/USDT": "USD Coin",
+  "USDC/FDUSD": "USD Coin",
+  "TRX/USDT": "TRON",
+  "TRX/FDUSD": "TRON",
+  "DOGE/USDT": "Dogecoin",
+  "DOGE/FDUSD": "Dogecoin",
+  "ADA/USDT": "Cardano",
+  "ADA/FDUSD": "Cardano",
+  "DOT/USDT": "Polkadot",
+  "DOT/FDUSD": "Polkadot",
+  "LINK/USDT": "Chainlink",
+  "LINK/FDUSD": "Chainlink",
+  "ZEC/USDT": "Zcash",
+  "ZEC/FDUSD": "Zcash",
 };
 
-const cryptoName = computed(
-  () => cryptoNames[symbol.value] || symbol.value.toUpperCase()
-);
+const cryptoName = computed(() => {
+  return cryptoNames[symbol.value] || symbol.value;
+});
 
 const goBack = () => {
   router.push("/");
@@ -57,7 +77,11 @@ const goBack = () => {
     <main class="dashboard-grid">
       <aside class="dashboard-column dashboard-column--left">
         <div class="dashboard-stack">
-          <CryptoPricePanel :symbol="symbolPair" :crypto-name="cryptoName" />
+          <CryptoPricePanel
+            :symbol="symbolPair"
+            :crypto-name="cryptoName"
+            :full-symbol="symbol"
+          />
         </div>
       </aside>
 

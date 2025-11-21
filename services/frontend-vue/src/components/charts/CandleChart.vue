@@ -237,7 +237,7 @@ function buildChart() {
       {
         label: "BTC/USDT",
         data: props.candles.map((candle) => ({
-          x: candle.time,
+          x: new Date(candle.time).getTime(),
           o: candle.open,
           h: candle.high,
           l: candle.low,

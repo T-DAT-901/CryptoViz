@@ -12,10 +12,11 @@ export type CandleDTO = {
   volume: number;
 };
 export type NewsDTO = {
-  id: string;
   title: string;
-  rel: string;
-  publishAt: string;
+  link: string;
+  published: string;
+  source: string;
+  image?: string;
 };
 export type RSIPoint = {
   ts: number;

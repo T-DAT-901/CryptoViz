@@ -80,6 +80,7 @@ func main() {
 	// Connect handlers to WebSocket Hub for real-time broadcasting
 	tradeHandler.SetBroadcast(wsHub.Broadcast)
 	candleHandler.SetBroadcast(wsHub.Broadcast)
+	newsHandler.SetBroadcast(wsHub.Broadcast)
 	logger.Info("✅ WebSocket broadcast connected to Kafka handlers")
 
 	if err := consumerManager.RegisterHandler(kafkaConfig, candleHandler); err != nil {
