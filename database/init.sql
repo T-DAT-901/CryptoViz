@@ -408,7 +408,16 @@ $$ LANGUAGE plpgsql;
 -- refresh automatically via their built-in policies. No manual refresh needed!
 
 -- Job pour nettoyer les anciennes données toutes les heures
-SELECT add_job('cleanup_old_data', '1 hour', if_not_exists => TRUE);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM timescaledb_information.jobs
+        WHERE proc_name = 'cleanup_old_data'
+    ) THEN
+        PERFORM add_job('cleanup_old_data', INTERVAL '1 hour');
+    END IF;
+END
+$$;
 
 -- =============================================================================
 -- DONNÉES DE TEST (OPTIONNEL)
@@ -492,3 +501,9 @@ BEGIN
     RAISE NOTICE '=============================================================================';
 END
 $$;
+
+-- =============================================================================
+-- SETUP INDICATORS (executed from external file)
+-- =============================================================================
+
+\i /docker-entrypoint-initdb.d/03-setup-indicators.sql

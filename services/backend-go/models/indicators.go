@@ -9,17 +9,21 @@ import (
 // Indicator représente les indicateurs techniques
 // Table: indicators (hypertable TimescaleDB)
 type Indicator struct {
-	Time           time.Time `json:"time" gorm:"column:time;not null"`
-	Symbol         string    `json:"symbol" gorm:"column:symbol;size:20;not null"`
-	Timeframe      string    `json:"timeframe" gorm:"column:timeframe;size:5;not null"` // '1m', '15m', '1h', etc.
-	IndicatorType  string    `json:"indicator_type" gorm:"column:indicator_type;size:20;not null"` // 'rsi', 'macd', 'bollinger', 'momentum'
-	Value          *float64  `json:"value" gorm:"column:value;type:decimal(20,8)"`
-	ValueSignal    *float64  `json:"value_signal" gorm:"column:value_signal;type:decimal(20,8)"` // For MACD signal
-	ValueHistogram *float64  `json:"value_histogram" gorm:"column:value_histogram;type:decimal(20,8)"` // For MACD histogram
-	UpperBand      *float64  `json:"upper_band" gorm:"column:upper_band;type:decimal(20,8)"` // For Bollinger upper
-	LowerBand      *float64  `json:"lower_band" gorm:"column:lower_band;type:decimal(20,8)"` // For Bollinger lower
-	MiddleBand     *float64  `json:"middle_band" gorm:"column:middle_band;type:decimal(20,8)"` // For Bollinger middle
-	CreatedAt      time.Time `json:"created_at" gorm:"column:created_at;autoCreateTime"`
+	Time               time.Time `json:"time" gorm:"column:time;not null"`
+	Symbol             string    `json:"symbol" gorm:"column:symbol;size:20;not null"`
+	Timeframe          string    `json:"timeframe" gorm:"column:timeframe;size:5;not null"` // '1m', '15m', '1h', etc.
+	IndicatorType      string    `json:"indicator_type" gorm:"column:indicator_type;size:20;not null"` // 'rsi', 'macd', 'bollinger', 'momentum', 'support_resistance'
+	Value              *float64  `json:"value,omitempty" gorm:"column:value;type:decimal(20,8)"`
+	ValueSignal        *float64  `json:"value_signal,omitempty" gorm:"column:value_signal;type:decimal(20,8)"` // For MACD signal
+	ValueHistogram     *float64  `json:"value_histogram,omitempty" gorm:"column:value_histogram;type:decimal(20,8)"` // For MACD histogram
+	UpperBand          *float64  `json:"upper_band,omitempty" gorm:"column:upper_band;type:decimal(20,8)"` // For Bollinger upper
+	LowerBand          *float64  `json:"lower_band,omitempty" gorm:"column:lower_band;type:decimal(20,8)"` // For Bollinger lower
+	MiddleBand         *float64  `json:"middle_band,omitempty" gorm:"column:middle_band;type:decimal(20,8)"` // For Bollinger middle
+	SupportLevel       *float64  `json:"support_level,omitempty" gorm:"column:support_level;type:decimal(20,8)"` // Support price level
+	ResistanceLevel    *float64  `json:"resistance_level,omitempty" gorm:"column:resistance_level;type:decimal(20,8)"` // Resistance price level
+	SupportStrength    *float64  `json:"support_strength,omitempty" gorm:"column:support_strength;type:decimal(5,2)"` // Support strength score (0-100)
+	ResistanceStrength *float64  `json:"resistance_strength,omitempty" gorm:"column:resistance_strength;type:decimal(5,2)"` // Resistance strength score (0-100)
+	CreatedAt          time.Time `json:"created_at" gorm:"column:created_at;autoCreateTime"`
 }
 
 // TableName spécifie le nom de la table pour GORM
@@ -41,16 +45,20 @@ func (AllIndicator) TableName() string {
 // IndicatorLatest représente les derniers indicateurs (continuous aggregate)
 // Materialized View: indicators_latest
 type IndicatorLatest struct {
-	Bucket         time.Time `json:"bucket" gorm:"column:bucket;not null"`
-	Symbol         string    `json:"symbol" gorm:"column:symbol;size:20;not null"`
-	IndicatorType  string    `json:"indicator_type" gorm:"column:indicator_type;size:20;not null"`
-	Timeframe      string    `json:"timeframe" gorm:"column:timeframe;size:5;not null"`
-	Value          *float64  `json:"value" gorm:"column:value;type:decimal(20,8)"`
-	ValueSignal    *float64  `json:"value_signal" gorm:"column:value_signal;type:decimal(20,8)"`
-	ValueHistogram *float64  `json:"value_histogram" gorm:"column:value_histogram;type:decimal(20,8)"`
-	UpperBand      *float64  `json:"upper_band" gorm:"column:upper_band;type:decimal(20,8)"`
-	LowerBand      *float64  `json:"lower_band" gorm:"column:lower_band;type:decimal(20,8)"`
-	MiddleBand     *float64  `json:"middle_band" gorm:"column:middle_band;type:decimal(20,8)"`
+	Bucket             time.Time `json:"bucket" gorm:"column:bucket;not null"`
+	Symbol             string    `json:"symbol" gorm:"column:symbol;size:20;not null"`
+	IndicatorType      string    `json:"indicator_type" gorm:"column:indicator_type;size:20;not null"`
+	Timeframe          string    `json:"timeframe" gorm:"column:timeframe;size:5;not null"`
+	Value              *float64  `json:"value,omitempty" gorm:"column:value;type:decimal(20,8)"`
+	ValueSignal        *float64  `json:"value_signal,omitempty" gorm:"column:value_signal;type:decimal(20,8)"`
+	ValueHistogram     *float64  `json:"value_histogram,omitempty" gorm:"column:value_histogram;type:decimal(20,8)"`
+	UpperBand          *float64  `json:"upper_band,omitempty" gorm:"column:upper_band;type:decimal(20,8)"`
+	LowerBand          *float64  `json:"lower_band,omitempty" gorm:"column:lower_band;type:decimal(20,8)"`
+	MiddleBand         *float64  `json:"middle_band,omitempty" gorm:"column:middle_band;type:decimal(20,8)"`
+	SupportLevel       *float64  `json:"support_level,omitempty" gorm:"column:support_level;type:decimal(20,8)"`
+	ResistanceLevel    *float64  `json:"resistance_level,omitempty" gorm:"column:resistance_level;type:decimal(20,8)"`
+	SupportStrength    *float64  `json:"support_strength,omitempty" gorm:"column:support_strength;type:decimal(5,2)"`
+	ResistanceStrength *float64  `json:"resistance_strength,omitempty" gorm:"column:resistance_strength;type:decimal(5,2)"`
 }
 
 // TableName spécifie le nom de la vue matérialisée pour GORM
