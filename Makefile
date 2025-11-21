@@ -6,7 +6,7 @@
 
 # Variables
 COMPOSE_FILE = docker-compose.yml
-SERVICES = timescaledb zookeeper kafka kafka-ui redis minio data-collector news-scraper backend-go frontend-vue prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter gatus
+SERVICES = timescaledb zookeeper kafka kafka-ui redis minio data-collector news-scraper backend-go indicators-scheduler frontend-vue prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter gatus
 
 # Platform Detection and Docker Desktop Override
 # Detects Mac (Darwin) and Windows/WSL2 (microsoft in kernel)
@@ -62,11 +62,11 @@ ifeq ($(IS_DESKTOP),true)
 	@echo ""
 endif
 	@echo "  $(GREEN)Commandes standards (auto-détection de plateforme):$(NC)"
-	@echo "  make start               # Démarrer l'application (sans monitoring)"
-	@echo "  make start-monitoring    # Démarrer la stack de monitoring"
+	@echo "  make start               # Démarrer l'application complète (avec monitoring)"
 	@echo "  make build               # Construire les images"
 	@echo "  make stop                # Arrêter tous les services"
 	@echo "  make logs                # Voir les logs en temps réel"
+	@echo "  make monitor             # Afficher toutes les URLs d'accès"
 	@echo ""
 ifeq ($(IS_MAC),true)
 	@echo "  $(YELLOW)Commandes Mac spécifiques (optionnelles):$(NC)"
@@ -83,7 +83,7 @@ else ifeq ($(IS_WSL),true)
 endif
 
 # Gestion des services
-start: ## Démarrer l'application (infrastructure + services + app, sans monitoring)
+start: ## Démarrer l'application complète (infrastructure + services + app + monitoring)
 	@echo "$(GREEN)Démarrage de CryptoViz...$(NC)"
 	@./scripts/start.sh
 
@@ -99,7 +99,7 @@ start-services: ## Démarrer uniquement les microservices
 
 start-app: ## Démarrer uniquement l'application (backend + frontend)
 	@echo "$(GREEN)Démarrage de l'application...$(NC)"
-	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) up -d backend-go frontend-vue
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) up -d backend-go indicators-scheduler frontend-vue
 
 start-monitoring: ## Démarrer uniquement la stack de monitoring
 	@echo "$(GREEN)Démarrage du monitoring...$(NC)"
@@ -231,7 +231,7 @@ mac-start: ## [Mac/Windows] Démarrer avec override Docker Desktop (fix mount is
 	@echo "$(YELLOW)Nettoyage des réseaux Docker obsolètes...$(NC)"
 	@docker network prune -f 2>/dev/null || true
 	@echo "$(GREEN)Construction des images...$(NC)"
-	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) build --no-cache
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) build
 	@echo "$(GREEN)Démarrage de l'infrastructure...$(NC)"
 	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) up -d timescaledb zookeeper kafka redis minio
 	@sleep 20
@@ -240,7 +240,7 @@ mac-start: ## [Mac/Windows] Démarrer avec override Docker Desktop (fix mount is
 	@echo "$(GREEN)Démarrage des microservices...$(NC)"
 	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) up -d data-collector news-scraper
 	@echo "$(GREEN)Démarrage de l'application...$(NC)"
-	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) up -d backend-go frontend-vue
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) up -d backend-go indicators-scheduler frontend-vue
 	@echo "$(GREEN)✓ CryptoViz démarré sur $(PLATFORM)$(NC)"
 	@echo ""
 	@echo "$(BLUE)Accès:$(NC)"
@@ -264,7 +264,7 @@ mac-start-monitoring: ## [Mac/Windows] Démarrer la stack de monitoring (Docker 
 
 mac-build: ## [Mac/Windows] Construire les images avec override Docker Desktop
 	@echo "$(BLUE)Construction des images pour $(PLATFORM)...$(NC)"
-	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) build --no-cache
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) build
 
 mac-clean: ## [Mac/Windows] Nettoyer Docker + stale networks/volumes (Docker Desktop)
 	@echo "$(BLUE)Nettoyage Docker pour $(PLATFORM)...$(NC)"

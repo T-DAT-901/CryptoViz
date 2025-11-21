@@ -109,11 +109,25 @@ start_services() {
     info "Démarrage du backend Go..."
     docker-compose up -d backend-go
 
+    # Démarrer le scheduler d'indicateurs
+    info "Démarrage du scheduler d'indicateurs..."
+    docker-compose up -d indicators-scheduler
+
     # Démarrer le frontend
     info "Démarrage du frontend Vue.js..."
     docker-compose up -d frontend-vue
 
     log "Tous les services sont démarrés"
+}
+
+# Démarrer le monitoring
+start_monitoring() {
+    log "Démarrage de la stack de monitoring..."
+
+    info "Démarrage des services de monitoring (Grafana, Prometheus, Kafka UI, etc.)..."
+    docker-compose up -d kafka-ui prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter gatus
+
+    log "Stack de monitoring démarrée"
 }
 
 # Vérifier l'état des services
@@ -165,17 +179,18 @@ show_info() {
     log "🗄️  MinIO API: http://localhost:9000"
     log "🗄️  MinIO Console: http://localhost:9001"
     log ""
+    log "🔍 Monitoring:"
+    log "  - Kafka UI: http://localhost:8082"
+    log "  - Grafana: http://localhost:3001 (admin/admin)"
+    log "  - Prometheus: http://localhost:9090"
+    log "  - Gatus (Health): http://localhost:8084"
+    log "  - cAdvisor (Containers): http://localhost:8083"
+    log ""
     log "📋 Commandes utiles:"
     log "  - Voir les logs: docker-compose logs -f [service]"
     log "  - Arrêter: docker-compose down"
     log "  - Redémarrer un service: docker-compose restart [service]"
     log "  - Voir l'état: docker-compose ps"
-    log ""
-    log "🔍 Monitoring (optionnel):"
-    log "  - Démarrer la stack de monitoring: make start-monitoring"
-    log "  - Kafka UI: http://localhost:8082"
-    log "  - Grafana: http://localhost:3001 (admin/admin)"
-    log "  - Prometheus: http://localhost:9090"
     log "  - Voir toutes les URLs: make monitor"
     log ""
     log "==================================================================="
@@ -211,6 +226,9 @@ main() {
 
     # Démarrer les services
     start_services
+
+    # Démarrer le monitoring
+    start_monitoring
 
     # Vérifier l'état
     check_services
