@@ -217,41 +217,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Indicators Calculator Service
-  indicators-calculator:
-    build:
-      context: ./services/indicators-calculator
-      dockerfile: Dockerfile
-    container_name: cryptoviz-indicators-calculator
-    depends_on:
-      kafka:
-        condition: service_healthy
-      timescaledb:
-        condition: service_healthy
-    environment:
-      KAFKA_BROKERS: kafka:29092
-      TIMESCALE_HOST: timescaledb
-      TIMESCALE_PORT: 5432
-      TIMESCALE_DB: ${TIMESCALE_DB:-cryptoviz}
-      TIMESCALE_USER: ${TIMESCALE_USER:-postgres}
-      TIMESCALE_PASSWORD: ${TIMESCALE_PASSWORD:-password}
-      RSI_PERIOD: ${RSI_PERIOD:-14}
-      MACD_FAST: ${MACD_FAST:-12}
-      MACD_SLOW: ${MACD_SLOW:-26}
-      MACD_SIGNAL: ${MACD_SIGNAL:-9}
-      BOLLINGER_PERIOD: ${BOLLINGER_PERIOD:-20}
-      BOLLINGER_STD: ${BOLLINGER_STD:-2}
-    networks:
-      - cryptoviz-network
-    restart: unless-stopped
-    volumes:
-      - ./services/indicators-calculator:/app
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
   # Backend Go Service
   backend-go:
     build:
