@@ -86,8 +86,8 @@ start_services() {
     log "Démarrage des services..."
 
     # Démarrer d'abord l'infrastructure
-    info "Démarrage de l'infrastructure (TimescaleDB, Kafka, Redis, MinIO, Kafka-UI)..."
-    docker-compose up -d timescaledb zookeeper kafka redis minio kafka-ui
+    info "Démarrage de l'infrastructure (TimescaleDB, Kafka, Redis, MinIO)..."
+    docker-compose up -d timescaledb zookeeper kafka redis minio
 
     # Attendre que les services soient prêts
     info "Attente de la disponibilité des services..."
@@ -160,7 +160,6 @@ show_info() {
     log "🌐 Frontend (Interface utilisateur): http://localhost:3000"
     log "🔧 API Backend: http://localhost:8080"
     log "📊 Base de données TimescaleDB: localhost:7432"
-    log "📊 Kafka UI: http://localhost:8082"
     log "📨 Kafka: localhost:9092"
     log "🗄️  Redis: localhost:7379"
     log "🗄️  MinIO API: http://localhost:9000"
@@ -172,9 +171,12 @@ show_info() {
     log "  - Redémarrer un service: docker-compose restart [service]"
     log "  - Voir l'état: docker-compose ps"
     log ""
-    log "🔍 Monitoring:"
-    log "  - Logs en temps réel: docker-compose logs -f"
-    log "  - Métriques: http://localhost:9090 (si activé)"
+    log "🔍 Monitoring (optionnel):"
+    log "  - Démarrer la stack de monitoring: make start-monitoring"
+    log "  - Kafka UI: http://localhost:8082"
+    log "  - Grafana: http://localhost:3001 (admin/admin)"
+    log "  - Prometheus: http://localhost:9090"
+    log "  - Voir toutes les URLs: make monitor"
     log ""
     log "==================================================================="
 }

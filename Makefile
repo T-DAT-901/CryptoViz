@@ -2,53 +2,108 @@
 # CryptoViz Makefile
 # =============================================================================
 
-.PHONY: help start stop restart build clean logs status test lint format
+.PHONY: help start stop restart build clean logs status test lint format mac-start mac-start-monitoring mac-build mac-clean mac-reset-backfill windows-start windows-start-monitoring windows-build windows-clean windows-reset-backfill debug-backfill debug-timescale check-docker-resources
 
 # Variables
 COMPOSE_FILE = docker-compose.yml
 SERVICES = timescaledb zookeeper kafka kafka-ui redis minio data-collector news-scraper backend-go frontend-vue prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter gatus
 
+# Platform Detection and Docker Desktop Override
+# Detects Mac (Darwin) and Windows/WSL2 (microsoft in kernel)
+UNAME_S := $(shell uname -s)
+UNAME_R := $(shell uname -r)
+
+ifeq ($(UNAME_S),Darwin)
+	# Mac Docker Desktop
+	DESKTOP_OVERRIDE = -f docker-compose.mac.yml
+	IS_DESKTOP = true
+	IS_MAC = true
+	IS_WSL = false
+	PLATFORM = Mac
+else ifeq ($(findstring microsoft,$(UNAME_R)),microsoft)
+	# Windows Docker Desktop via WSL2
+	DESKTOP_OVERRIDE = -f docker-compose.mac.yml
+	IS_DESKTOP = true
+	IS_MAC = false
+	IS_WSL = true
+	PLATFORM = Windows (WSL2)
+else ifeq ($(findstring Microsoft,$(UNAME_R)),Microsoft)
+	# Windows Docker Desktop via WSL1 (rare)
+	DESKTOP_OVERRIDE = -f docker-compose.mac.yml
+	IS_DESKTOP = true
+	IS_MAC = false
+	IS_WSL = true
+	PLATFORM = Windows (WSL)
+else
+	# Native Linux
+	DESKTOP_OVERRIDE =
+	IS_DESKTOP = false
+	IS_MAC = false
+	IS_WSL = false
+	PLATFORM = Linux
+endif
+
 # Couleurs pour l'affichage
 GREEN = \033[0;32m
 YELLOW = \033[1;33m
 RED = \033[0;31m
+BLUE = \033[0;34m
 NC = \033[0m # No Color
 
 # Aide par défaut
 help: ## Afficher cette aide
-	@echo "$(GREEN)CryptoViz - Commandes disponibles:$(NC)"
+	@echo "$(GREEN)CryptoViz - Commandes disponibles ($(PLATFORM)):$(NC)"
 	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-20s$(NC) %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-25s$(NC) %s\n", $$1, $$2}'
 	@echo ""
 	@echo "$(GREEN)Exemples d'utilisation:$(NC)"
-	@echo "  make start          # Démarrer tous les services"
-	@echo "  make logs           # Voir les logs en temps réel"
-	@echo "  make stop           # Arrêter tous les services"
-	@echo "  make restart        # Redémarrer tous les services"
+ifeq ($(IS_DESKTOP),true)
+	@echo "  $(BLUE)✓ Auto-détection Docker Desktop activée ($(PLATFORM))$(NC)"
 	@echo ""
+endif
+	@echo "  $(GREEN)Commandes standards (auto-détection de plateforme):$(NC)"
+	@echo "  make start               # Démarrer l'application (sans monitoring)"
+	@echo "  make start-monitoring    # Démarrer la stack de monitoring"
+	@echo "  make build               # Construire les images"
+	@echo "  make stop                # Arrêter tous les services"
+	@echo "  make logs                # Voir les logs en temps réel"
+	@echo ""
+ifeq ($(IS_MAC),true)
+	@echo "  $(YELLOW)Commandes Mac spécifiques (optionnelles):$(NC)"
+	@echo "  make mac-start           # Démarrage complet (Mac)"
+	@echo "  make mac-clean           # Nettoyage complet (Mac)"
+	@echo "  make debug-backfill      # Vérifier backfill historique"
+	@echo ""
+else ifeq ($(IS_WSL),true)
+	@echo "  $(YELLOW)Commandes Windows/WSL2 spécifiques (optionnelles):$(NC)"
+	@echo "  make windows-start       # Démarrage complet (WSL2)"
+	@echo "  make windows-clean       # Nettoyage complet (WSL2)"
+	@echo "  make debug-backfill      # Vérifier backfill historique"
+	@echo ""
+endif
 
 # Gestion des services
-start: ## Démarrer tous les services
+start: ## Démarrer l'application (infrastructure + services + app, sans monitoring)
 	@echo "$(GREEN)Démarrage de CryptoViz...$(NC)"
 	@./scripts/start.sh
 
 start-infra: ## Démarrer uniquement l'infrastructure (DB, Kafka, Redis, MinIO)
 	@echo "$(GREEN)Démarrage de l'infrastructure...$(NC)"
-	@docker-compose up -d timescaledb zookeeper kafka redis minio kafka-ui
-	@docker-compose up minio-init
-	@docker-compose up kafka-init
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) up -d timescaledb zookeeper kafka redis minio
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) up minio-init
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) up kafka-init
 
 start-services: ## Démarrer uniquement les microservices
 	@echo "$(GREEN)Démarrage des microservices...$(NC)"
-	@docker-compose up -d data-collector news-scraper
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) up -d data-collector news-scraper
 
 start-app: ## Démarrer uniquement l'application (backend + frontend)
 	@echo "$(GREEN)Démarrage de l'application...$(NC)"
-	@docker-compose up -d backend-go frontend-vue
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) up -d backend-go frontend-vue
 
 start-monitoring: ## Démarrer uniquement la stack de monitoring
 	@echo "$(GREEN)Démarrage du monitoring...$(NC)"
-	@docker-compose up -d prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter gatus
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) up -d kafka-ui prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter gatus
 
 stop: ## Arrêter tous les services
 	@echo "$(YELLOW)Arrêt de CryptoViz...$(NC)"
@@ -71,7 +126,7 @@ restart-service: ## Redémarrer un service spécifique (usage: make restart-serv
 # Construction et nettoyage
 build: ## Construire toutes les images Docker
 	@echo "$(GREEN)Construction des images Docker...$(NC)"
-	@docker-compose build --no-cache
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) build --no-cache
 
 build-service: ## Construire une image spécifique (usage: make build-service SERVICE=backend-go)
 	@if [ -z "$(SERVICE)" ]; then \
@@ -79,7 +134,7 @@ build-service: ## Construire une image spécifique (usage: make build-service SE
 		exit 1; \
 	fi
 	@echo "$(GREEN)Construction de l'image $(SERVICE)...$(NC)"
-	@docker-compose build --no-cache $(SERVICE)
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) build --no-cache $(SERVICE)
 
 clean: ## Nettoyer les conteneurs, images et volumes
 	@echo "$(RED)Nettoyage complet...$(NC)"
@@ -87,7 +142,7 @@ clean: ## Nettoyer les conteneurs, images et volumes
 
 clean-images: ## Supprimer toutes les images Docker du projet
 	@echo "$(RED)Suppression des images Docker...$(NC)"
-	@docker-compose down --rmi all
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) down --rmi all
 
 # Monitoring et logs
 logs: ## Voir les logs de tous les services en temps réel
@@ -166,6 +221,153 @@ prometheus-ui: ## Afficher les informations de Prometheus
 	@echo "  Targets: http://localhost:9090/targets"
 	@echo "  Graph: http://localhost:9090/graph"
 	@echo "  Metrics: http://localhost:9090/metrics"
+
+# =============================================================================
+# Mac Docker Desktop - Commandes spécifiques
+# =============================================================================
+
+mac-start: ## [Mac/Windows] Démarrer avec override Docker Desktop (fix mount issues)
+	@echo "$(BLUE)Démarrage de CryptoViz sur $(PLATFORM) Docker Desktop...$(NC)"
+	@echo "$(YELLOW)Nettoyage des réseaux Docker obsolètes...$(NC)"
+	@docker network prune -f 2>/dev/null || true
+	@echo "$(GREEN)Construction des images...$(NC)"
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) build --no-cache
+	@echo "$(GREEN)Démarrage de l'infrastructure...$(NC)"
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) up -d timescaledb zookeeper kafka redis minio
+	@sleep 20
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) up minio-init
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) up kafka-init
+	@echo "$(GREEN)Démarrage des microservices...$(NC)"
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) up -d data-collector news-scraper
+	@echo "$(GREEN)Démarrage de l'application...$(NC)"
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) up -d backend-go frontend-vue
+	@echo "$(GREEN)✓ CryptoViz démarré sur $(PLATFORM)$(NC)"
+	@echo ""
+	@echo "$(BLUE)Accès:$(NC)"
+	@echo "  Frontend: http://localhost:3000"
+	@echo "  Backend API: http://localhost:8080"
+ifeq ($(IS_MAC),true)
+	@echo "  Monitoring: make mac-start-monitoring"
+else ifeq ($(IS_WSL),true)
+	@echo "  Monitoring: make windows-start-monitoring"
+endif
+
+mac-start-monitoring: ## [Mac/Windows] Démarrer la stack de monitoring (Docker Desktop)
+	@echo "$(BLUE)Démarrage du monitoring sur $(PLATFORM)...$(NC)"
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) up -d kafka-ui prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter gatus
+	@echo "$(GREEN)✓ Monitoring démarré$(NC)"
+	@echo ""
+	@echo "$(BLUE)Accès monitoring:$(NC)"
+	@echo "  Grafana: http://localhost:3001 (admin/admin)"
+	@echo "  Prometheus: http://localhost:9090"
+	@echo "  Kafka UI: http://localhost:8082"
+
+mac-build: ## [Mac/Windows] Construire les images avec override Docker Desktop
+	@echo "$(BLUE)Construction des images pour $(PLATFORM)...$(NC)"
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) build --no-cache
+
+mac-clean: ## [Mac/Windows] Nettoyer Docker + stale networks/volumes (Docker Desktop)
+	@echo "$(BLUE)Nettoyage Docker pour $(PLATFORM)...$(NC)"
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) down -v --remove-orphans
+	@echo "$(YELLOW)Nettoyage des réseaux obsolètes...$(NC)"
+	@docker network prune -f
+	@echo "$(YELLOW)Nettoyage des volumes orphelins...$(NC)"
+	@docker volume prune -f
+	@echo "$(YELLOW)Nettoyage des images...$(NC)"
+	@docker image prune -f
+	@echo "$(GREEN)✓ Nettoyage $(PLATFORM) terminé$(NC)"
+
+mac-reset-backfill: ## [Mac/Windows] Supprimer l'état du backfill et redémarrer
+	@echo "$(YELLOW)Suppression de l'état du backfill...$(NC)"
+	@rm -f services/data-collector/backfill_state.json
+	@echo "$(GREEN)✓ État du backfill supprimé$(NC)"
+	@echo "$(BLUE)Au prochain démarrage, le backfill sera réexécuté$(NC)"
+	@echo "Voulez-vous redémarrer le data-collector maintenant? (Ctrl+C pour annuler)"
+	@read -p "Appuyez sur Entrée pour continuer..."
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) restart data-collector
+	@echo "$(GREEN)✓ Data-collector redémarré$(NC)"
+
+# Windows/WSL2 aliases (same as Mac commands, just different names for clarity)
+windows-start: mac-start ## [Windows/WSL2] Alias for mac-start (same Docker Desktop fixes)
+windows-start-monitoring: mac-start-monitoring ## [Windows/WSL2] Alias for mac-start-monitoring
+windows-build: mac-build ## [Windows/WSL2] Alias for mac-build
+windows-clean: mac-clean ## [Windows/WSL2] Alias for mac-clean
+windows-reset-backfill: mac-reset-backfill ## [Windows/WSL2] Alias for mac-reset-backfill
+
+# =============================================================================
+# Debugging - Diagnostic des problèmes multi-machines
+# =============================================================================
+
+debug-backfill: ## Vérifier l'état du backfill historique
+	@echo "$(GREEN)=== Vérification du Backfill ===$(NC)"
+	@echo ""
+	@echo "$(YELLOW)1. État du fichier backfill_state.json:$(NC)"
+	@if [ -f services/data-collector/backfill_state.json ]; then \
+		echo "$(GREEN)✓ Fichier trouvé$(NC)"; \
+		ls -lh services/data-collector/backfill_state.json; \
+		echo ""; \
+		echo "$(YELLOW)Contenu (premiers symboles):$(NC)"; \
+		head -20 services/data-collector/backfill_state.json 2>/dev/null || cat services/data-collector/backfill_state.json; \
+	else \
+		echo "$(RED)✗ Fichier NON trouvé - Le backfill n'a jamais été exécuté$(NC)"; \
+	fi
+	@echo ""
+	@echo "$(YELLOW)2. Variable ENABLE_BACKFILL dans .env:$(NC)"
+	@grep -i "ENABLE_BACKFILL" .env || echo "$(RED)Variable non trouvée dans .env$(NC)"
+	@echo ""
+	@echo "$(YELLOW)3. Logs du data-collector (dernières 30 lignes):$(NC)"
+	@docker logs cryptoviz-data-collector 2>&1 | grep -i "backfill" | tail -30 || echo "$(RED)Container non trouvé ou pas de logs backfill$(NC)"
+	@echo ""
+	@echo "$(YELLOW)4. État du container data-collector:$(NC)"
+	@docker ps -a | grep data-collector || echo "$(RED)Container non trouvé$(NC)"
+
+debug-timescale: ## Vérifier les données historiques dans TimescaleDB
+	@echo "$(GREEN)=== Vérification des Données Historiques ===$(NC)"
+	@echo ""
+	@echo "$(YELLOW)1. Comptage par intervalle:$(NC)"
+	@docker exec cryptoviz-timescaledb psql -U postgres -d cryptoviz -c "\
+		SELECT interval, COUNT(*) as count, \
+		       MIN(open_time) as first_candle, \
+		       MAX(open_time) as last_candle \
+		FROM ohlcv_1m \
+		GROUP BY interval \
+		ORDER BY interval;" 2>/dev/null || echo "$(RED)Erreur: TimescaleDB non accessible$(NC)"
+	@echo ""
+	@echo "$(YELLOW)2. Symboles collectés:$(NC)"
+	@docker exec cryptoviz-timescaledb psql -U postgres -d cryptoviz -c "\
+		SELECT symbol, COUNT(*) as candles \
+		FROM ohlcv_1m \
+		WHERE interval = '1m' \
+		GROUP BY symbol \
+		ORDER BY candles DESC \
+		LIMIT 10;" 2>/dev/null || echo "$(RED)Erreur: TimescaleDB non accessible$(NC)"
+	@echo ""
+	@echo "$(YELLOW)3. Données récentes (dernière heure):$(NC)"
+	@docker exec cryptoviz-timescaledb psql -U postgres -d cryptoviz -c "\
+		SELECT COUNT(*) as recent_candles \
+		FROM ohlcv_1m \
+		WHERE open_time > NOW() - INTERVAL '1 hour';" 2>/dev/null || echo "$(RED)Erreur: TimescaleDB non accessible$(NC)"
+
+check-docker-resources: ## Nettoyer les ressources Docker obsolètes
+	@echo "$(GREEN)=== Nettoyage des Ressources Docker Obsolètes ===$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Réseaux Docker:$(NC)"
+	@docker network ls
+	@echo ""
+	@echo "$(YELLOW)Nettoyage des réseaux non utilisés...$(NC)"
+	@docker network prune -f
+	@echo ""
+	@echo "$(YELLOW)Volumes Docker:$(NC)"
+	@docker volume ls
+	@echo ""
+	@echo "$(YELLOW)Voulez-vous nettoyer les volumes non utilisés? (peut supprimer des données)$(NC)"
+	@read -p "Tapez 'yes' pour confirmer: " confirm; \
+	if [ "$$confirm" = "yes" ]; then \
+		docker volume prune -f; \
+		echo "$(GREEN)✓ Volumes nettoyés$(NC)"; \
+	else \
+		echo "$(YELLOW)Nettoyage des volumes annulé$(NC)"; \
+	fi
 
 # Développement
 dev-backend: ## Démarrer le backend en mode développement
@@ -342,15 +544,42 @@ reset: ## Reset complet du projet (ATTENTION: supprime toutes les données)
 # Informations
 info: ## Afficher les informations du projet
 	@echo "$(GREEN)=== CryptoViz - Informations du Projet ===$(NC)"
+	@echo "Plateforme détectée: $(PLATFORM)"
+ifeq ($(IS_DESKTOP),true)
+	@echo "$(BLUE)Docker Desktop Override: docker-compose.mac.yml (actif)$(NC)"
+endif
 	@echo "Version Docker: $(shell docker --version)"
 	@echo "Version Docker Compose: $(shell docker-compose --version)"
 	@echo "Services configurés: $(SERVICES)"
 	@echo "Fichier compose: $(COMPOSE_FILE)"
 	@echo ""
+ifeq ($(IS_DESKTOP),true)
+	@echo "$(BLUE)=== Docker Desktop Auto-détecté ===$(NC)"
+	@echo "✓ Toutes les commandes standards (make start, make build, etc.)"
+	@echo "  utilisent automatiquement les overrides Docker Desktop"
+	@echo ""
+	@echo "Commandes spécifiques disponibles:"
+ifeq ($(IS_MAC),true)
+	@echo "  - make mac-start, make mac-start-monitoring, make mac-clean"
+else ifeq ($(IS_WSL),true)
+	@echo "  - make windows-start, make windows-start-monitoring, make windows-clean"
+endif
+	@echo ""
+	@echo "Limitations connues:"
+	@echo "  - node-exporter: métriques système réduites (pas de rslave)"
+	@echo "  - cAdvisor: mode non-privilégié (moins de métriques)"
+	@echo "  Documentation: TROUBLESHOOTING-DESKTOP.md"
+	@echo ""
+endif
 	@echo "$(GREEN)URLs d'accès:$(NC)"
 	@echo "  Frontend: http://localhost:3000 (Docker) ou http://localhost:5173 (dev)"
 	@echo "  Backend API: http://localhost:8080"
 	@echo "  Health Check: http://localhost:8080/health"
+	@echo ""
+	@echo "$(GREEN)Debugging:$(NC)"
+	@echo "  make debug-backfill          - Vérifier l'état du backfill"
+	@echo "  make debug-timescale         - Vérifier les données historiques"
+	@echo "  make check-docker-resources  - Nettoyer les ressources obsolètes"
 	@echo ""
 
 # Par défaut, afficher l'aide
