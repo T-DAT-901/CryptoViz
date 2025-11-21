@@ -77,7 +77,7 @@ cleanup() {
 # Construire les images
 build_images() {
     log "Construction des images Docker..."
-    docker-compose build --no-cache
+    docker-compose build
     log "Images construites avec succès"
 }
 
@@ -203,8 +203,9 @@ main() {
             log "Mode sans reconstruction"
             ;;
         *)
-            # Par défaut, reconstruire les images
-            build_images
+            # Par défaut, utiliser les images existantes
+            # Utilisez --build pour forcer la reconstruction
+            log "Utilisation des images existantes (utilisez --build pour reconstruire)"
             ;;
     esac
 

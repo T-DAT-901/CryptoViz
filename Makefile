@@ -126,7 +126,7 @@ restart-service: ## Redémarrer un service spécifique (usage: make restart-serv
 # Construction et nettoyage
 build: ## Construire toutes les images Docker
 	@echo "$(GREEN)Construction des images Docker...$(NC)"
-	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) build --no-cache
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) build
 
 build-service: ## Construire une image spécifique (usage: make build-service SERVICE=backend-go)
 	@if [ -z "$(SERVICE)" ]; then \
@@ -134,7 +134,7 @@ build-service: ## Construire une image spécifique (usage: make build-service SE
 		exit 1; \
 	fi
 	@echo "$(GREEN)Construction de l'image $(SERVICE)...$(NC)"
-	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) build --no-cache $(SERVICE)
+	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) build $(SERVICE)
 
 clean: ## Nettoyer les conteneurs, images et volumes
 	@echo "$(RED)Nettoyage complet...$(NC)"
