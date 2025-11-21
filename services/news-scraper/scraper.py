@@ -3,11 +3,8 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 from textblob import TextBlob
-import pandas as pd
 
-# --------------------------
 # Configuration
-# --------------------------
 CRYPTO_KEYWORDS = {
     "btc": ["bitcoin", "btc"],
     "eth": ["ethereum", "eth"],
