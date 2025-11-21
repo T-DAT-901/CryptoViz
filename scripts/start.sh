@@ -86,12 +86,16 @@ start_services() {
     log "Démarrage des services..."
 
     # Démarrer d'abord l'infrastructure
-    info "Démarrage de l'infrastructure (TimescaleDB, Kafka, Redis)..."
-    docker-compose up -d timescaledb zookeeper kafka redis
+    info "Démarrage de l'infrastructure (TimescaleDB, Kafka, Redis, MinIO, Kafka-UI)..."
+    docker-compose up -d timescaledb zookeeper kafka redis minio kafka-ui
 
     # Attendre que les services soient prêts
     info "Attente de la disponibilité des services..."
     sleep 30
+
+    # Initialiser MinIO
+    info "Initialisation de MinIO (buckets)..."
+    docker-compose up minio-init
 
     # Initialiser les topics Kafka
     info "Initialisation des topics Kafka..."
@@ -99,7 +103,7 @@ start_services() {
 
     # Démarrer les microservices
     info "Démarrage des microservices..."
-    docker-compose up -d data-collector news-scraper indicators-calculator
+    docker-compose up -d data-collector news-scraper
 
     # Démarrer le backend
     info "Démarrage du backend Go..."
@@ -156,8 +160,11 @@ show_info() {
     log "🌐 Frontend (Interface utilisateur): http://localhost:3000"
     log "🔧 API Backend: http://localhost:8080"
     log "📊 Base de données TimescaleDB: localhost:7432"
+    log "📊 Kafka UI: http://localhost:8082"
     log "📨 Kafka: localhost:9092"
     log "🗄️  Redis: localhost:7379"
+    log "🗄️  MinIO API: http://localhost:9000"
+    log "🗄️  MinIO Console: http://localhost:9001"
     log ""
     log "📋 Commandes utiles:"
     log "  - Voir les logs: docker-compose logs -f [service]"

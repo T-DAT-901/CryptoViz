@@ -6,7 +6,7 @@
 
 # Variables
 COMPOSE_FILE = docker-compose.yml
-SERVICES = timescaledb kafka redis data-collector news-scraper indicators-calculator backend-go frontend-vue
+SERVICES = timescaledb zookeeper kafka kafka-ui redis minio data-collector news-scraper backend-go frontend-vue
 
 # Couleurs pour l'affichage
 GREEN = \033[0;32m
@@ -32,14 +32,15 @@ start: ## Démarrer tous les services
 	@echo "$(GREEN)Démarrage de CryptoViz...$(NC)"
 	@./scripts/start.sh
 
-start-infra: ## Démarrer uniquement l'infrastructure (DB, Kafka, Redis)
+start-infra: ## Démarrer uniquement l'infrastructure (DB, Kafka, Redis, MinIO)
 	@echo "$(GREEN)Démarrage de l'infrastructure...$(NC)"
-	@docker-compose up -d timescaledb zookeeper kafka redis kafka-ui
+	@docker-compose up -d timescaledb zookeeper kafka redis minio kafka-ui
+	@docker-compose up minio-init
 	@docker-compose up kafka-init
 
 start-services: ## Démarrer uniquement les microservices
 	@echo "$(GREEN)Démarrage des microservices...$(NC)"
-	@docker-compose up -d data-collector news-scraper indicators-calculator
+	@docker-compose up -d data-collector news-scraper
 
 start-app: ## Démarrer uniquement l'application (backend + frontend)
 	@echo "$(GREEN)Démarrage de l'application...$(NC)"
@@ -139,6 +140,14 @@ kafka-console-consumer: ## Écouter un topic Kafka (usage: make kafka-console-co
 	fi
 	@docker-compose exec kafka kafka-console-consumer --topic $(TOPIC) --bootstrap-server localhost:9092 --from-beginning
 
+# MinIO
+minio-console: ## Afficher les informations de connexion MinIO
+	@echo "$(GREEN)MinIO Console Access:$(NC)"
+	@echo "  API: http://localhost:9000"
+	@echo "  Console: http://localhost:9001"
+	@echo "  Username: minioadmin"
+	@echo "  Password: minioadmin"
+
 # Développement
 dev-backend: ## Démarrer le backend en mode développement
 	@echo "$(GREEN)Démarrage du backend en mode développement...$(NC)"
@@ -167,7 +176,6 @@ test-backend: ## Tester le backend Go
 test-python: ## Tester les services Python
 	@echo "$(GREEN)Tests des services Python...$(NC)"
 	@docker-compose exec data-collector python -m pytest tests/ || true
-	@docker-compose exec indicators-calculator python -m pytest tests/ || true
 	@docker-compose exec news-scraper python -m pytest tests/ || true
 
 test-frontend: ## Tester le frontend
@@ -188,7 +196,6 @@ lint-backend: ## Linter le code Go
 lint-python: ## Linter le code Python
 	@echo "$(GREEN)Linting des services Python...$(NC)"
 	@docker-compose exec data-collector flake8 . || true
-	@docker-compose exec indicators-calculator flake8 . || true
 	@docker-compose exec news-scraper flake8 . || true
 
 lint-frontend: ## Linter le code frontend
@@ -208,7 +215,6 @@ format-backend: ## Formater le code Go
 format-python: ## Formater le code Python
 	@echo "$(GREEN)Formatage des services Python...$(NC)"
 	@docker-compose exec data-collector black . || true
-	@docker-compose exec indicators-calculator black . || true
 	@docker-compose exec news-scraper black . || true
 
 format-frontend: ## Formater le code frontend
@@ -240,8 +246,11 @@ monitor: ## Ouvrir les interfaces de monitoring
 	@echo "Frontend: http://localhost:3000 (Docker) ou http://localhost:5173 (dev)"
 	@echo "Backend API: http://localhost:8080"
 	@echo "TimescaleDB: localhost:7432"
+	@echo "Kafka UI: http://localhost:8082"
 	@echo "Kafka: localhost:9092"
 	@echo "Redis: localhost:7379"
+	@echo "MinIO API: http://localhost:9000"
+	@echo "MinIO Console: http://localhost:9001"
 
 # Production
 prod-build: ## Construire pour la production
