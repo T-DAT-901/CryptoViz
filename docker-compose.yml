@@ -322,6 +322,161 @@ services:
     networks:
       - cryptoviz-network
 
+  # ========== MONITORING STACK ==========
+
+  # Prometheus - Metrics Collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cryptoviz-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--storage.tsdb.retention.time=30d'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Grafana - Visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cryptoviz-grafana
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3001}
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource,grafana-piechart-panel
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Node Exporter - System Metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: cryptoviz-node-exporter
+    command:
+      - '--path.rootfs=/host'
+    ports:
+      - "9100:9100"
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+
+  # cAdvisor - Container Metrics
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cryptoviz-cadvisor
+    ports:
+      - "8083:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+
+  # PostgreSQL Exporter - TimescaleDB Metrics
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: cryptoviz-postgres-exporter
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${TIMESCALE_USER:-postgres}:${TIMESCALE_PASSWORD:-password}@timescaledb:5432/${TIMESCALE_DB:-cryptoviz}?sslmode=disable"
+    ports:
+      - "9187:9187"
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+
+  # Redis Exporter - Redis Metrics
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: cryptoviz-redis-exporter
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_ADDR: redis:6379
+    ports:
+      - "9121:9121"
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+
+  # Kafka Exporter - Kafka Metrics
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:latest
+    container_name: cryptoviz-kafka-exporter
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - '--kafka.server=kafka:29092'
+    ports:
+      - "9308:9308"
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+
+  # Gatus - Health Check & Status Page
+  gatus:
+    image: twinproduction/gatus:latest
+    container_name: cryptoviz-gatus
+    depends_on:
+      - timescaledb
+      - kafka
+      - redis
+      - backend-go
+    ports:
+      - "8084:8080"
+    volumes:
+      - ./monitoring/gatus/config.yaml:/config/config.yaml
+      - gatus_data:/data
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   timescaledb_data:
     driver: local
@@ -334,6 +489,12 @@ volumes:
   redis_data:
     driver: local
   minio_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  gatus_data:
     driver: local
 
 networks:
