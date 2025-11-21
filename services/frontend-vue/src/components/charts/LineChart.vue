@@ -28,6 +28,7 @@ type InPt = { x: number | string | Date; y: number };
 const props = defineProps<{
   points: InPt[];
   timeframe?: string;
+  buildingCandlePoint?: InPt | null;
 }>();
 
 const canvasEl = ref<HTMLCanvasElement | null>(null);
@@ -159,24 +160,48 @@ function build() {
 
   const numericPoints = toNumericPoints(props.points);
 
+  // Create datasets array with main line and optional building candle
+  const datasets: any[] = [
+    {
+      label: "Prix",
+      data: numericPoints,
+      parsing: false,
+      borderColor: "#10b981",
+      backgroundColor: grad,
+      borderWidth: 2,
+      fill: true,
+      tension: 0.1,
+      pointRadius: 0,
+      pointHoverRadius: 6,
+      pointBackgroundColor: "#10b981",
+      pointBorderColor: "#ffffff",
+      pointBorderWidth: 2,
+    },
+  ];
+
+  // Add building candle point if available (semi-transparent style)
+  if (props.buildingCandlePoint) {
+    const buildingPoint = toNumericPoints([props.buildingCandlePoint]);
+    datasets.push({
+      label: "Candle en construction",
+      data: buildingPoint,
+      parsing: false,
+      borderColor: "rgba(16,185,129,0.5)",
+      backgroundColor: "rgba(16,185,129,0.1)",
+      borderWidth: 2,
+      borderDash: [5, 5], // Dotted line
+      fill: false,
+      tension: 0.1,
+      pointRadius: 4,
+      pointHoverRadius: 8,
+      pointBackgroundColor: "rgba(16,185,129,0.6)",
+      pointBorderColor: "#ffffff",
+      pointBorderWidth: 2,
+    });
+  }
+
   const data: ChartData<"line"> = {
-    datasets: [
-      {
-        label: "Prix",
-        data: numericPoints,
-        parsing: false,
-        borderColor: "#10b981",
-        backgroundColor: grad,
-        borderWidth: 2,
-        fill: true,
-        tension: 0.1,
-        pointRadius: 0,
-        pointHoverRadius: 6,
-        pointBackgroundColor: "#10b981",
-        pointBorderColor: "#ffffff",
-        pointBorderWidth: 2,
-      },
-    ],
+    datasets,
   };
 
   const options: ChartOptions<"line"> = {
@@ -300,6 +325,7 @@ function build() {
 
 onMounted(build);
 watch(() => props.points, build, { deep: true });
+watch(() => props.buildingCandlePoint, build, { deep: true });
 watch(
   () => props.timeframe,
   () => {

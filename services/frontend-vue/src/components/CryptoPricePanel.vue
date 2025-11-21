@@ -75,40 +75,40 @@ function updateBtcFromEur() {
   }
 }
 
-// Charger les closing prices depuis l'API
+// Charger les prix de référence pour chaque timeframe
 async function loadClosingPrices() {
   try {
-    console.log(`Loading closing prices for ${realSymbol.value}`);
+    console.log(`Loading reference prices for ${realSymbol.value}`);
 
-    // 24h: closing price d'il y a 24h (1h interval, première bougie)
+    // 24h: prix d'il y a 24h (dernière bougie 1h qui couvre il y a 24h)
     const data24h = await fetchCandles(realSymbol.value, "1h", 24);
     if (data24h.length > 0) {
       closingPrices.value["24h"] = data24h[0].close;
-      console.log(`24h closing: ${data24h[0].close}`);
+      console.log(`24h reference price: ${data24h[0].close}`);
     }
 
-    // 7d: closing price d'il y a 7 jours (1h interval, 168 heures)
+    // 7d: prix d'il y a 7 jours (dernière bougie 1h qui couvre il y a 7 jours)
     const data7d = await fetchCandles(realSymbol.value, "1h", 168);
     if (data7d.length > 0) {
       closingPrices.value["7d"] = data7d[0].close;
-      console.log(`7d closing: ${data7d[0].close}`);
+      console.log(`7d reference price: ${data7d[0].close}`);
     }
 
-    // 1M: closing price d'il y a 1 mois (1d interval, 30 jours)
+    // 1M: prix d'il y a 1 mois (dernière bougie 1d qui couvre il y a 1 mois)
     const data1M = await fetchCandles(realSymbol.value, "1d", 30);
     if (data1M.length > 0) {
       closingPrices.value["1M"] = data1M[0].close;
-      console.log(`1M closing: ${data1M[0].close}`);
+      console.log(`1M reference price: ${data1M[0].close}`);
     }
 
-    // 1Y: closing price d'il y a 1 an (1d interval, 365 jours)
+    // 1Y: prix d'il y a 1 an (dernière bougie 1d qui couvre il y a 1 an)
     const data1Y = await fetchCandles(realSymbol.value, "1d", 365);
     if (data1Y.length > 0) {
       closingPrices.value["1Y"] = data1Y[0].close;
-      console.log(`1Y closing: ${data1Y[0].close}`);
+      console.log(`1Y reference price: ${data1Y[0].close}`);
     }
   } catch (error) {
-    console.error("Error loading closing prices:", error);
+    console.error("Error loading reference prices:", error);
   }
 }
 

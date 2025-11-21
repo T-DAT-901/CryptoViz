@@ -20,6 +20,7 @@ import {
   useLiveCandles,
   useLiveTrades,
 } from "@/services/websocket";
+import { RealtimeCandleBuilder } from "@/services/rt";
 import type { CandleDTO } from "@/types/market";
 import {
   TrendingUp,
@@ -84,6 +85,16 @@ const candles = ref<CandleDTO[]>([]);
 const lineChartRef = ref();
 const candleChartRef = ref();
 
+// Real-time candle builder for 1m timeframe
+const candleBuilder = ref<RealtimeCandleBuilder | null>(null);
+const currentBuildingCandle = ref<{
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+} | null>(null);
+
 const rsiMiniChartRef = ref<HTMLCanvasElement | null>(null);
 const macdMiniChartRef = ref<HTMLCanvasElement | null>(null);
 const bollingerMiniChartRef = ref<HTMLCanvasElement | null>(null);
@@ -126,7 +137,7 @@ const linePoints = computed(() => {
   }));
 
   // Ajouter les trades en temps réel du WebSocket
-  const tradePoints = liveTrades.value.map((t) => ({
+  let tradePoints = liveTrades.value.map((t) => ({
     x: t.timestamp,
     y: t.price,
   }));
@@ -615,6 +626,83 @@ function resetChartView() {
   }, 100);
 }
 
+// Initialize the real-time candle builder for 1m timeframe
+function initializeCandleBuilder() {
+  if (selectedTimeframe.value !== "1m") return;
+
+  candleBuilder.value = new RealtimeCandleBuilder();
+
+  // When a candle is completed, add it to the candles array
+  candleBuilder.value.onCandleCompleted((completedCandle, timestamp) => {
+    const candleTime = new Date(timestamp);
+    console.log(
+      `✅ Candle finalisée: ${candleTime.toLocaleTimeString("fr-FR")} - OHLC: ${completedCandle.open.toFixed(2)}/${completedCandle.high.toFixed(2)}/${completedCandle.low.toFixed(2)}/${completedCandle.close.toFixed(2)}`
+    );
+
+    // Créer un objet CandleDTO compatible
+    const newCandle: CandleDTO = {
+      time: candleTime.toISOString(),
+      open: completedCandle.open,
+      high: completedCandle.high,
+      low: completedCandle.low,
+      close: completedCandle.close,
+      volume: completedCandle.volume,
+    };
+
+    // Ajouter à l'array des candles
+    candles.value.push(newCandle);
+    console.log(`Total candles: ${candles.value.length}`);
+    currentBuildingCandle.value = null;
+  });
+
+  // When a candle is being built, update the current building candle
+  candleBuilder.value.onCandleUpdated((updatingCandle) => {
+    console.log(
+      `🟡 Candle en construction: OHLC ${updatingCandle.open.toFixed(2)}/${updatingCandle.high.toFixed(2)}/${updatingCandle.low.toFixed(2)}/${updatingCandle.close.toFixed(2)}`
+    );
+    currentBuildingCandle.value = updatingCandle;
+  });
+
+  // Process existing trades to rebuild current minute candle
+  if (liveTrades.value.length > 0) {
+    liveTrades.value.forEach((trade) => {
+      candleBuilder.value?.addTrade(trade.price, 0, trade.timestamp);
+    });
+  }
+}
+
+// Process incoming trades through the candle builder
+watch(liveTrades, (newTrades, oldTrades) => {
+  if (!candleBuilder.value || selectedTimeframe.value !== "1m") return;
+
+  // Only process new trades that haven't been processed yet
+  const newTradesCount = newTrades.length - oldTrades.length;
+  if (newTradesCount > 0) {
+    console.log(`📊 ${newTradesCount} nouveau(x) trade(s) reçu(s)`);
+    const startIndex = Math.max(0, newTrades.length - newTradesCount);
+    for (let i = startIndex; i < newTrades.length; i++) {
+      const trade = newTrades[i];
+      console.log(
+        `   Trade: ${trade.price.toFixed(2)}€ @ ${new Date(trade.timestamp).toLocaleTimeString("fr-FR")}`
+      );
+      candleBuilder.value.addTrade(trade.price, 0, trade.timestamp);
+    }
+  }
+});
+
+// Re-initialize builder when timeframe changes
+watch(
+  () => selectedTimeframe.value,
+  (newTimeframe) => {
+    if (newTimeframe === "1m") {
+      initializeCandleBuilder();
+    } else {
+      candleBuilder.value = null;
+      currentBuildingCandle.value = null;
+    }
+  }
+);
+
 watch(latestCandle, (newCandle) => {
   if (newCandle && candles.value.length > 0) {
     const lastIndex = candles.value.length - 1;
@@ -643,6 +731,12 @@ watch(
 
 onMounted(async () => {
   await loadData();
+
+  // Initialize real-time candle builder for 1m timeframe
+  if (selectedTimeframe.value === "1m") {
+    initializeCandleBuilder();
+  }
+
   try {
     await connect();
   } catch (error) {
@@ -722,6 +816,14 @@ onUnmounted(() => {
             v-if="chartMode === 'line'"
             :points="linePoints"
             :timeframe="selectedTimeframe"
+            :building-candle-point="
+              selectedTimeframe === '1m' && currentBuildingCandle
+                ? {
+                    x: Date.now(),
+                    y: currentBuildingCandle.close,
+                  }
+                : null
+            "
             ref="lineChartRef"
           />
           <CandleChart
