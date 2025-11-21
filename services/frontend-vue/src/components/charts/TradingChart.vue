@@ -182,17 +182,17 @@ async function loadData() {
     const symbol = symbolPair.value; // BTC/USDT, ETH/FDUSD, etc.
     const interval = selectedTimeframe.value; // 1m, 5m, 15m, 1h, 24h
 
-    // Adapter le limit en fonction du timeframe pour avoir ~500-1000 points de données
-    let limit = 500;
+    // Adapter le limit en fonction du timeframe pour un affichage cohérent et lisible
+    let limit = 120;
     if (interval === "1m")
-      limit = 1440; // 1 jour de minutes
+      limit = 60; // 1h d'historique
     else if (interval === "5m")
-      limit = 288; // 1 jour de 5 minutes
+      limit = 100; // ~8h d'historique
     else if (interval === "15m")
-      limit = 96; // 1 jour de 15 minutes
+      limit = 80; // ~20h d'historique
     else if (interval === "1h")
-      limit = 168; // 1 semaine d'heures
-    else if (interval === "1d") limit = 365; // 1 an de jours
+      limit = 72; // ~3 jours d'historique
+    else if (interval === "1d") limit = 50; // ~50 jours d'historique
 
     const rows = await fetchCandles(symbol, interval, limit);
 

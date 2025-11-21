@@ -252,6 +252,30 @@ function getTimeDisplayFormat(timeframe: string) {
   }
 }
 
+function getCandleLimit(timeframe?: string): number {
+  switch (timeframe) {
+    case "1m":
+      return 60;
+    case "5m":
+      return 100;
+    case "15m":
+      return 80;
+    case "1h":
+      return 72;
+    case "1d":
+      return 50;
+    case "7d":
+    case "1w":
+      return 52;
+    case "1M":
+      return 26;
+    case "1y":
+      return 52;
+    default:
+      return 120;
+  }
+}
+
 function fitChartToTimeframe() {
   if (!chart || !props.candles?.length) return;
 
