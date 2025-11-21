@@ -134,6 +134,34 @@ SELECT create_hypertable('news', 'time',
 );
 
 -- =============================================================================
+-- COMPRESSION / COLUMNSTORE (requise avant les politiques)
+-- =============================================================================
+
+ALTER TABLE trades SET (
+    timescaledb.compress = TRUE,
+    timescaledb.compress_orderby = 'event_ts',
+    timescaledb.compress_segmentby = 'exchange'
+);
+
+ALTER TABLE candles SET (
+    timescaledb.compress = TRUE,
+    timescaledb.compress_orderby = 'window_start',
+    timescaledb.compress_segmentby = 'symbol'
+);
+
+ALTER TABLE indicators SET (
+    timescaledb.compress = TRUE,
+    timescaledb.compress_orderby = 'time',
+    timescaledb.compress_segmentby = 'symbol'
+);
+
+ALTER TABLE news SET (
+    timescaledb.compress = TRUE,
+    timescaledb.compress_orderby = 'time',
+    timescaledb.compress_segmentby = 'source'
+);
+
+-- =============================================================================
 -- INDEX OPTIMISÉS
 -- =============================================================================
 
