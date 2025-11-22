@@ -1,7 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { getRTClient } from "@/services/rt";
-import { Bitcoin, TrendingUp, TrendingDown } from "lucide-vue-next";
+import {
+  Bitcoin,
+  TrendingUp,
+  TrendingDown,
+  ChevronDown,
+} from "lucide-vue-next";
+import { fetchCandles } from "@/services/markets.api";
 
 const props = defineProps<{
   symbol?: string;
@@ -13,10 +19,20 @@ const props = defineProps<{
 const currentPrice = ref(0);
 const high24h = ref(0);
 const low24h = ref(0);
-const priceChange = ref(0);
-const priceChangePercent = ref(0);
 const previousPrice = ref(0);
-const initialPrice = ref(0); // Garder le prix initial pour calculer le changement 1Y
+
+// Timeframe pour la variation de prix
+const selectedTimeframe = ref<"24h" | "7d" | "1M" | "1Y">("24h");
+const timeframeOptions = ["24h", "7d", "1M", "1Y"] as const;
+const isTimeframeDropdownOpen = ref(false);
+
+// Closing prices par timeframe
+const closingPrices = ref<Record<string, number>>({
+  "24h": 0,
+  "7d": 0,
+  "1M": 0,
+  "1Y": 0,
+});
 
 // État local pour le convertisseur
 const btcAmount = ref(1);
@@ -31,7 +47,19 @@ const realSymbol = computed(
 const rtClient = getRTClient();
 let unsubscribeTrade: (() => void) | null = null;
 
-// Prix et données calculées
+// Calcul de la variation de prix
+const priceChange = computed(() => {
+  const closingPrice = closingPrices.value[selectedTimeframe.value] || 0;
+  if (closingPrice === 0) return 0;
+  return currentPrice.value - closingPrice;
+});
+
+const priceChangePercent = computed(() => {
+  const closingPrice = closingPrices.value[selectedTimeframe.value] || 0;
+  if (closingPrice === 0) return 0;
+  return (priceChange.value / closingPrice) * 100;
+});
+
 const isPositive = computed(() => priceChange.value > 0);
 
 // Mise à jour du convertisseur
@@ -47,9 +75,58 @@ function updateBtcFromEur() {
   }
 }
 
+// Charger les prix de référence pour chaque timeframe
+async function loadClosingPrices() {
+  try {
+    console.log(`Loading reference prices for ${realSymbol.value}`);
+
+    // 24h: prix d'il y a 24h (dernière bougie 1h qui couvre il y a 24h)
+    const data24h = await fetchCandles(realSymbol.value, "1h", 24);
+    if (data24h.length > 0) {
+      closingPrices.value["24h"] = data24h[0].close;
+      console.log(`24h reference price: ${data24h[0].close}`);
+    }
+
+    // 7d: prix d'il y a 7 jours (dernière bougie 1h qui couvre il y a 7 jours)
+    const data7d = await fetchCandles(realSymbol.value, "1h", 168);
+    if (data7d.length > 0) {
+      closingPrices.value["7d"] = data7d[0].close;
+      console.log(`7d reference price: ${data7d[0].close}`);
+    }
+
+    // 1M: prix d'il y a 1 mois (dernière bougie 1d qui couvre il y a 1 mois)
+    const data1M = await fetchCandles(realSymbol.value, "1d", 30);
+    if (data1M.length > 0) {
+      closingPrices.value["1M"] = data1M[0].close;
+      console.log(`1M reference price: ${data1M[0].close}`);
+    }
+
+    // 1Y: prix d'il y a 1 an (dernière bougie 1d qui couvre il y a 1 an)
+    const data1Y = await fetchCandles(realSymbol.value, "1d", 365);
+    if (data1Y.length > 0) {
+      closingPrices.value["1Y"] = data1Y[0].close;
+      console.log(`1Y reference price: ${data1Y[0].close}`);
+    }
+  } catch (error) {
+    console.error("Error loading reference prices:", error);
+  }
+}
+
+function toggleTimeframeDropdown() {
+  isTimeframeDropdownOpen.value = !isTimeframeDropdownOpen.value;
+}
+
+function selectTimeframe(timeframe: "24h" | "7d" | "1M" | "1Y") {
+  selectedTimeframe.value = timeframe;
+  isTimeframeDropdownOpen.value = false;
+}
+
 // Lifecycle
 onMounted(async () => {
   try {
+    // Charger les closing prices
+    await loadClosingPrices();
+
     // Connecter au WebSocket
     if (!rtClient.isConnected()) {
       await rtClient.connect();
@@ -68,22 +145,7 @@ onMounted(async () => {
         previousPrice.value = currentPrice.value;
         currentPrice.value = price;
 
-        // Calculer le changement SEULEMENT si c'est le premier prix
-        if (initialPrice.value === 0) {
-          initialPrice.value = price;
-          priceChange.value = 0;
-          priceChangePercent.value = 0;
-        } else {
-          // Après, garder le pourcentage stable par rapport au prix initial
-          priceChange.value = currentPrice.value - initialPrice.value;
-          priceChangePercent.value =
-            initialPrice.value > 0
-              ? (priceChange.value / initialPrice.value) * 100
-              : 0;
-        }
-
         // Mettre à jour les hauts/bas SEULEMENT au premier prix
-        // (après, on les garde stables pour la barre de progression)
         if (high24h.value === 0 && low24h.value === 0) {
           high24h.value = price;
           low24h.value = price;
@@ -102,7 +164,7 @@ onMounted(async () => {
         eurAmount.value = btcAmount.value * currentPrice.value;
 
         console.log(
-          `📈 ${realSymbol.value}: ${price}€ (${priceChangePercent.value.toFixed(2)}%)`
+          `📈 ${realSymbol.value}: ${price}€ (${priceChangePercent.value.toFixed(2)}% vs ${selectedTimeframe.value})`
         );
       }
     });
@@ -153,11 +215,53 @@ onUnmounted(() => {
           'crypto-price-panel-price-change--negative': !isPositive,
         }"
       >
-        <TrendingUp v-if="isPositive" class="crypto-price-panel-change-icon" />
-        <TrendingDown v-else class="crypto-price-panel-change-icon" />
-        <span class="change-text">
-          {{ isPositive ? "+" : "" }}{{ priceChangePercent.toFixed(2) }}% (1Y)
-        </span>
+        <div class="crypto-price-panel-change-content">
+          <div class="crypto-price-panel-change-text-wrapper">
+            <TrendingUp
+              v-if="isPositive"
+              class="crypto-price-panel-change-icon"
+            />
+            <TrendingDown v-else class="crypto-price-panel-change-icon" />
+            <span class="change-text">
+              {{ isPositive ? "+" : "" }}{{ priceChangePercent.toFixed(2) }}%
+            </span>
+          </div>
+          <!-- Dropdown pour timeframe de variation -->
+          <div class="crypto-price-panel-variation-dropdown">
+            <button
+              class="crypto-price-panel-variation-button"
+              @click="toggleTimeframeDropdown"
+              :title="`Variation sur ${selectedTimeframe}`"
+            >
+              <span>{{ selectedTimeframe }}</span>
+              <ChevronDown
+                class="crypto-price-panel-variation-icon"
+                :class="{
+                  'crypto-price-panel-variation-icon--open':
+                    isTimeframeDropdownOpen,
+                }"
+                :size="14"
+              />
+            </button>
+            <div
+              v-if="isTimeframeDropdownOpen"
+              class="crypto-price-panel-variation-menu"
+            >
+              <button
+                v-for="timeframe in timeframeOptions"
+                :key="timeframe"
+                class="crypto-price-panel-variation-option"
+                :class="{
+                  'crypto-price-panel-variation-option--active':
+                    timeframe === selectedTimeframe,
+                }"
+                @click="selectTimeframe(timeframe)"
+              >
+                {{ timeframe }}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 

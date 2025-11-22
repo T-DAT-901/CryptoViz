@@ -12,9 +12,10 @@ import {
   type ChartData,
   type ChartOptions,
 } from "chart.js";
+import zoomPlugin from "chartjs-plugin-zoom";
 import "chartjs-adapter-date-fns";
 import { useIndicatorsStore } from "@/stores/indicators";
-import { transformOldCandlesArray } from "@/utils/mockTransform";
+import { fetchIndicators } from "@/services/markets.api";
 
 Chart.register(
   LineController,
@@ -23,7 +24,8 @@ Chart.register(
   LinearScale,
   TimeScale,
   Tooltip,
-  Filler
+  Filler,
+  zoomPlugin
 );
 
 const props = defineProps<{ symbol: string }>();
@@ -35,140 +37,26 @@ let chart: Chart | null = null;
 // RSI data from mock file
 const rsiData = ref<Array<{ timestamp: number; value: number }>>([]);
 
-// Load mock data based on timeframe
-async function loadMockData() {
+// Load RSI data from API
+async function loadRSIData() {
   try {
-    // Utiliser le timeframe du store
-    const timeframe = indicatorsStore.selectedTimeframe;
+    console.log(`Loading RSI data for: ${props.symbol}`);
+    const data = await fetchIndicators(props.symbol, "rsi");
 
-    if (import.meta.env.VITE_USE_MOCK === "true") {
-      console.log(`Loading RSI mock data for timeframe: ${timeframe}`);
-
-      // Import unified data (same as TradingChart)
-      const { default: unifiedData } = await import(
-        "@/services/mocks/candles_unified.json"
-      );
-
-      let candleData = [];
-
-      // Select data based on timeframe (same logic as TradingChart)
-      switch (timeframe) {
-        case "1h":
-          const oneDayData = unifiedData["1d"] || [];
-          candleData = transformOldCandlesArray(oneDayData.slice(-60));
-          break;
-        case "1d":
-          const twentyFourHourData = unifiedData["1d"] || [];
-          candleData = transformOldCandlesArray(
-            twentyFourHourData.slice(-1440)
-          );
-          break;
-        case "7d":
-          candleData = transformOldCandlesArray(unifiedData["7d"] || []);
-          break;
-        case "1M":
-          candleData = transformOldCandlesArray(unifiedData["1M"] || []);
-          break;
-        case "1y":
-          candleData = transformOldCandlesArray(unifiedData["1y"] || []);
-          break;
-        case "all":
-          candleData = transformOldCandlesArray(unifiedData["all"] || []);
-          break;
-        default:
-          const fallbackData = unifiedData["1d"] || [];
-          candleData = transformOldCandlesArray(fallbackData.slice(-60));
-      }
-
-      // Calculer des valeurs RSI réalistes basées sur les prix de clôture
-      rsiData.value = calculateRSIFromCandles(candleData);
-
-      console.log(
-        `Loaded ${rsiData.value.length} RSI data points for ${timeframe}`
-      );
+    if (data && data.length > 0) {
+      rsiData.value = data;
+      console.log(`Loaded ${rsiData.value.length} RSI data points`);
     } else {
-      // Pour l'API réelle, adapter selon le timeframe
-      console.error("API RSI data loading not implemented yet");
-      // Fallback avec quelques données par défaut
-      const now = Date.now();
-      rsiData.value = Array.from({ length: 20 }, (_, i) => ({
-        timestamp: now - (20 - i) * 15 * 60 * 1000,
-        value: 30 + Math.sin(i * 0.3) * 20 + Math.random() * 10,
-      }));
+      console.warn("No RSI data received from API");
+      rsiData.value = [];
     }
   } catch (error) {
-    console.error("Error loading RSI mock data:", error);
-    // Fallback avec quelques données par défaut
-    const now = Date.now();
-    rsiData.value = Array.from({ length: 20 }, (_, i) => ({
-      timestamp: now - (20 - i) * 15 * 60 * 1000,
-      value: 30 + Math.sin(i * 0.3) * 20 + Math.random() * 10,
-    }));
+    console.error("Error loading RSI data:", error);
+    rsiData.value = [];
   }
 }
 
 // Calculate RSI from candle data
-function calculateRSIFromCandles(
-  candles: any[]
-): Array<{ timestamp: number; value: number }> {
-  if (candles.length < 14) {
-    // Not enough data to calculate RSI, return default values
-    return candles.map((candle, i) => ({
-      timestamp: candle.time,
-      value: 50 + Math.sin(i * 0.2) * 20 + Math.random() * 10,
-    }));
-  }
-
-  const rsiPeriod = indicatorsStore.rsiPeriod;
-  const result: Array<{ timestamp: number; value: number }> = [];
-
-  for (let i = 0; i < candles.length; i++) {
-    if (i < rsiPeriod - 1) {
-      // Les premières valeurs avant qu'on ait assez de données
-      result.push({
-        timestamp: new Date(candles[i].time).getTime(),
-        value: 50 + Math.sin(i * 0.2) * 15,
-      });
-      continue;
-    }
-
-    // Calculer les gains et pertes sur la période
-    let totalGains = 0;
-    let totalLosses = 0;
-
-    for (let j = i - rsiPeriod + 1; j <= i; j++) {
-      if (j > 0) {
-        const priceChange = candles[j].close - candles[j - 1].close;
-        if (priceChange > 0) {
-          totalGains += priceChange;
-        } else {
-          totalLosses += Math.abs(priceChange);
-        }
-      }
-    }
-
-    const avgGain = totalGains / rsiPeriod;
-    const avgLoss = totalLosses / rsiPeriod;
-
-    // Calculer RSI
-    let rsi = 50; // Valeur par défaut
-    if (avgLoss !== 0) {
-      const rs = avgGain / avgLoss;
-      rsi = 100 - 100 / (1 + rs);
-    }
-
-    // S'assurer que RSI est dans la plage [0, 100]
-    rsi = Math.max(0, Math.min(100, rsi));
-
-    result.push({
-      timestamp: new Date(candles[i].time).getTime(),
-      value: rsi,
-    });
-  }
-
-  return result;
-}
-
 // Data for Chart.js
 const chartData = computed(() => {
   if (!rsiData.value.length) return { datasets: [] };
@@ -326,6 +214,24 @@ const options: ChartOptions = {
         },
       },
     },
+    zoom: {
+      pan: {
+        enabled: true,
+        mode: "x",
+        modifierKey: undefined,
+      },
+      zoom: {
+        wheel: {
+          enabled: true,
+          modifierKey: "ctrl",
+          speed: 0.05,
+        },
+        pinch: {
+          enabled: true,
+        },
+        mode: "x",
+      },
+    },
   },
 };
 
@@ -341,7 +247,7 @@ function buildChart() {
 }
 
 onMounted(async () => {
-  await loadMockData();
+  await loadRSIData();
   buildChart();
 });
 
@@ -360,7 +266,7 @@ watch(
       "RSI Chart: Timeframe changed to",
       indicatorsStore.selectedTimeframe
     );
-    await loadMockData();
+    await loadRSIData();
     buildChart();
   }
 );

@@ -20,6 +20,7 @@ import {
   useLiveCandles,
   useLiveTrades,
 } from "@/services/websocket";
+import { RealtimeCandleBuilder } from "@/services/rt";
 import type { CandleDTO } from "@/types/market";
 import {
   TrendingUp,
@@ -84,6 +85,18 @@ const candles = ref<CandleDTO[]>([]);
 const lineChartRef = ref();
 const candleChartRef = ref();
 
+// Real-time candle builder for 1m timeframe
+const candleBuilder = ref<RealtimeCandleBuilder | null>(null);
+const currentBuildingCandle = ref<{
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+} | null>(null);
+let lastProcessedTradeIndex = 0;
+let tradeProcessingInterval: ReturnType<typeof setInterval> | null = null;
+
 const rsiMiniChartRef = ref<HTMLCanvasElement | null>(null);
 const macdMiniChartRef = ref<HTMLCanvasElement | null>(null);
 const bollingerMiniChartRef = ref<HTMLCanvasElement | null>(null);
@@ -118,6 +131,20 @@ const selectedTimeframe = computed({
   set: (value) => indicatorsStore.setTimeframe(value),
 });
 
+// Computed qui force Vue à détecter les changements du building candle
+// en créant une nouvelle référence à chaque fois
+const buildingCandleForChart = computed(() => {
+  if (selectedTimeframe.value === "1m" && currentBuildingCandle.value) {
+    const candle = { ...currentBuildingCandle.value };
+    console.log("📤 TradingChart: buildingCandleForChart computed", {
+      timeframe: selectedTimeframe.value,
+      candle,
+    });
+    return candle;
+  }
+  return null;
+});
+
 const linePoints = computed(() => {
   // Commencer par les points historiques du graph
   const historicalPoints = candles.value.map((c) => ({
@@ -126,7 +153,7 @@ const linePoints = computed(() => {
   }));
 
   // Ajouter les trades en temps réel du WebSocket
-  const tradePoints = liveTrades.value.map((t) => ({
+  let tradePoints = liveTrades.value.map((t) => ({
     x: t.timestamp,
     y: t.price,
   }));
@@ -155,17 +182,17 @@ async function loadData() {
     const symbol = symbolPair.value; // BTC/USDT, ETH/FDUSD, etc.
     const interval = selectedTimeframe.value; // 1m, 5m, 15m, 1h, 24h
 
-    // Adapter le limit en fonction du timeframe pour avoir ~500-1000 points de données
-    let limit = 500;
+    // Adapter le limit en fonction du timeframe pour un affichage cohérent et lisible
+    let limit = 120;
     if (interval === "1m")
-      limit = 1440; // 1 jour de minutes
+      limit = 60; // 1h d'historique
     else if (interval === "5m")
-      limit = 288; // 1 jour de 5 minutes
+      limit = 100; // ~8h d'historique
     else if (interval === "15m")
-      limit = 96; // 1 jour de 15 minutes
+      limit = 80; // ~20h d'historique
     else if (interval === "1h")
-      limit = 168; // 1 semaine d'heures
-    else if (interval === "1d") limit = 365; // 1 an de jours
+      limit = 72; // ~3 jours d'historique
+    else if (interval === "1d") limit = 50; // ~50 jours d'historique
 
     const rows = await fetchCandles(symbol, interval, limit);
 
@@ -615,6 +642,87 @@ function resetChartView() {
   }, 100);
 }
 
+// Initialize the real-time candle builder for 1m timeframe
+function initializeCandleBuilder() {
+  if (selectedTimeframe.value !== "1m") return;
+
+  candleBuilder.value = new RealtimeCandleBuilder();
+  lastProcessedTradeIndex = 0;
+
+  // When a candle is completed, add it to the candles array
+  candleBuilder.value.onCandleCompleted((completedCandle, timestamp) => {
+    const candleTime = new Date(timestamp);
+    console.log(
+      `✅ Candle finalisée: ${candleTime.toLocaleTimeString("fr-FR")} - OHLC: ${completedCandle.open.toFixed(2)}/${completedCandle.high.toFixed(2)}/${completedCandle.low.toFixed(2)}/${completedCandle.close.toFixed(2)}`
+    );
+
+    // Créer un objet CandleDTO compatible
+    const newCandle: CandleDTO = {
+      time: candleTime.toISOString(),
+      open: completedCandle.open,
+      high: completedCandle.high,
+      low: completedCandle.low,
+      close: completedCandle.close,
+      volume: completedCandle.volume,
+    };
+
+    // Ajouter à l'array des candles (force Vue reactivity)
+    candles.value = [...candles.value, newCandle];
+    console.log(`Total candles: ${candles.value.length}`);
+    currentBuildingCandle.value = null;
+  });
+
+  // When a candle is being built, update the current building candle
+  candleBuilder.value.onCandleUpdated((updatingCandle) => {
+    // Force Vue reactivity by creating a new object
+    currentBuildingCandle.value = {
+      open: updatingCandle.open,
+      high: updatingCandle.high,
+      low: updatingCandle.low,
+      close: updatingCandle.close,
+      volume: updatingCandle.volume,
+    };
+  });
+
+  // Process existing trades to rebuild current minute candle
+  if (liveTrades.value.length > 0) {
+    liveTrades.value.forEach((trade) => {
+      candleBuilder.value?.addTrade(trade.price, 0, trade.timestamp);
+    });
+  }
+
+  // Start polling for new trades every 100ms
+  if (tradeProcessingInterval) {
+    clearInterval(tradeProcessingInterval);
+  }
+
+  tradeProcessingInterval = setInterval(() => {
+    if (!candleBuilder.value || selectedTimeframe.value !== "1m") {
+      return;
+    }
+
+    const newTrades = liveTrades.value.slice(lastProcessedTradeIndex);
+    if (newTrades.length > 0) {
+      console.log(
+        `📊 ${newTrades.length} nouveau(x) trade(s) trouvé(s) via polling`
+      );
+      newTrades.forEach((trade) => {
+        candleBuilder.value?.addTrade(trade.price, 0, trade.timestamp);
+      });
+      lastProcessedTradeIndex = liveTrades.value.length;
+    } else {
+      // Même sans nouveaux trades, force le re-render de la candle en construction
+      // pour que les petites modifications s'affichent
+      if (currentBuildingCandle.value) {
+        currentBuildingCandle.value = {
+          ...currentBuildingCandle.value,
+        };
+      }
+    }
+  }, 100);
+} // Process incoming trades through the candle builder via polling in initializeCandleBuilder
+// (removed watch-based approach in favor of setInterval polling)
+
 watch(latestCandle, (newCandle) => {
   if (newCandle && candles.value.length > 0) {
     const lastIndex = candles.value.length - 1;
@@ -625,7 +733,23 @@ watch(latestCandle, (newCandle) => {
 watch(
   () => indicatorsStore.selectedTimeframe,
   async (newTimeframe) => {
+    // Toujours charger les données pour cette timeframe
     await loadData();
+
+    // Si c'est 1m, réinitialiser le builder pour qu'il refonctionne
+    if (newTimeframe === "1m") {
+      console.log("Reinitializing builder after loadData");
+      initializeCandleBuilder();
+    } else {
+      // Arrêter le builder pour les autres timeframes
+      if (tradeProcessingInterval) {
+        clearInterval(tradeProcessingInterval);
+        tradeProcessingInterval = null;
+      }
+      candleBuilder.value = null;
+      currentBuildingCandle.value = null;
+      lastProcessedTradeIndex = 0;
+    }
   }
 );
 
@@ -642,18 +766,33 @@ watch(
 );
 
 onMounted(async () => {
+  console.log("🔧 TradingChart mounted, initializing...");
   await loadData();
+
+  // Initialize real-time candle builder for 1m timeframe
+  if (selectedTimeframe.value === "1m") {
+    console.log("🟢 Initializing candle builder for 1m");
+    initializeCandleBuilder();
+  } else {
+    console.log(
+      "🔴 Not initializing builder - timeframe is:",
+      selectedTimeframe.value
+    );
+  }
+
   try {
     await connect();
   } catch (error) {
     console.warn("WebSocket connection failed, using polling fallback");
   }
 });
-
 onUnmounted(() => {
   disconnect();
   unsubscribeCandles();
   unsubscribeTrades();
+  if (tradeProcessingInterval) {
+    clearInterval(tradeProcessingInterval);
+  }
   rsiMiniChart?.destroy();
   macdMiniChart?.destroy();
   bollingerMiniChart?.destroy();
@@ -722,12 +861,21 @@ onUnmounted(() => {
             v-if="chartMode === 'line'"
             :points="linePoints"
             :timeframe="selectedTimeframe"
+            :building-candle-point="
+              selectedTimeframe === '1m' && currentBuildingCandle
+                ? {
+                    x: Date.now(),
+                    y: currentBuildingCandle.close,
+                  }
+                : null
+            "
             ref="lineChartRef"
           />
           <CandleChart
             v-else-if="chartMode === 'candle'"
             :candles="candles"
             :timeframe="selectedTimeframe"
+            :building-candle="buildingCandleForChart"
             ref="candleChartRef"
           />
         </div>

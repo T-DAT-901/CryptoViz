@@ -12,9 +12,10 @@ import {
   type ChartData,
   type ChartOptions,
 } from "chart.js";
+import zoomPlugin from "chartjs-plugin-zoom";
 import "chartjs-adapter-date-fns";
 import { useIndicatorsStore } from "@/stores/indicators";
-import { transformOldCandlesArray } from "@/utils/mockTransform";
+import { fetchIndicators } from "@/services/markets.api";
 
 Chart.register(
   LineController,
@@ -23,10 +24,11 @@ Chart.register(
   LinearScale,
   TimeScale,
   Tooltip,
-  Filler
+  Filler,
+  zoomPlugin
 );
 
-defineProps<{ symbol: string }>();
+const props = defineProps<{ symbol: string }>();
 const indicatorsStore = useIndicatorsStore();
 const canvasEl = ref<HTMLCanvasElement | null>(null);
 const bollingerMiniChartRef = ref<HTMLCanvasElement | null>(null);
@@ -43,68 +45,21 @@ const bollingerData = ref<
   }>
 >([]);
 
-function calculateBollingerBands(candles: any[], period: number = 20) {
-  const result = [];
-  for (let i = period; i < candles.length; i++) {
-    // Take the last 20 candles
-    const slice = candles.slice(i - period, i);
-
-    // Calculate SMA
-    const price = slice.map((candle) => candle.close);
-    const sma = price.reduce((sum, price) => sum + price, 0) / period;
-
-    // Calculate standard deviation
-    const variance =
-      price.reduce((sum, price) => sum + Math.pow(price - sma, 2), 0) / period;
-    const stdDev = Math.sqrt(variance);
-
-    // Calculate bands
-    result.push({
-      timestamp: new Date(candles[i].time).getTime(),
-      upper: sma + 2 * stdDev,
-      middle: sma,
-      lower: sma - 2 * stdDev,
-    });
-  }
-
-  return result;
-}
-
+// Load Bollinger data from API
 async function loadData() {
   try {
-    const timeframe = indicatorsStore.selectedTimeframe;
+    console.log(`Loading Bollinger data for: ${props.symbol}`);
+    const data = await fetchIndicators(props.symbol, "bollinger");
 
-    if (import.meta.env.VITE_USE_MOCK === "true") {
-      const { default: unifiedData } = await import(
-        "@/services/mocks/candles_unified.json"
-      );
-
-      let candleData = [];
-      switch (timeframe) {
-        case "1d":
-          candleData = transformOldCandlesArray(unifiedData["1d"] || []);
-          break;
-        case "7d":
-          candleData = transformOldCandlesArray(unifiedData["7d"] || []);
-          break;
-        case "1M":
-          candleData = transformOldCandlesArray(unifiedData["1M"] || []);
-          break;
-        case "1y":
-          candleData = transformOldCandlesArray(unifiedData["1y"] || []);
-          break;
-        case "all":
-          candleData = transformOldCandlesArray(unifiedData["all"] || []);
-          break;
-        default:
-          candleData = transformOldCandlesArray(unifiedData["1d"] || []);
-      }
-
-      // Calculate Bollinger Bands from price data
-      bollingerData.value = calculateBollingerBands(candleData, 20);
+    if (data && data.length > 0) {
+      bollingerData.value = data;
+      console.log(`Loaded ${bollingerData.value.length} Bollinger data points`);
+    } else {
+      console.warn("No Bollinger data received from API");
+      bollingerData.value = [];
     }
   } catch (error) {
-    console.error("Error loading Bollinger Bands data:", error);
+    console.error("Error loading Bollinger data:", error);
     bollingerData.value = [];
   }
 }
@@ -200,6 +155,24 @@ const chartOptions = computed(
             const value = context.parsed.y;
             return `${context.dataset.label}: ${value.toFixed(2)}`;
           },
+        },
+      },
+      zoom: {
+        pan: {
+          enabled: true,
+          mode: "x",
+          modifierKey: undefined,
+        },
+        zoom: {
+          wheel: {
+            enabled: true,
+            modifierKey: "ctrl",
+            speed: 0.05,
+          },
+          pinch: {
+            enabled: true,
+          },
+          mode: "x",
         },
       },
     },

@@ -12,6 +12,7 @@ import {
   type ChartData,
   type ChartOptions,
 } from "chart.js";
+import zoomPlugin from "chartjs-plugin-zoom";
 import "chartjs-adapter-date-fns";
 
 Chart.register(
@@ -21,13 +22,15 @@ Chart.register(
   LinearScale,
   TimeScale,
   Tooltip,
-  Filler
+  Filler,
+  zoomPlugin
 );
 
 type InPt = { x: number | string | Date; y: number };
 const props = defineProps<{
   points: InPt[];
   timeframe?: string;
+  buildingCandlePoint?: InPt | null;
 }>();
 
 const canvasEl = ref<HTMLCanvasElement | null>(null);
@@ -159,30 +162,54 @@ function build() {
 
   const numericPoints = toNumericPoints(props.points);
 
+  // Create datasets array with main line and optional building candle
+  const datasets: any[] = [
+    {
+      label: "Prix",
+      data: numericPoints,
+      parsing: false,
+      borderColor: "#10b981",
+      backgroundColor: grad,
+      borderWidth: 2,
+      fill: true,
+      tension: 0.1,
+      pointRadius: 0,
+      pointHoverRadius: 6,
+      pointBackgroundColor: "#10b981",
+      pointBorderColor: "#ffffff",
+      pointBorderWidth: 2,
+    },
+  ];
+
+  // Add building candle point if available (semi-transparent style)
+  if (props.buildingCandlePoint) {
+    const buildingPoint = toNumericPoints([props.buildingCandlePoint]);
+    datasets.push({
+      label: "Candle en construction",
+      data: buildingPoint,
+      parsing: false,
+      borderColor: "rgba(16,185,129,0.5)",
+      backgroundColor: "rgba(16,185,129,0.1)",
+      borderWidth: 2,
+      borderDash: [5, 5], // Dotted line
+      fill: false,
+      tension: 0.1,
+      pointRadius: 4,
+      pointHoverRadius: 8,
+      pointBackgroundColor: "rgba(16,185,129,0.6)",
+      pointBorderColor: "#ffffff",
+      pointBorderWidth: 2,
+    });
+  }
+
   const data: ChartData<"line"> = {
-    datasets: [
-      {
-        label: "Prix",
-        data: numericPoints,
-        parsing: false,
-        borderColor: "#10b981",
-        backgroundColor: grad,
-        borderWidth: 2,
-        fill: true,
-        tension: 0.1,
-        pointRadius: 0,
-        pointHoverRadius: 6,
-        pointBackgroundColor: "#10b981",
-        pointBorderColor: "#ffffff",
-        pointBorderWidth: 2,
-      },
-    ],
+    datasets,
   };
 
   const options: ChartOptions<"line"> = {
     responsive: true,
     maintainAspectRatio: false,
-    interaction: { intersect: false, mode: "index" },
+    interaction: { intersect: false, mode: "nearest" },
     onHover: (event, activeElements) => {
       if (activeElements.length > 0) {
         const dataIndex = activeElements[0].index;
@@ -238,6 +265,28 @@ function build() {
         tooltipVisible.value = false;
       }
     },
+    plugins: {
+      tooltip: { enabled: false },
+      legend: { display: false },
+      zoom: {
+        pan: {
+          enabled: true,
+          mode: "x",
+          modifierKey: undefined,
+        },
+        zoom: {
+          wheel: {
+            enabled: true,
+            modifierKey: "ctrl",
+            speed: 0.05,
+          },
+          pinch: {
+            enabled: true,
+          },
+          mode: "x",
+        },
+      },
+    },
     scales: {
       x: {
         type: "time",
@@ -275,12 +324,6 @@ function build() {
         },
       },
     },
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        enabled: false,
-      },
-    },
     elements: {
       point: { radius: 0, hoverRadius: 6 },
     },
@@ -300,6 +343,7 @@ function build() {
 
 onMounted(build);
 watch(() => props.points, build, { deep: true });
+watch(() => props.buildingCandlePoint, build, { deep: true });
 watch(
   () => props.timeframe,
   () => {
@@ -311,14 +355,28 @@ watch(
 );
 onBeforeUnmount(() => chart?.destroy());
 
+function resetZoom() {
+  if (chart) {
+    chart.resetZoom();
+  }
+}
+
 defineExpose({
   chart,
   fitChartToTimeframe,
+  resetZoom,
 });
 </script>
 
 <template>
   <div class="line-chart" @mouseleave="hideTooltip">
+    <button
+      class="line-chart-reset-btn"
+      @click="resetZoom"
+      title="Reset zoom (Ctrl+scroll to zoom, Shift+drag to pan)"
+    >
+      🔍 Reset
+    </button>
     <canvas ref="canvasEl"></canvas>
 
     <div
@@ -344,3 +402,68 @@ defineExpose({
     </div>
   </div>
 </template>
+
+<style scoped>
+.line-chart {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.line-chart-reset-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+  padding: 6px 12px;
+  background-color: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.5);
+  color: #10b981;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.line-chart-reset-btn:hover {
+  background-color: rgba(16, 185, 129, 0.3);
+  border-color: rgba(16, 185, 129, 0.8);
+}
+
+.line-chart-reset-btn:active {
+  transform: scale(0.95);
+}
+
+.line-chart-tooltip {
+  position: fixed;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 20;
+  font-size: 12px;
+}
+
+.line-chart-tooltip-date {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.line-chart-tooltip-price {
+  margin-bottom: 4px;
+}
+
+.line-chart-tooltip-change {
+  font-weight: 500;
+}
+
+.line-chart-tooltip-change--positive {
+  color: #10b981;
+}
+
+.line-chart-tooltip-change--negative {
+  color: #ef4444;
+}
+</style>
