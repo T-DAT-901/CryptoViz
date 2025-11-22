@@ -139,10 +139,10 @@ build-service: ## Construire une image spécifique (usage: make build-service SE
 clean: ## Nettoyer les conteneurs, images et volumes
 	@echo "$(RED)Nettoyage complet...$(NC)"
 	@./scripts/stop.sh --cleanup
-
-clean-images: ## Supprimer toutes les images Docker du projet
 	@echo "$(RED)Suppression des images Docker...$(NC)"
 	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) down --rmi all
+	@echo "$(RED)Suppression du cache de build Docker...$(NC)"
+	@docker builder prune -af
 
 # Monitoring et logs
 logs: ## Voir les logs de tous les services en temps réel
