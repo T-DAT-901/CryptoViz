@@ -104,3 +104,21 @@ func (ctrl *CandleController) GetStats(c *gin.Context) {
 
 	c.JSON(http.StatusOK, dto.SuccessResponse(stats))
 }
+
+// GetAvailableSymbols récupère la liste des symboles disponibles
+// @Summary Get available symbols
+// @Description Récupère la liste des symboles ayant des données récentes (dernière heure)
+// @Tags candles
+// @Success 200 {object} dto.APIResponse
+// @Failure 500 {object} dto.APIResponse
+// @Router /api/v1/crypto/symbols [get]
+func (ctrl *CandleController) GetAvailableSymbols(c *gin.Context) {
+	symbols, err := ctrl.repo.GetDistinctSymbols()
+	if err != nil {
+		ctrl.logger.Error("Erreur requête symbols: ", err)
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse("Database error"))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.SuccessResponse(gin.H{"symbols": symbols}))
+}

@@ -90,6 +90,44 @@ export const useCryptoStore = defineStore("crypto", {
           "cryptos from WebSocket"
         );
 
+        // FALLBACK: Si aucun crypto découvert via WebSocket, charger depuis l'API
+        if (this.cryptoMap.size === 0) {
+          console.log("🔄 No cryptos discovered via WebSocket, fetching from API...");
+          try {
+            const response = await http.get<{ success: boolean; data: { symbols: string[] } }>('/api/v1/crypto/symbols');
+
+            if (response.data.success && response.data.data?.symbols && response.data.data.symbols.length > 0) {
+              console.log(`📥 Loaded ${response.data.data.symbols.length} symbols from API`);
+
+              // Initialiser cryptoMap avec les symboles de la base de données
+              for (const symbol of response.data.data.symbols) {
+                if (!this.cryptoMap.has(symbol)) {
+                  this.cryptoMap.set(symbol, {
+                    id: symbol,
+                    rank: this.cryptoMap.size + 1,
+                    name: symbol.split("/")[0], // BTC de BTC/USDT
+                    symbol,
+                    price: 0,
+                    change1h: 0,
+                    change24h: 0,
+                    change7d: 0,
+                    marketCap: 0,
+                    volume24h: 0,
+                    circulatingSupply: 0,
+                    sparklineData: [],
+                  });
+                }
+              }
+
+              console.log(`✅ Initialized ${this.cryptoMap.size} cryptos from database`);
+            } else {
+              console.warn("⚠️ No symbols returned from API");
+            }
+          } catch (error) {
+            console.error("❌ Failed to load symbols from API:", error);
+          }
+        }
+
         // Maintenant charger les stats pour chaque crypto
         if (this.cryptoMap.size > 0) {
           console.log("📊 Loading stats for each crypto...");

@@ -197,11 +197,26 @@ async def main():
 
     logger.info(f"✓ Selected {len(symbols)} symbols for collection")
 
-    # 1. Backfill historique si besoin
-    await run_backfill_if_needed(config, symbols)
+    # Start realtime collection immediately (non-blocking)
+    logger.info("Starting realtime collection (priority)")
+    realtime_task = asyncio.create_task(
+        run_realtime_collector(config, symbols, client)
+    )
 
-    # 2. Collecte temps réel
-    await run_realtime_collector(config, symbols, client)
+    # Run backfill in background if enabled (non-blocking)
+    enable_backfill = os.getenv("ENABLE_BACKFILL", "false").lower() == "true"
+    if enable_backfill:
+        logger.info("Starting historical backfill in background")
+        backfill_task = asyncio.create_task(
+            run_backfill_if_needed(config, symbols)
+        )
+    else:
+        logger.info("Backfill disabled, skipping")
+        backfill_task = None
+
+    # Wait for realtime collection (runs indefinitely)
+    # Backfill runs in parallel and completes independently
+    await realtime_task
 
 
 if __name__ == "__main__":
