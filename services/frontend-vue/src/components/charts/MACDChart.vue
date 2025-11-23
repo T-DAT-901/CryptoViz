@@ -120,6 +120,7 @@ const options: ChartOptions = {
   scales: {
     x: {
       type: "time",
+      position: "bottom",
       grid: {
         color: "rgba(255,255,255,0.08)",
       },
@@ -132,6 +133,27 @@ const options: ChartOptions = {
         displayFormats: {
           minute: "HH:mm",
           hour: "HH:mm",
+          day: "dd/MM",
+        },
+      },
+    },
+    x2: {
+      type: "time",
+      position: "bottom",
+      offset: true,
+      grid: {
+        display: false,
+      },
+      ticks: {
+        color: "rgba(255,255,255,0.5)",
+        font: { size: 9 },
+        maxTicksLimit: 5,
+      },
+      time: {
+        displayFormats: {
+          minute: "dd/MM",
+          hour: "dd/MM",
+          day: "dd/MM/yyyy",
         },
       },
     },

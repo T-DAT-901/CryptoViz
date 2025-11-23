@@ -109,28 +109,6 @@ const options: ChartOptions<"candlestick"> = {
         enabled: true,
         mode: "x",
         modifierKey: undefined,
-        onPanRejected: ({ chart }) => {
-          // Gentle limit: don't allow panning beyond data range
-          const xScale = chart.scales.x as any;
-          if (!xScale) return;
-
-          // Get the min/max from the data
-          const timestamps =
-            props.candles.length > 0
-              ? props.candles.map((c) => new Date(c.time).getTime())
-              : [];
-
-          const minTime =
-            timestamps.length > 0 ? Math.min(...timestamps) : null;
-          const maxTime =
-            timestamps.length > 0 ? Math.max(...timestamps) : null;
-
-          if (minTime !== null && maxTime !== null) {
-            // If we've panned outside bounds, set the scale limits
-            xScale.min = minTime;
-            xScale.max = maxTime;
-          }
-        },
       },
       zoom: {
         wheel: {
@@ -148,6 +126,7 @@ const options: ChartOptions<"candlestick"> = {
   scales: {
     x: {
       type: "time",
+      position: "bottom",
       grid: {
         color: "rgba(255,255,255,0.08)",
       },
@@ -162,6 +141,30 @@ const options: ChartOptions<"candlestick"> = {
           hour: "HH:mm",
           day: "dd/MM",
           week: "dd/MM",
+          month: "MMM yyyy",
+          quarter: "MMM yyyy",
+          year: "yyyy",
+        },
+      },
+    },
+    x2: {
+      type: "time",
+      position: "bottom",
+      offset: true,
+      grid: {
+        display: false,
+      },
+      ticks: {
+        color: "rgba(255,255,255,0.5)",
+        font: { size: 10 },
+        maxTicksLimit: 5,
+      },
+      time: {
+        displayFormats: {
+          minute: "dd/MM",
+          hour: "dd/MM",
+          day: "dd/MM/yyyy",
+          week: "dd/MM/yyyy",
           month: "MMM yyyy",
           quarter: "MMM yyyy",
           year: "yyyy",
@@ -199,8 +202,8 @@ function getTimeDisplayFormat(timeframe: string) {
       return {
         unit: "hour",
         displayFormats: {
-          hour: "HH:mm",
-          minute: "HH:mm",
+          hour: "dd/MM",
+          minute: "dd/MM",
         },
         maxTicksLimit: 12,
       };
@@ -281,21 +284,18 @@ function fitChartToTimeframe() {
 
   chart.resetZoom();
 
-  const timestamps = props.candles.map((c) => new Date(c.time).getTime());
-  const minTime = Math.min(...timestamps);
-  const maxTime = Math.max(...timestamps);
+  // Fixer l'échelle Y pour qu'elle ne change pas pendant le pan
+  const prices = props.candles.map((c) => [c.high, c.low]).flat();
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const priceRange = maxPrice - minPrice;
+  const priceMargin = priceRange * 0.1; // 10% de marge
 
-  const timeRange = maxTime - minTime;
-  const margin = timeRange * 0.02;
-
-  chart.zoomScale(
-    "x",
-    {
-      min: minTime - margin,
-      max: maxTime + margin,
-    },
-    "default"
-  );
+  if (chart.options.scales?.y) {
+    const yScale = chart.options.scales.y as any;
+    yScale.min = minPrice - priceMargin;
+    yScale.max = maxPrice + priceMargin;
+  }
 
   const timeConfig = getTimeDisplayFormat(props.timeframe || "7d");
   if (chart.options.scales?.x) {
@@ -306,8 +306,38 @@ function fitChartToTimeframe() {
       displayFormats: timeConfig.displayFormats,
     };
     xScale.ticks.maxTicksLimit = timeConfig.maxTicksLimit;
-    chart.update("none");
   }
+
+  // Configurer la deuxième échelle X (x2) pour afficher les jours
+  if (chart.options.scales?.x2) {
+    const x2Scale = chart.options.scales.x2 as any;
+
+    // Pour les timeframes court (< 1 jour), montrer les jours
+    if (["1m", "5m", "15m", "1h"].includes(props.timeframe || "")) {
+      x2Scale.time = {
+        ...x2Scale.time,
+        unit: "day",
+        displayFormats: {
+          day: "dd/MM",
+        },
+      };
+      x2Scale.ticks.maxTicksLimit = 7;
+    }
+    // Pour 1d et plus, montrer les semaines/mois
+    else {
+      x2Scale.time = {
+        ...x2Scale.time,
+        unit: "week",
+        displayFormats: {
+          week: "dd/MM",
+          day: "dd/MM",
+        },
+      };
+      x2Scale.ticks.maxTicksLimit = 4;
+    }
+  }
+
+  chart.update("none");
 }
 
 function buildChart() {
