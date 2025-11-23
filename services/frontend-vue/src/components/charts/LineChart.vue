@@ -69,8 +69,8 @@ function getTimeDisplayFormat(timeframe: string) {
       return {
         unit: "hour",
         displayFormats: {
-          hour: "HH:mm",
-          minute: "HH:mm",
+          hour: "dd/MM",
+          minute: "dd/MM",
         },
         maxTicksLimit: 12,
       };
@@ -133,6 +133,13 @@ function fitChartToTimeframe() {
   const timeRange = maxTime - minTime;
   const margin = timeRange * 0.02;
 
+  // Fixer l'échelle Y pour qu'elle ne change pas pendant le pan
+  const prices = numericPoints.map((p) => p.y);
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const priceRange = maxPrice - minPrice;
+  const priceMargin = priceRange * 0.1; // 10% de marge
+
   const timeConfig = getTimeDisplayFormat(props.timeframe || "7d");
   if (chart.options.scales?.x) {
     const xScale = chart.options.scales.x as any;
@@ -144,8 +151,44 @@ function fitChartToTimeframe() {
     xScale.ticks.maxTicksLimit = timeConfig.maxTicksLimit;
     xScale.min = minTime - margin;
     xScale.max = maxTime + margin;
-    chart.update("none");
   }
+
+  if (chart.options.scales?.y) {
+    const yScale = chart.options.scales.y as any;
+    yScale.min = minPrice - priceMargin;
+    yScale.max = maxPrice + priceMargin;
+  }
+
+  // Configurer la deuxième échelle X (x2) pour afficher les jours
+  if (chart.options.scales?.x2) {
+    const x2Scale = chart.options.scales.x2 as any;
+
+    // Pour les timeframes court (< 1 jour), montrer les jours
+    if (["1m", "5m", "15m", "1h"].includes(props.timeframe || "")) {
+      x2Scale.time = {
+        ...x2Scale.time,
+        unit: "day",
+        displayFormats: {
+          day: "dd/MM",
+        },
+      };
+      x2Scale.ticks.maxTicksLimit = 7;
+    }
+    // Pour 1d et plus, montrer les semaines/mois
+    else {
+      x2Scale.time = {
+        ...x2Scale.time,
+        unit: "week",
+        displayFormats: {
+          week: "dd/MM",
+          day: "dd/MM",
+        },
+      };
+      x2Scale.ticks.maxTicksLimit = 4;
+    }
+  }
+
+  chart.update("none");
 }
 
 function hideTooltip() {
@@ -290,13 +333,14 @@ function build() {
     scales: {
       x: {
         type: "time",
+        position: "bottom",
         grid: {
           color: "rgba(255,255,255,0.08)",
         },
         ticks: {
           color: "rgba(255,255,255,0.7)",
           font: { size: 11 },
-          maxTicksLimit: 8, // Limite le nombre de ticks
+          maxTicksLimit: 8,
         },
         time: {
           displayFormats: {
@@ -304,6 +348,30 @@ function build() {
             hour: "HH:mm",
             day: "dd/MM",
             week: "dd/MM",
+            month: "MMM yyyy",
+            quarter: "MMM yyyy",
+            year: "yyyy",
+          },
+        },
+      },
+      x2: {
+        type: "time",
+        position: "bottom",
+        offset: true,
+        grid: {
+          display: false,
+        },
+        ticks: {
+          color: "rgba(255,255,255,0.5)",
+          font: { size: 10 },
+          maxTicksLimit: 5,
+        },
+        time: {
+          displayFormats: {
+            minute: "dd/MM",
+            hour: "dd/MM",
+            day: "dd/MM/yyyy",
+            week: "dd/MM/yyyy",
             month: "MMM yyyy",
             quarter: "MMM yyyy",
             year: "yyyy",

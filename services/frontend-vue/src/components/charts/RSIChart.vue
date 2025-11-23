@@ -132,6 +132,7 @@ const options: ChartOptions = {
   scales: {
     x: {
       type: "time",
+      position: "bottom",
       grid: {
         color: "rgba(255,255,255,0.08)",
       },
@@ -144,6 +145,27 @@ const options: ChartOptions = {
         displayFormats: {
           minute: "HH:mm",
           hour: "HH:mm",
+          day: "dd/MM",
+        },
+      },
+    },
+    x2: {
+      type: "time",
+      position: "bottom",
+      offset: true,
+      grid: {
+        display: false,
+      },
+      ticks: {
+        color: "rgba(255,255,255,0.5)",
+        font: { size: 9 },
+        maxTicksLimit: 5,
+      },
+      time: {
+        displayFormats: {
+          minute: "dd/MM",
+          hour: "dd/MM",
+          day: "dd/MM/yyyy",
         },
       },
     },
@@ -180,7 +202,7 @@ const options: ChartOptions = {
   },
   plugins: {
     legend: {
-      display: false, // Pas de légende, on a les labels sur l'axe Y
+      display: false,
     },
     tooltip: {
       backgroundColor: "rgba(7, 14, 16, 0.95)",
@@ -210,7 +232,7 @@ const options: ChartOptions = {
 
             return `RSI: ${value}${interpretation}`;
           }
-          return ""; // Retourne string vide pour les autres datasets
+          return "";
         },
       },
     },

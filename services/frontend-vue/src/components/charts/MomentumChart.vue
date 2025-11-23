@@ -156,6 +156,7 @@ const chartOptions = computed(
     scales: {
       x: {
         type: "time",
+        position: "bottom",
         time: {
           displayFormats: {
             minute: "HH:mm",
@@ -169,6 +170,28 @@ const chartOptions = computed(
         ticks: {
           color: "rgb(156, 163, 175)",
           maxTicksLimit: 8,
+        },
+      },
+      x2: {
+        type: "time",
+        position: "bottom",
+        offset: true,
+        time: {
+          displayFormats: {
+            minute: "dd/MM",
+            hour: "dd/MM",
+            day: "dd/MM/yyyy",
+          },
+        },
+        grid: {
+          display: false,
+        },
+        ticks: {
+          color: "rgba(156, 163, 175, 0.5)",
+          maxTicksLimit: 5,
+          font: {
+            size: 9,
+          },
         },
       },
       y: {
