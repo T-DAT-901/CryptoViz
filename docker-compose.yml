@@ -102,7 +102,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 45s  # Grace period for Kafka broker initialization
+      start_period: 120s  # Grace period for Kafka broker initialization and consumer offsets loading
 
   # Redis (optionnel pour cache)
   redis:
@@ -161,6 +161,7 @@ services:
       "
     networks:
       - cryptoviz-network
+    restart: "no"  # One-time init container - only runs once to create bucket
 
   # Data Collector Service
   data-collector:
@@ -169,6 +170,8 @@ services:
       dockerfile: Dockerfile
     container_name: cryptoviz-data-collector
     depends_on:
+      kafka-init:
+        condition: service_completed_successfully
       kafka:
         condition: service_healthy
       timescaledb:
@@ -226,6 +229,8 @@ services:
       dockerfile: Dockerfile
     container_name: cryptoviz-news-scraper
     depends_on:
+      kafka-init:
+        condition: service_completed_successfully
       kafka:
         condition: service_healthy
     environment:
@@ -255,6 +260,10 @@ services:
       dockerfile: Dockerfile
     container_name: cryptoviz-backend-go
     depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
       kafka:
         condition: service_healthy
       timescaledb:
@@ -354,6 +363,7 @@ services:
       "
     networks:
       - cryptoviz-network
+    restart: "no"  # One-time init container - only runs once to create topics
 
   # ========== MONITORING STACK ==========
 

@@ -119,13 +119,8 @@ start_services() {
     info "Attente de la disponibilité des services..."
     sleep 30
 
-    # Initialiser MinIO
-    info "Initialisation de MinIO (buckets)..."
-    docker-compose -f docker-compose.yml $OVERRIDE_FILE up minio-init
-
-    # Initialiser les topics Kafka
-    info "Initialisation des topics Kafka..."
-    docker-compose -f docker-compose.yml $OVERRIDE_FILE up kafka-init
+    # Note: minio-init and kafka-init run automatically via depends_on when their
+    # dependent services start. With restart: "no", they only run once and skip on subsequent starts.
 
     # Démarrer les microservices
     info "Démarrage des microservices..."
