@@ -22,7 +22,9 @@ export async function fetchTickers(symbols: string[]): Promise<TickerDTO[]> {
 export async function fetchCandles(
   symbol: string,
   interval = "1m",
-  limit = 120
+  limit = 120,
+  startTime?: string,
+  endTime?: string
 ): Promise<CandleDTO[]> {
   if (USE_MOCK) {
     const candlesMock = await import("./mocks/candles.json");
@@ -30,9 +32,13 @@ export async function fetchCandles(
   }
   try {
     // Backend-go uses query parameters: /api/v1/crypto/data?symbol=BTC/USDT&interval=1m&limit=120
-    const response = await http.get(`/api/v1/crypto/data`, {
-      params: { symbol, interval, limit },
-    });
+    // Optional time range: start_time and end_time in RFC3339 format
+    const params: any = { symbol, interval, limit };
+    if (startTime) params.start_time = startTime;
+    if (endTime) params.end_time = endTime;
+
+    const response = await http.get(`/api/v1/crypto/data`, { params });
+
     // Transform backend format to chart format
     const backendData = response.data?.data || [];
     return backendData.map((candle: any) => ({

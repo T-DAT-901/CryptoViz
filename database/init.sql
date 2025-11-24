@@ -503,6 +503,13 @@ END
 $$;
 
 -- =============================================================================
+-- SETUP DATA TIERING (executed from external file)
+-- =============================================================================
+-- Creates cold storage schema, tiering functions, and unified views (all_candles, all_indicators, all_news)
+
+\i /docker-entrypoint-initdb.d/02-setup-tiering.sql
+
+-- =============================================================================
 -- SETUP INDICATORS (executed from external file)
 -- =============================================================================
 
