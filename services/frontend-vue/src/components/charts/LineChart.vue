@@ -33,6 +33,11 @@ const props = defineProps<{
   buildingCandlePoint?: InPt | null;
 }>();
 
+const emit = defineEmits<{
+  (e: "pan-complete", payload: { minVisible: number; maxVisible: number }): void;
+  (e: "zoom-complete", payload: { minVisible: number; maxVisible: number }): void;
+}>();
+
 const canvasEl = ref<HTMLCanvasElement | null>(null);
 const tooltipEl = ref<HTMLDivElement | null>(null);
 let chart: Chart<"line"> | null = null;
@@ -55,10 +60,11 @@ function toNumericPoints(src: InPt[]) {
 }
 
 function getTimeDisplayFormat(timeframe: string) {
+  // Return only displayFormats, let Chart.js auto-detect unit based on visible range
+  // This prevents "too far apart" errors when data spans large time ranges
   switch (timeframe) {
     case "1h":
       return {
-        unit: "minute",
         displayFormats: {
           minute: "HH:mm",
           hour: "HH:mm",
@@ -67,7 +73,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     case "1d":
       return {
-        unit: "hour",
         displayFormats: {
           hour: "dd/MM",
           minute: "dd/MM",
@@ -76,7 +81,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     case "7d":
       return {
-        unit: "day",
         displayFormats: {
           day: "dd/MM",
           hour: "dd/MM HH:mm",
@@ -85,7 +89,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     case "1M":
       return {
-        unit: "week",
         displayFormats: {
           week: "dd/MM",
           day: "dd/MM",
@@ -94,7 +97,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     case "1y":
       return {
-        unit: "month",
         displayFormats: {
           month: "MMM yyyy",
           week: "dd/MM",
@@ -103,7 +105,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     case "all":
       return {
-        unit: "year",
         displayFormats: {
           year: "yyyy",
           month: "MMM yyyy",
@@ -112,7 +113,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     default:
       return {
-        unit: "minute",
         displayFormats: {
           minute: "HH:mm",
           hour: "HH:mm",
@@ -145,7 +145,7 @@ function fitChartToTimeframe() {
     const xScale = chart.options.scales.x as any;
     xScale.time = {
       ...xScale.time,
-      unit: timeConfig.unit,
+      // Let Chart.js auto-detect unit based on visible range
       displayFormats: timeConfig.displayFormats,
     };
     xScale.ticks.maxTicksLimit = timeConfig.maxTicksLimit;
@@ -167,7 +167,7 @@ function fitChartToTimeframe() {
     if (["1m", "5m", "15m", "1h"].includes(props.timeframe || "")) {
       x2Scale.time = {
         ...x2Scale.time,
-        unit: "day",
+        // Let Chart.js auto-detect unit
         displayFormats: {
           day: "dd/MM",
         },
@@ -178,7 +178,7 @@ function fitChartToTimeframe() {
     else {
       x2Scale.time = {
         ...x2Scale.time,
-        unit: "week",
+        // Let Chart.js auto-detect unit
         displayFormats: {
           week: "dd/MM",
           day: "dd/MM",
@@ -316,6 +316,14 @@ function build() {
           enabled: true,
           mode: "x",
           modifierKey: undefined,
+          onPanComplete: ({ chart }: any) => {
+            if (chart.scales.x) {
+              emit("pan-complete", {
+                minVisible: chart.scales.x.min,
+                maxVisible: chart.scales.x.max,
+              });
+            }
+          },
         },
         zoom: {
           wheel: {
@@ -327,6 +335,14 @@ function build() {
             enabled: true,
           },
           mode: "x",
+          onZoomComplete: ({ chart }: any) => {
+            if (chart.scales.x) {
+              emit("zoom-complete", {
+                minVisible: chart.scales.x.min,
+                maxVisible: chart.scales.x.max,
+              });
+            }
+          },
         },
       },
     },

@@ -8,21 +8,38 @@ services:
       POSTGRES_USER: ${TIMESCALE_USER:-postgres}
       POSTGRES_PASSWORD: ${TIMESCALE_PASSWORD:-password}
       POSTGRES_HOST_AUTH_METHOD: trust
+    # Memory limits to prevent unbounded growth during tiering operations
+    mem_limit: 6g              # Hard memory limit (comfortable for 28GB total available)
+    memswap_limit: 6g          # Prevent swap usage (matches mem_limit)
+    shm_size: 512m             # Shared memory for PostgreSQL internal operations
     ports:
       - "7432:5432"
     volumes:
       - timescaledb_data:/var/lib/postgresql/data
+      # Database initialization scripts (executed ONLY on first startup when volume is empty)
+      # NOTE: If the database already exists, these scripts will NOT re-run
+      # To force re-initialization: use 'make db-reset' or 'make clean && make start'
       - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./database/setup-tiering.sql:/docker-entrypoint-initdb.d/02-setup-tiering.sql
       - ./database/setup-indicators.sql:/docker-entrypoint-initdb.d/03-setup-indicators.sql
     networks:
       - cryptoviz-network
     restart: unless-stopped
+    # PostgreSQL Memory Tuning (optimized for 6GB memory limit)
+    # shared_buffers: 25% of mem_limit (1536MB of 6GB)
+    # work_mem: per-operation memory for sorts/hashes (32MB allows ~20 concurrent ops)
+    # maintenance_work_mem: for DELETE/VACUUM/INDEX operations (512MB for large tiering ops)
+    command: >
+      postgres
+      -c shared_buffers=1536MB
+      -c work_mem=32MB
+      -c maintenance_work_mem=512MB
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${TIMESCALE_USER:-postgres} -d ${TIMESCALE_DB:-cryptoviz}"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 90s  # Grace period for database initialization scripts (init.sql, setup-tiering.sql)
 
   # Zookeeper pour Kafka
   zookeeper:
@@ -84,7 +101,8 @@ services:
       test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 45s  # Grace period for Kafka broker initialization
 
   # Redis (optionnel pour cache)
   redis:
@@ -187,6 +205,12 @@ services:
     networks:
       - cryptoviz-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'python.*main.py' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s  # Grace period for Kafka connection + Binance API fetching
     volumes:
       - ./services/data-collector:/app
     logging:
@@ -210,6 +234,12 @@ services:
     networks:
       - cryptoviz-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'python.*app.py' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s  # Grace period for Kafka connection and initial scraping setup
     volumes:
       - ./services/news-scraper:/app
     logging:
@@ -247,6 +277,12 @@ services:
     networks:
       - cryptoviz-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f './main' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s  # Grace period for database/Kafka/Redis connections and WebSocket hub initialization
     volumes:
       - ./services/backend-go:/app
     logging:
@@ -490,6 +526,12 @@ services:
     networks:
       - cryptoviz-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'python.*scheduler.py' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s  # Grace period for database connection and scheduler initialization
     depends_on:
       timescaledb:
         condition: service_healthy
