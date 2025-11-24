@@ -584,27 +584,70 @@ $$;
 -- =============================================================================
 -- Configuration des jobs pour calculer automatiquement les indicateurs
 -- Fréquence synchronisée avec la fermeture des bougies de chaque timeframe
+-- NOTE: add_job() is TimescaleDB Enterprise only - wrapped in exception handlers for Community Edition
 
 -- Job pour 1s (toutes les secondes - synchronisé avec chaque bougie 1s)
-SELECT add_job('refresh_indicators_1s', '1 second', if_not_exists => TRUE);
+DO $$
+BEGIN
+    PERFORM add_job('refresh_indicators_1s', '1 second', if_not_exists => TRUE);
+EXCEPTION
+    WHEN undefined_function THEN
+        RAISE NOTICE 'Skipping add_job for refresh_indicators_1s (Community Edition)';
+END $$;
 
 -- Job pour 5s (toutes les 5 secondes - synchronisé avec chaque bougie 5s)
-SELECT add_job('refresh_indicators_5s', '5 seconds', if_not_exists => TRUE);
+DO $$
+BEGIN
+    PERFORM add_job('refresh_indicators_5s', '5 seconds', if_not_exists => TRUE);
+EXCEPTION
+    WHEN undefined_function THEN
+        RAISE NOTICE 'Skipping add_job for refresh_indicators_5s (Community Edition)';
+END $$;
 
 -- Job pour 1m (toutes les minutes - synchronisé avec chaque bougie 1m)
-SELECT add_job('refresh_indicators_1m', '1 minute', if_not_exists => TRUE);
+DO $$
+BEGIN
+    PERFORM add_job('refresh_indicators_1m', '1 minute', if_not_exists => TRUE);
+EXCEPTION
+    WHEN undefined_function THEN
+        RAISE NOTICE 'Skipping add_job for refresh_indicators_1m (Community Edition)';
+END $$;
 
 -- Job pour 5m (toutes les 5 minutes - synchronisé avec chaque bougie 5m)
-SELECT add_job('refresh_indicators_5m', '5 minutes', if_not_exists => TRUE);
+DO $$
+BEGIN
+    PERFORM add_job('refresh_indicators_5m', '5 minutes', if_not_exists => TRUE);
+EXCEPTION
+    WHEN undefined_function THEN
+        RAISE NOTICE 'Skipping add_job for refresh_indicators_5m (Community Edition)';
+END $$;
 
 -- Job pour 15m (toutes les 15 minutes - synchronisé avec chaque bougie 15m)
-SELECT add_job('refresh_indicators_15m', '15 minutes', if_not_exists => TRUE);
+DO $$
+BEGIN
+    PERFORM add_job('refresh_indicators_15m', '15 minutes', if_not_exists => TRUE);
+EXCEPTION
+    WHEN undefined_function THEN
+        RAISE NOTICE 'Skipping add_job for refresh_indicators_15m (Community Edition)';
+END $$;
 
 -- Job pour 1h (toutes les heures - synchronisé avec chaque bougie 1h)
-SELECT add_job('refresh_indicators_1h', '1 hour', if_not_exists => TRUE);
+DO $$
+BEGIN
+    PERFORM add_job('refresh_indicators_1h', '1 hour', if_not_exists => TRUE);
+EXCEPTION
+    WHEN undefined_function THEN
+        RAISE NOTICE 'Skipping add_job for refresh_indicators_1h (Community Edition)';
+END $$;
 
 -- Job pour 1d (une fois par jour - synchronisé avec chaque bougie 1d)
-SELECT add_job('refresh_indicators_1d', '1 day', if_not_exists => TRUE);
+DO $$
+BEGIN
+    PERFORM add_job('refresh_indicators_1d', '1 day', if_not_exists => TRUE);
+EXCEPTION
+    WHEN undefined_function THEN
+        RAISE NOTICE 'Skipping add_job for refresh_indicators_1d (Community Edition)';
+END $$;
 
 -- =============================================================================
 -- VUES UTILITAIRES

@@ -44,6 +44,62 @@ async def create_kafka_producer(config):
     return producer
 
 
+async def check_backfill_needed(db_pool, symbols, timeframes, lookback_days):
+    """
+    Smart backfill check using database backend.
+
+    Detects:
+    - First-time backfill (no records)
+    - Failed backfills that need retry
+    - Config changes (lookback period extended, e.g., 40 → 365 days)
+
+    Returns:
+        List of (symbol, timeframe, gap_days) tuples that need backfill
+    """
+    needs_backfill = []
+
+    try:
+        async with db_pool.acquire() as conn:
+            for symbol in symbols:
+                for timeframe in timeframes:
+                    result = await conn.fetchrow(
+                        """
+                        SELECT * FROM check_backfill_needed($1, $2, $3, $4)
+                        """,
+                        symbol, timeframe, 'BINANCE', lookback_days
+                    )
+
+                    if result and result['needs_backfill']:
+                        gap_days = result['gap_days']
+                        status = result['status']
+
+                        if gap_days > 0:
+                            logger.info(
+                                f"Config change detected for {symbol} {timeframe}: "
+                                f"extending backfill by {gap_days} days "
+                                f"(status: {status})"
+                            )
+                        else:
+                            logger.info(
+                                f"Backfill needed for {symbol} {timeframe} "
+                                f"(status: {status})"
+                            )
+
+                        needs_backfill.append((symbol, timeframe, gap_days))
+
+        if needs_backfill:
+            logger.info(f"Found {len(needs_backfill)} symbol/timeframe combinations needing backfill")
+        else:
+            logger.info("All backfills complete and up-to-date")
+
+        return needs_backfill
+
+    except Exception as e:
+        logger.error(f"Error checking backfill status: {e}")
+        # If database check fails, assume backfill is needed (fail-safe)
+        return [(s, tf, 0) for s in symbols for tf in timeframes]
+
+
 async def run_backfill_if_needed(config, symbols):
     enable_backfill = os.getenv("ENABLE_BACKFILL", "false").lower() == "true"
 
@@ -70,33 +126,23 @@ async def run_backfill_if_needed(config, symbols):
     try:
         await collector.setup()
 
-        # Check si déjà fait en lisant le fichier d'état
-        state_file = Path(config.backfill_state_file)
-        if state_file.exists():
-            logger.info("State file found, checking completion...")
+        # Smart database-backed backfill check
+        # This automatically detects config changes (e.g., 40 → 365 day extension)
+        needs_backfill = await check_backfill_needed(
+            collector.db_pool,
+            symbols,
+            backfill_timeframes,
+            lookback_days
+        )
 
-            with open(state_file, 'r') as f:
-                state = json.load(f)
+        if not needs_backfill:
+            logger.info("Backfill already complete and up-to-date")
+            return
 
-            target_ts = int((datetime.utcnow() - timedelta(hours=1)).timestamp() * 1000)
-            all_complete = True
-
-            for symbol in symbols:
-                for tf in backfill_timeframes:
-                    if tf.endswith('s'):
-                        continue
-                    last_ts = state.get(symbol, {}).get(tf)
-                    if last_ts is None or last_ts < target_ts:
-                        all_complete = False
-                        break
-                if not all_complete:
-                    break
-
-            if all_complete:
-                logger.info("Backfill already complete")
-                return
-
-        logger.info(f"Starting historical backfill: {lookback_days} days, {len(symbols)} symbols, timeframes: {backfill_timeframes}")
+        logger.info(
+            f"Starting historical backfill: {lookback_days} days, "
+            f"{len(symbols)} symbols, timeframes: {backfill_timeframes}"
+        )
         logger.info("This may take several hours...")
 
         await collector.backfill_all(symbols, backfill_timeframes, lookback_days)
