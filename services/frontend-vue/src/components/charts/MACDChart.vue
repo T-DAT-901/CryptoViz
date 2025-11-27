@@ -17,7 +17,7 @@ import {
 import zoomPlugin from "chartjs-plugin-zoom";
 import "chartjs-adapter-date-fns";
 import { useIndicatorsStore } from "@/stores/indicators";
-import { fetchIndicators } from "@/services/markets.api";
+import { fetchMACD } from "@/services/indicators.api";
 
 Chart.register(
   LineController,
@@ -35,7 +35,9 @@ const props = defineProps<{ symbol: string }>();
 const indicatorsStore = useIndicatorsStore();
 
 const canvasEl = ref<HTMLCanvasElement | null>(null);
+const macdMiniChartRef = ref<HTMLCanvasElement | null>(null);
 let chart: Chart | null = null;
+let miniChart: Chart | null = null;
 
 // MACD data from mock file
 const macdData = ref<
@@ -45,11 +47,25 @@ const macdData = ref<
 // Load MACD data from API
 async function loadMACDData() {
   try {
-    console.log(`Loading MACD data for: ${props.symbol}`);
-    const data = await fetchIndicators(props.symbol, "macd");
+    const timeframe = indicatorsStore.selectedTimeframe;
+    console.log(`Loading MACD data for: ${props.symbol} (${timeframe})`);
+    const rawData = await fetchMACD(
+      props.symbol,
+      timeframe,
+      indicatorsStore.macdFast,
+      indicatorsStore.macdSlow,
+      indicatorsStore.macdSignal,
+      10000
+    );
 
-    if (data && data.length > 0) {
-      macdData.value = data;
+    if (rawData && rawData.length > 0) {
+      // Transform backend format to chart format
+      macdData.value = rawData.map((item: any) => ({
+        timestamp: new Date(item.time).getTime(),
+        macd: item.value || 0,
+        signal: item.value_signal || 0,
+        histogram: item.value_histogram || 0,
+      }));
       console.log(`Loaded ${macdData.value.length} MACD data points`);
     } else {
       console.warn("No MACD data received from API");
@@ -231,17 +247,61 @@ function buildChart() {
   });
 }
 
+// Mini chart for compact view
+const miniChartOptions: ChartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      display: false,
+    },
+    tooltip: {
+      enabled: false,
+    },
+  },
+  scales: {
+    x: {
+      display: false,
+    },
+    y: {
+      display: false,
+    },
+  },
+};
+
+function buildMiniChart() {
+  if (!macdMiniChartRef.value) return;
+
+  if (miniChart) {
+    miniChart.destroy();
+  }
+
+  const ctx = macdMiniChartRef.value.getContext("2d");
+  if (!ctx) return;
+
+  miniChart = new Chart(ctx, {
+    type: "line",
+    data: chartData.value,
+    options: miniChartOptions,
+  });
+}
+
 onMounted(async () => {
   await loadMACDData();
   buildChart();
+  buildMiniChart();
 });
 
 onBeforeUnmount(() => {
   chart?.destroy();
+  miniChart?.destroy();
 });
 
 // Rebuild chart when data changes
-watch(() => macdData.value, buildChart, { deep: true });
+watch(() => macdData.value, () => {
+  buildChart();
+  buildMiniChart();
+}, { deep: true });
 
 // Reload data when timeframe changes
 watch(
@@ -253,6 +313,7 @@ watch(
     );
     await loadMACDData();
     buildChart();
+    buildMiniChart();
   }
 );
 </script>
@@ -268,7 +329,15 @@ watch(
       <span class="macd-chart__symbol">{{ symbol }}</span>
     </div>
     <div class="macd-chart__content">
-      <canvas ref="canvasEl"></canvas>
+      <canvas
+        v-if="indicatorsStore.layoutMode === 'detailed'"
+        ref="canvasEl"
+      ></canvas>
+      <canvas
+        v-else
+        ref="macdMiniChartRef"
+        class="macd-chart-mini-canvas"
+      ></canvas>
     </div>
   </div>
 </template>

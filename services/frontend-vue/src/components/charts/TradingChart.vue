@@ -11,9 +11,11 @@ import {
 import { useRoute } from "vue-router";
 import CandleChart from "@/components/charts/CandleChart.vue";
 import LineChart from "@/components/charts/LineChart.vue";
+import VolumeChart from "@/components/charts/VolumeChart.vue";
 import { useMarketStore } from "@/stores/market";
 import { useIndicatorsStore } from "@/stores/indicators";
-import { fetchCandles, fetchIndicators } from "@/services/markets.api";
+import { fetchCandles } from "@/services/markets.api";
+import { fetchRSI, fetchMACD, fetchBollinger, fetchMomentum } from "@/services/indicators.api";
 import {
   useTradingWebSocket,
   useLivePrices,
@@ -188,6 +190,15 @@ const linePoints = computed(() => {
   return uniquePoints;
 });
 
+// Volume data computed from candles
+const volumeData = computed(() => {
+  return candles.value.map((candle) => ({
+    timestamp: new Date(candle.time).getTime(),
+    volume: candle.volume,
+    color: candle.close >= candle.open ? "green" : "red",
+  }));
+});
+
 // Load data based on selected timeframe
 async function loadData() {
   loading.value = true;
@@ -246,10 +257,19 @@ async function loadIndicatorData(candleData: any[]) {
   try {
     // Charger les indicateurs depuis l'API au lieu de les calculer
     if (indicatorsStore.showRSI) {
-      const rsiData = await fetchIndicators(symbolPair.value, "rsi");
-      console.log("📊 RSI API response:", rsiData.length, "points");
-      if (rsiData.length > 0) {
-        rsiMiniData.value = rsiData;
+      const rawRsiData = await fetchRSI(
+        symbolPair.value,
+        selectedTimeframe.value,
+        indicatorsStore.rsiPeriod,
+        10000
+      );
+      console.log("📊 RSI API response:", rawRsiData.length, "points");
+      if (rawRsiData.length > 0) {
+        // Transform backend format to chart format
+        rsiMiniData.value = rawRsiData.map((item: any) => ({
+          timestamp: new Date(item.time).getTime(),
+          value: item.value || 0,
+        }));
       } else {
         console.log("❌ No RSI from API, not using fallback");
         rsiMiniData.value = [];
@@ -257,10 +277,23 @@ async function loadIndicatorData(candleData: any[]) {
     }
 
     if (indicatorsStore.showMACD) {
-      const macdData = await fetchIndicators(symbolPair.value, "macd");
-      console.log("📊 MACD API response:", macdData.length, "points");
-      if (macdData.length > 0) {
-        macdMiniData.value = macdData;
+      const rawMacdData = await fetchMACD(
+        symbolPair.value,
+        selectedTimeframe.value,
+        indicatorsStore.macdFast,
+        indicatorsStore.macdSlow,
+        indicatorsStore.macdSignal,
+        10000
+      );
+      console.log("📊 MACD API response:", rawMacdData.length, "points");
+      if (rawMacdData.length > 0) {
+        // Transform backend format to chart format
+        macdMiniData.value = rawMacdData.map((item: any) => ({
+          timestamp: new Date(item.time).getTime(),
+          macd: item.value || 0,
+          signal: item.value_signal || 0,
+          histogram: item.value_histogram || 0,
+        }));
       } else {
         console.log("❌ No MACD from API, not using fallback");
         macdMiniData.value = [];
@@ -268,10 +301,22 @@ async function loadIndicatorData(candleData: any[]) {
     }
 
     if (indicatorsStore.showBollinger) {
-      const bbData = await fetchIndicators(symbolPair.value, "bollinger");
-      console.log("📊 Bollinger API response:", bbData.length, "points");
-      if (bbData.length > 0) {
-        bollingerMiniData.value = bbData;
+      const rawBbData = await fetchBollinger(
+        symbolPair.value,
+        selectedTimeframe.value,
+        indicatorsStore.bbPeriod,
+        indicatorsStore.bbStd,
+        10000
+      );
+      console.log("📊 Bollinger API response:", rawBbData.length, "points");
+      if (rawBbData.length > 0) {
+        // Transform backend format to chart format
+        bollingerMiniData.value = rawBbData.map((item: any) => ({
+          timestamp: new Date(item.time).getTime(),
+          upper: item.upper_band || 0,
+          middle: item.middle_band || 0,
+          lower: item.lower_band || 0,
+        }));
       } else {
         console.log("❌ No Bollinger from API, not using fallback");
         bollingerMiniData.value = [];
@@ -285,6 +330,11 @@ async function loadIndicatorData(candleData: any[]) {
   }
 
   await nextTick();
+  console.log("📍 About to call buildMiniCharts - layout mode:", indicatorsStore.layoutMode, "data loaded:", {
+    rsi: rsiMiniData.value.length,
+    macd: macdMiniData.value.length,
+    bollinger: bollingerMiniData.value.length,
+  });
   buildMiniCharts();
 }
 
@@ -447,6 +497,11 @@ function calculateBollingerFromCandles(candles: any[]): Array<{
 }
 
 function buildMiniCharts() {
+  console.log("🎯 buildMiniCharts called - Data status:", {
+    rsi: rsiMiniData.value.length,
+    macd: macdMiniData.value.length,
+    bollinger: bollingerMiniData.value.length,
+  });
   setTimeout(() => {
     buildRSIMiniChart();
     buildMACDMiniChart();
@@ -523,12 +578,15 @@ function buildRSIMiniChart() {
 }
 
 function buildMACDMiniChart() {
+  console.log("🔧 buildMACDMiniChart called - ref:", !!macdMiniChartRef.value, "data length:", macdMiniData.value.length);
   if (!macdMiniChartRef.value || macdMiniData.value.length === 0) {
+    console.log("❌ MACD mini chart not built - missing ref or data");
     return;
   }
 
   try {
     macdMiniChart?.destroy();
+    console.log("✅ Building MACD mini chart with", macdMiniData.value.length, "points");
 
     const macdValues = macdMiniData.value.map((d) => d.macd);
     const histogramValues = macdMiniData.value.map((d) => d.histogram);
@@ -585,12 +643,15 @@ function buildMACDMiniChart() {
 }
 
 function buildBollingerMiniChart() {
+  console.log("🔧 buildBollingerMiniChart called - ref:", !!bollingerMiniChartRef.value, "data length:", bollingerMiniData.value.length);
   if (!bollingerMiniChartRef.value || bollingerMiniData.value.length === 0) {
+    console.log("❌ Bollinger mini chart not built - missing ref or data");
     return;
   }
 
   try {
     bollingerMiniChart?.destroy();
+    console.log("✅ Building Bollinger mini chart with", bollingerMiniData.value.length, "points");
 
     const upperValues = bollingerMiniData.value.map((d) => d.upper);
     const middleValues = bollingerMiniData.value.map((d) => d.middle);
@@ -895,12 +956,16 @@ watch(
   }
 );
 
+// Watch layout mode changes to rebuild mini charts when switching to compact mode
 watch(
   () => indicatorsStore.layoutMode,
   async (newMode) => {
+    console.log("Layout mode changed to:", newMode);
     if (newMode === "compact") {
+      // Wait for DOM to update and rebuild mini charts
       await nextTick();
       setTimeout(() => {
+        console.log("Building mini charts after layout mode change...");
         buildMiniCharts();
       }, 200);
     }

@@ -695,6 +695,364 @@ FROM latest_indicators i
 GROUP BY i.symbol, i.timeframe, i.time;
 
 -- =============================================================================
+-- FONCTION OPTIMISÉE: Backfill Historique avec Window Functions
+-- =============================================================================
+-- Cette fonction calcule TOUS les indicateurs sur TOUTES les bougies historiques
+-- en une seule passe optimisée avec des window functions SQL
+--
+-- Au lieu de: 57,600 bougies × 5 fonctions = 288,000 requêtes
+-- On fait: 1 seule requête INSERT avec window functions
+-- Temps: Quelques secondes au lieu de plusieurs heures !
+
+CREATE OR REPLACE PROCEDURE backfill_historical_indicators_optimized(
+    p_timeframe VARCHAR DEFAULT '1m',
+    p_symbol VARCHAR DEFAULT NULL,
+    p_batch_size INT DEFAULT 10000
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_symbol VARCHAR;
+    v_start_time TIMESTAMPTZ;
+    v_end_time TIMESTAMPTZ;
+    v_total_inserted INT := 0;
+    v_symbols_processed INT := 0;
+BEGIN
+    v_start_time := clock_timestamp();
+
+    RAISE NOTICE '═══════════════════════════════════════════════════════════════════';
+    RAISE NOTICE 'Starting OPTIMIZED historical indicators backfill';
+    RAISE NOTICE '═══════════════════════════════════════════════════════════════════';
+    RAISE NOTICE 'Timeframe: %', p_timeframe;
+    RAISE NOTICE 'Symbol filter: %', COALESCE(p_symbol, 'ALL');
+    RAISE NOTICE '';
+
+    -- Boucle sur chaque symbole (pour éviter de tout charger en mémoire)
+    FOR v_symbol IN
+        SELECT DISTINCT symbol
+        FROM candles
+        WHERE timeframe = p_timeframe
+            AND closed = TRUE
+            AND (p_symbol IS NULL OR symbol = p_symbol)
+        ORDER BY symbol
+    LOOP
+        BEGIN
+            RAISE NOTICE 'Processing symbol: %...', v_symbol;
+
+            -- ═══════════════════════════════════════════════════════════════
+            -- CALCUL DE TOUS LES INDICATEURS EN UNE SEULE REQUÊTE
+            -- Utilise des window functions pour performance maximale
+            -- ═══════════════════════════════════════════════════════════════
+            WITH candles_data AS (
+                SELECT
+                    window_start,
+                    symbol,
+                    timeframe,
+                    open,
+                    high,
+                    low,
+                    close,
+                    volume,
+                    ROW_NUMBER() OVER (ORDER BY window_start) as rn
+                FROM candles
+                WHERE symbol = v_symbol
+                    AND timeframe = p_timeframe
+                    AND closed = TRUE
+                ORDER BY window_start
+            ),
+            -- ─────────────────────────────────────────────────────────────
+            -- 1️⃣ RSI (Relative Strength Index) - Période 14
+            -- ─────────────────────────────────────────────────────────────
+            price_changes AS (
+                SELECT
+                    window_start,
+                    symbol,
+                    timeframe,
+                    close,
+                    close - LAG(close, 1) OVER (ORDER BY window_start) as price_change
+                FROM candles_data
+            ),
+            gains_losses AS (
+                SELECT
+                    window_start,
+                    symbol,
+                    timeframe,
+                    CASE WHEN price_change > 0 THEN price_change ELSE 0 END as gain,
+                    CASE WHEN price_change < 0 THEN ABS(price_change) ELSE 0 END as loss
+                FROM price_changes
+                WHERE price_change IS NOT NULL
+            ),
+            rsi_calc AS (
+                SELECT
+                    window_start,
+                    symbol,
+                    timeframe,
+                    -- Moyenne mobile des gains et pertes sur 14 périodes
+                    AVG(gain) OVER (
+                        ORDER BY window_start
+                        ROWS BETWEEN 13 PRECEDING AND CURRENT ROW
+                    ) as avg_gain,
+                    AVG(loss) OVER (
+                        ORDER BY window_start
+                        ROWS BETWEEN 13 PRECEDING AND CURRENT ROW
+                    ) as avg_loss
+                FROM gains_losses
+            ),
+            rsi_values AS (
+                SELECT
+                    window_start,
+                    symbol,
+                    timeframe,
+                    CASE
+                        WHEN avg_loss = 0 OR avg_loss IS NULL THEN
+                            CASE WHEN avg_gain > 0 THEN 100 ELSE 50 END
+                        ELSE
+                            100 - (100 / (1 + (avg_gain / avg_loss)))
+                    END as rsi_value
+                FROM rsi_calc
+                WHERE avg_gain IS NOT NULL
+            ),
+            -- ─────────────────────────────────────────────────────────────
+            -- 2️⃣ MACD (Moving Average Convergence Divergence)
+            -- EMA rapide (12), EMA lente (26), Signal (9)
+            -- ─────────────────────────────────────────────────────────────
+            ema_calc AS (
+                SELECT
+                    window_start,
+                    symbol,
+                    timeframe,
+                    close,
+                    -- EMA 12 (rapide)
+                    AVG(close) OVER (
+                        ORDER BY window_start
+                        ROWS BETWEEN 11 PRECEDING AND CURRENT ROW
+                    ) as ema_12,
+                    -- EMA 26 (lente)
+                    AVG(close) OVER (
+                        ORDER BY window_start
+                        ROWS BETWEEN 25 PRECEDING AND CURRENT ROW
+                    ) as ema_26
+                FROM candles_data
+            ),
+            macd_calc AS (
+                SELECT
+                    window_start,
+                    symbol,
+                    timeframe,
+                    ema_12 - ema_26 as macd_line
+                FROM ema_calc
+                WHERE ema_12 IS NOT NULL AND ema_26 IS NOT NULL
+            ),
+            macd_signal_calc AS (
+                SELECT
+                    window_start,
+                    symbol,
+                    timeframe,
+                    macd_line,
+                    -- Signal = moyenne mobile du MACD sur 9 périodes
+                    AVG(macd_line) OVER (
+                        ORDER BY window_start
+                        ROWS BETWEEN 8 PRECEDING AND CURRENT ROW
+                    ) as signal_line
+                FROM macd_calc
+            ),
+            macd_values AS (
+                SELECT
+                    window_start,
+                    symbol,
+                    timeframe,
+                    macd_line,
+                    signal_line,
+                    macd_line - COALESCE(signal_line, 0) as histogram
+                FROM macd_signal_calc
+            ),
+            -- ─────────────────────────────────────────────────────────────
+            -- 3️⃣ BOLLINGER BANDS - Période 20, Écart-type 2
+            -- ─────────────────────────────────────────────────────────────
+            bollinger_calc AS (
+                SELECT
+                    window_start,
+                    symbol,
+                    timeframe,
+                    close,
+                    -- SMA (moyenne mobile simple) sur 20 périodes
+                    AVG(close) OVER (
+                        ORDER BY window_start
+                        ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+                    ) as sma_20,
+                    -- Écart-type sur 20 périodes
+                    STDDEV(close) OVER (
+                        ORDER BY window_start
+                        ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+                    ) as stddev_20
+                FROM candles_data
+            ),
+            bollinger_values AS (
+                SELECT
+                    window_start,
+                    symbol,
+                    timeframe,
+                    sma_20 as middle_band,
+                    sma_20 + (2 * COALESCE(stddev_20, 0)) as upper_band,
+                    sma_20 - (2 * COALESCE(stddev_20, 0)) as lower_band
+                FROM bollinger_calc
+                WHERE sma_20 IS NOT NULL
+            ),
+            -- ─────────────────────────────────────────────────────────────
+            -- 4️⃣ MOMENTUM - Différence de prix sur 10 périodes
+            -- ─────────────────────────────────────────────────────────────
+            momentum_values AS (
+                SELECT
+                    window_start,
+                    symbol,
+                    timeframe,
+                    close - LAG(close, 10) OVER (ORDER BY window_start) as momentum_value
+                FROM candles_data
+            ),
+            -- ─────────────────────────────────────────────────────────────
+            -- 5️⃣ SUPPORT/RESISTANCE (Simplifié)
+            -- Utilise les min/max locaux sur 50 périodes
+            -- ─────────────────────────────────────────────────────────────
+            support_resistance_calc AS (
+                SELECT
+                    window_start,
+                    symbol,
+                    timeframe,
+                    close,
+                    -- Support = minimum sur 50 périodes
+                    MIN(low) OVER (
+                        ORDER BY window_start
+                        ROWS BETWEEN 49 PRECEDING AND CURRENT ROW
+                    ) as support_level,
+                    -- Résistance = maximum sur 50 périodes
+                    MAX(high) OVER (
+                        ORDER BY window_start
+                        ROWS BETWEEN 49 PRECEDING AND CURRENT ROW
+                    ) as resistance_level
+                FROM candles_data
+            ),
+            support_resistance_values AS (
+                SELECT
+                    window_start,
+                    symbol,
+                    timeframe,
+                    support_level,
+                    resistance_level,
+                    -- Force du support (50-100 basé sur la proximité)
+                    CASE
+                        WHEN close > 0 THEN
+                            LEAST(100, 50 + ((close - support_level) / close * 100))
+                        ELSE 50
+                    END::DECIMAL(5,2) as support_strength,
+                    -- Force de la résistance (50-100 basé sur la proximité)
+                    CASE
+                        WHEN close > 0 THEN
+                            LEAST(100, 50 + ((resistance_level - close) / close * 100))
+                        ELSE 50
+                    END::DECIMAL(5,2) as resistance_strength
+                FROM support_resistance_calc
+                WHERE support_level IS NOT NULL AND resistance_level IS NOT NULL
+            )
+            -- ═══════════════════════════════════════════════════════════════
+            -- INSERT MASSIF DE TOUS LES INDICATEURS
+            -- ═══════════════════════════════════════════════════════════════
+            INSERT INTO indicators (
+                time, symbol, timeframe, indicator_type,
+                value, value_signal, value_histogram,
+                upper_band, middle_band, lower_band,
+                support_level, resistance_level, support_strength, resistance_strength
+            )
+            -- RSI
+            SELECT
+                window_start, symbol, timeframe, 'rsi'::VARCHAR,
+                rsi_value, NULL::DECIMAL(20,8), NULL::DECIMAL(20,8),
+                NULL::DECIMAL(20,8), NULL::DECIMAL(20,8), NULL::DECIMAL(20,8),
+                NULL::DECIMAL(20,8), NULL::DECIMAL(20,8), NULL::DECIMAL(5,2), NULL::DECIMAL(5,2)
+            FROM rsi_values
+
+            UNION ALL
+
+            -- MACD
+            SELECT
+                window_start, symbol, timeframe, 'macd'::VARCHAR,
+                macd_line, signal_line, histogram,
+                NULL::DECIMAL(20,8), NULL::DECIMAL(20,8), NULL::DECIMAL(20,8),
+                NULL::DECIMAL(20,8), NULL::DECIMAL(20,8), NULL::DECIMAL(5,2), NULL::DECIMAL(5,2)
+            FROM macd_values
+
+            UNION ALL
+
+            -- Bollinger Bands
+            SELECT
+                window_start, symbol, timeframe, 'bollinger'::VARCHAR,
+                NULL::DECIMAL(20,8), NULL::DECIMAL(20,8), NULL::DECIMAL(20,8),
+                upper_band, middle_band, lower_band,
+                NULL::DECIMAL(20,8), NULL::DECIMAL(20,8), NULL::DECIMAL(5,2), NULL::DECIMAL(5,2)
+            FROM bollinger_values
+
+            UNION ALL
+
+            -- Momentum
+            SELECT
+                window_start, symbol, timeframe, 'momentum'::VARCHAR,
+                momentum_value, NULL::DECIMAL(20,8), NULL::DECIMAL(20,8),
+                NULL::DECIMAL(20,8), NULL::DECIMAL(20,8), NULL::DECIMAL(20,8),
+                NULL::DECIMAL(20,8), NULL::DECIMAL(20,8), NULL::DECIMAL(5,2), NULL::DECIMAL(5,2)
+            FROM momentum_values
+            WHERE momentum_value IS NOT NULL
+
+            UNION ALL
+
+            -- Support/Resistance
+            SELECT
+                window_start, symbol, timeframe, 'support_resistance'::VARCHAR,
+                NULL::DECIMAL(20,8), NULL::DECIMAL(20,8), NULL::DECIMAL(20,8),
+                NULL::DECIMAL(20,8), NULL::DECIMAL(20,8), NULL::DECIMAL(20,8),
+                support_level, resistance_level, support_strength, resistance_strength
+            FROM support_resistance_values
+
+            ON CONFLICT (time, symbol, timeframe, indicator_type) DO UPDATE SET
+                value = EXCLUDED.value,
+                value_signal = EXCLUDED.value_signal,
+                value_histogram = EXCLUDED.value_histogram,
+                upper_band = EXCLUDED.upper_band,
+                middle_band = EXCLUDED.middle_band,
+                lower_band = EXCLUDED.lower_band,
+                support_level = EXCLUDED.support_level,
+                resistance_level = EXCLUDED.resistance_level,
+                support_strength = EXCLUDED.support_strength,
+                resistance_strength = EXCLUDED.resistance_strength;
+
+            GET DIAGNOSTICS v_total_inserted = ROW_COUNT;
+            v_symbols_processed := v_symbols_processed + 1;
+
+            RAISE NOTICE '  ✓ % indicators inserted for %', v_total_inserted, v_symbol;
+
+        EXCEPTION WHEN OTHERS THEN
+            RAISE WARNING '  ✗ Error processing %: %', v_symbol, SQLERRM;
+        END;
+    END LOOP;
+
+    v_end_time := clock_timestamp();
+
+    RAISE NOTICE '';
+    RAISE NOTICE '═══════════════════════════════════════════════════════════════════';
+    RAISE NOTICE '✓ Backfill completed successfully!';
+    RAISE NOTICE '═══════════════════════════════════════════════════════════════════';
+    RAISE NOTICE 'Symbols processed: %', v_symbols_processed;
+    RAISE NOTICE 'Total indicators: %', v_total_inserted;
+    RAISE NOTICE 'Duration: %', v_end_time - v_start_time;
+    RAISE NOTICE '═══════════════════════════════════════════════════════════════════';
+    RAISE NOTICE '';
+    RAISE NOTICE 'Examples for other timeframes:';
+    RAISE NOTICE '  CALL backfill_historical_indicators_optimized(''5m'');';
+    RAISE NOTICE '  CALL backfill_historical_indicators_optimized(''15m'');';
+    RAISE NOTICE '  CALL backfill_historical_indicators_optimized(''1h'');';
+    RAISE NOTICE '  CALL backfill_historical_indicators_optimized(''1d'');';
+END;
+$$;
+
+-- =============================================================================
 -- FINALISATION
 -- =============================================================================
 

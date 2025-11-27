@@ -153,10 +153,12 @@ def wait_for_historical_data():
     return False
 
 def calculate_historical_indicators():
-    """Calcule les indicateurs sur toutes les données historiques"""
+    """Calcule les indicateurs sur toutes les données historiques pour TOUS les timeframes"""
     logger.info("=" * 60)
     logger.info("CALCULATING INDICATORS ON HISTORICAL DATA")
     logger.info("=" * 60)
+
+    timeframes = ['1m', '5m', '15m', '1h', '1d']
 
     try:
         conn = psycopg2.connect(**DB_CONFIG)
@@ -168,10 +170,14 @@ def calculate_historical_indicators():
         candles_count = cursor.fetchone()[0]
         logger.info(f"Found {candles_count} candles in database")
 
-        # Calculer les indicateurs sur TOUTES les candles historiques (version optimisée)
-        logger.info("Calling OPTIMIZED backfill procedure...")
+        # Calculer les indicateurs pour CHAQUE timeframe
+        logger.info("Calling OPTIMIZED backfill procedure for all timeframes...")
         logger.info("This uses SQL window functions for fast batch processing...")
-        cursor.execute("CALL backfill_historical_indicators_optimized('1m');")
+
+        for timeframe in timeframes:
+            logger.info(f"Processing timeframe: {timeframe}...")
+            cursor.execute(f"CALL backfill_historical_indicators_optimized('{timeframe}');")
+            logger.info(f"✓ {timeframe} completed")
 
         # Vérifier combien d'indicateurs ont été créés
         cursor.execute("SELECT COUNT(*) FROM indicators;")

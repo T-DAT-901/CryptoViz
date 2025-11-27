@@ -15,7 +15,7 @@ import {
 import zoomPlugin from "chartjs-plugin-zoom";
 import "chartjs-adapter-date-fns";
 import { useIndicatorsStore } from "@/stores/indicators";
-import { fetchIndicators } from "@/services/markets.api";
+import { fetchMomentum } from "@/services/indicators.api";
 
 Chart.register(
   LineController,
@@ -36,15 +36,24 @@ let chart: Chart | null = null;
 
 const momentumData = ref<Array<{ timestamp: number; value: number }>>([]);
 
-// Calculate momentum as percentage change over 14 periods
 // Load Momentum data from API
 async function loadData() {
   try {
-    console.log(`Loading Momentum data for: ${props.symbol}`);
-    const data = await fetchIndicators(props.symbol, "momentum");
+    const timeframe = indicatorsStore.selectedTimeframe;
+    console.log(`Loading Momentum data for: ${props.symbol} (${timeframe})`);
+    const rawData = await fetchMomentum(
+      props.symbol,
+      timeframe,
+      indicatorsStore.momPeriod,
+      10000
+    );
 
-    if (data && data.length > 0) {
-      momentumData.value = data;
+    if (rawData && rawData.length > 0) {
+      // Transform backend format to chart format
+      momentumData.value = rawData.map((item: any) => ({
+        timestamp: new Date(item.time).getTime(),
+        value: item.value || 0,
+      }));
       console.log(`Loaded ${momentumData.value.length} Momentum data points`);
     } else {
       console.warn("No Momentum data received from API");

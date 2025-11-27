@@ -181,6 +181,13 @@
   position: relative;
 }
 
+.trading-chart-volume-section {
+  height: 120px;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-card);
+  border-top: 1px solid var(--border-primary);
+}
+
 .trading-chart-footer {
   display: flex;
   justify-content: space-between;

@@ -271,9 +271,9 @@ onMounted(async () => {
         // Mettre à jour le convertisseur
         eurAmount.value = btcAmount.value * currentPrice.value;
 
-        console.log(
-          `📈 ${realSymbol.value}: ${price}€ (${priceChangePercent.value.toFixed(2)}% vs ${selectedTimeframe.value})`
-        );
+        // console.log(
+        //   `📈 ${realSymbol.value}: ${price}€ (${priceChangePercent.value.toFixed(2)}% vs ${selectedTimeframe.value})`
+        // );
       }
     });
   } catch (error) {
