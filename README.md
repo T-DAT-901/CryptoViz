@@ -32,6 +32,7 @@
 - [Commandes Makefile](#commandes-makefile)
 - [Monitoring](#monitoring)
 - [Configuration](#configuration)
+- [Évolutions Potentielles](#évolutions-potentielles)
 - [Documentation](#documentation)
 - [Équipe et Licence](#équipe-et-licence)
 
@@ -831,6 +832,179 @@ VITE_USE_MOCK=false
 | [docs/COLDSTORAGE.md](docs/COLDSTORAGE.md) | Architecture Data Tiering |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture Backend Go |
 | [docs/ports-configuration.md](docs/ports-configuration.md) | Configuration des ports |
+
+---
+
+## Évolutions Potentielles
+
+Cette section présente les axes d'amélioration pour scaler CryptoViz vers des charges de production plus importantes.
+
+### 🔧 Scaling Horizontal (Backend)
+
+**Problème actuel** : Un seul backend-go consomme tous les partitions Kafka séquentiellement.
+
+**Solution** : Déployer plusieurs instances backend-go avec plus de partitions Kafka.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    ACTUEL (1 instance)                       │
+├─────────────────────────────────────────────────────────────┤
+│  backend-go ← P0, P1, P2 (séquentiel)                       │
+│  Capacité: ~55K msg/min                                      │
+├─────────────────────────────────────────────────────────────┤
+│                    SCALÉ (3 instances)                       │
+├─────────────────────────────────────────────────────────────┤
+│  backend-go-1 ← P0, P1                                       │
+│  backend-go-2 ← P2, P3                                       │
+│  backend-go-3 ← P4, P5                                       │
+│  Capacité: ~150K+ msg/min                                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Modifications requises** :
+- `docker-compose.yml` : Augmenter `KAFKA_NUM_PARTITIONS` (6, 9, 12...)
+- Déployer plusieurs réplicas backend-go (même consumer group)
+- Tous les réplicas partagent la même DB et le même consumer group
+
+### 📈 Upgrade API Binance
+
+| Tier | Rate Limit | Symboles | Coût |
+|------|------------|----------|------|
+| **Free** | 6,000 weight/min | Illimité* | Gratuit |
+| **VIP 1** | 12,000 weight/min | Illimité | Volume-based |
+| **VIP 2+** | 18,000+ weight/min | Illimité | Volume-based |
+
+*Le nombre de symboles n'est pas limité, mais le rate limit contraint le débit de backfill.
+
+### 🗄️ Optimisation Base de Données
+
+| Amélioration | Impact | Effort |
+|--------------|--------|--------|
+| **TimescaleDB dédié** | Isolation CPU/RAM | Faible |
+| **SSD NVMe** | Latence write -50% | Infrastructure |
+| **Réplication read** | Queries parallèles | Moyen |
+| **Sharding par symbole** | Scale horizontal | Élevé |
+
+### ☸️ Déploiement Kubernetes
+
+L'architecture est **cloud-ready** pour Kubernetes :
+
+```yaml
+# Exemple HPA pour auto-scaling
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+spec:
+  scaleTargetRef:
+    name: backend-go
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      targetAverageUtilization: 70
+```
+
+**Services à déployer** :
+- Backend-go (StatelessSet, HPA)
+- TimescaleDB (StatefulSet ou managed service)
+- Kafka (Strimzi operator ou Confluent Cloud)
+- Redis (StatefulSet ou ElastiCache)
+
+### 🌐 Multi-Exchange
+
+Extension vers d'autres exchanges (architecture prête) :
+
+| Exchange | API Type | Effort |
+|----------|----------|--------|
+| Coinbase | REST + WS | 2-3 jours |
+| Kraken | REST + WS | 2-3 jours |
+| FTX | REST + WS | 2-3 jours |
+| Bybit | REST + WS | 2-3 jours |
+
+**Modifications** : Nouveau collector par exchange, même pipeline Kafka/DB.
+
+### 📰 Sources de News Additionnelles
+
+Le news-scraper actuel utilise uniquement les flux RSS :
+
+| Source Actuelle | Type | Limitations |
+|-----------------|------|-------------|
+| CoinDesk | RSS | ~10 articles/jour |
+| CoinTelegraph | RSS | ~15 articles/jour |
+
+**Améliorations possibles** :
+
+| Source | Type | Effort | Impact |
+|--------|------|--------|--------|
+| **Twitter/X API** | API REST | Moyen | Haute fréquence, sentiment temps réel |
+| **Reddit API** | API REST | Faible | r/cryptocurrency, r/bitcoin |
+| **CryptoCompare** | API REST | Faible | News agrégées multi-sources |
+| **Messari** | API REST | Moyen | Analyse professionnelle |
+| **The Block** | RSS/Scraping | Faible | Actualités institutionnelles |
+
+> L'architecture Kafka est **déjà dimensionnée** pour absorber un volume plus important de news.
+
+### 📊 Améliorations Frontend
+
+#### Pagination des Graphiques ChartJS
+
+**Limitation actuelle** : Les graphiques chargent toutes les données en mémoire, ce qui peut ralentir avec des historiques longs (10+ ans).
+
+**Solution** : Pagination côté serveur + lazy loading :
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    ACTUEL (chargement complet)              │
+├─────────────────────────────────────────────────────────────┤
+│  GET /candles?symbol=BTC&limit=ALL                          │
+│  → Charge 3M+ points en mémoire                             │
+│  → Freeze UI pendant chargement                             │
+├─────────────────────────────────────────────────────────────┤
+│                    PROPOSÉ (pagination)                      │
+├─────────────────────────────────────────────────────────────┤
+│  GET /candles?symbol=BTC&from=2025-01-01&to=2025-01-31     │
+│  → Charge uniquement la fenêtre visible                     │
+│  → Scroll/zoom déclenche nouvelles requêtes                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Autres Améliorations UI
+
+| Feature | Description | Complexité |
+|---------|-------------|------------|
+| **Zoom sémantique** | Agrégation auto (1m→5m→1h) selon zoom | Moyenne |
+| **Comparaison multi-symboles** | Overlay plusieurs cryptos | Moyenne |
+| **Raccourcis clavier** | Navigation rapide | Faible |
+| **Export PNG/CSV** | Export graphiques et données | Faible |
+| **Watchlists** | Favoris personnalisés | Moyenne |
+
+### 🔐 Sécurité et Authentification
+
+| Feature | Description | Complexité |
+|---------|-------------|------------|
+| **Authentification JWT** | Login/register avec tokens sécurisés | Moyenne |
+| **OAuth2** | Login via Google, GitHub | Moyenne |
+| **Rate limiting API** | Protection contre abus (429 Too Many Requests) | Faible |
+| **RBAC** | Rôles utilisateur (admin, viewer) | Moyenne |
+
+### 🤖 Fonctionnalités Avancées
+
+| Feature | Description | Complexité |
+|---------|-------------|------------|
+| **Alertes prix** | Notifications seuil (email, push, Telegram) | Moyenne |
+| **Backtesting** | Simulation stratégies sur historique | Élevée |
+| **ML Predictions** | Prédiction prix/volatilité | Très élevée |
+| **Portfolio tracking** | Suivi positions multi-exchange | Moyenne |
+| **Heatmaps** | Corrélation inter-cryptos | Moyenne |
+
+### 🔍 Améliorations Backend
+
+| Amélioration | Description | Effort |
+|--------------|-------------|--------|
+| **API GraphQL** | Requêtes flexibles, moins de sur-fetch | Moyen |
+| **Cache API Redis** | Mise en cache des réponses API fréquentes | Faible |
+| **Séparation API/Worker** | Découplage lecture/écriture | Moyen |
 
 ---
 
