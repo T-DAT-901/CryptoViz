@@ -2,10 +2,9 @@ import feedparser
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
+from textblob import TextBlob
 
-# --------------------------
 # Configuration
-# --------------------------
 CRYPTO_KEYWORDS = {
     "btc": ["bitcoin", "btc"],
     "eth": ["ethereum", "eth"],
@@ -26,9 +25,7 @@ RSS_FEEDS = [
     "https://www.coindesk.com/markets/feed/"
 ]
 
-# --------------------------
 # Détection des cryptos
-# --------------------------
 def detect_crypto(text: str) -> str:
     text_lower = text.lower()
     found = [symbol for symbol, keywords in CRYPTO_KEYWORDS.items()
@@ -40,9 +37,7 @@ def detect_crypto(text: str) -> str:
     else:
         return "other"
 
-# --------------------------
 # Récupération via RSS
-# --------------------------
 def fetch_articles_rss():
     all_articles = []
     headers = {
@@ -88,9 +83,7 @@ def fetch_articles_rss():
 
     return all_articles
 
-# --------------------------
 # Scraper web fallback
-# --------------------------
 def fetch_articles_web():
     base_url = "https://www.coindesk.com/"
     articles = []
@@ -144,25 +137,79 @@ def fetch_articles_web():
 
     return articles
 
-# --------------------------
 # Filtrage par DAYS_BACK
-# --------------------------
 def filter_articles_by_days(articles):
     cutoff_date = datetime.utcnow() - timedelta(days=DAYS_BACK)
     return [a for a in articles if a["published_dt"] and a["published_dt"] >= cutoff_date]
 
-# --------------------------
+
+# Analyse de sentiments
+def analyze_sentiment(articles: list) -> list:
+    """
+    Analyse le sentiment du titre/résumé pour chaque article
+    Ajoute les champs 'polarite', 'sentiment' et 'subjectivite'
+    """
+    analyzed_articles = []
+
+    for article in articles:
+        text_to_analyze = (article.get('summary') or article.get('title')).strip()
+
+        # Initialisation par défaut
+        article["polarite"] = 0.0
+        article["subjectivite"] = 0.0
+        article["sentiment"] = "Neutre"
+
+        if not text_to_analyze:
+            analyzed_articles.append(article)
+            continue
+
+        try:
+            blob = TextBlob(text_to_analyze)
+
+            polarite = blob.sentiment.polarity
+            subjectivite = blob.sentiment.subjectivity
+
+            if polarite > 0.1:
+                sentiment = "Positif"
+            elif polarite < -0.1:
+                sentiment = "Négatif"
+            else:
+                sentiment = "Neutre"
+
+            article["polarite"] = polarite
+            article["subjectivite"] = subjectivite
+            article["sentiment"] = sentiment
+
+        except Exception as e:
+            print(f"[ERROR] Sentiment analysis failed for article {article.get('link')}: {e}")
+            article["sentiment"] = "Erreur"
+
+        analyzed_articles.append(article)
+
+    return analyzed_articles
+
+
 # Fonction principale
-# --------------------------
-def fetch_new_articles():
+def fetch_and_analyze_articles():
+    """
+    Récupère, filtre et analyse le sentiment des articles.
+    """
     articles = fetch_articles_rss()
     if not articles:
         articles = fetch_articles_web()
-    return filter_articles_by_days(articles)
+
+    articles_filtres = filter_articles_by_days(articles)
+
+    if not articles_filtres:
+        return []
+
+    articles_analyses = analyze_sentiment(articles_filtres)
+
+    return articles_analyses
 
 # Test manuel
 if __name__ == "__main__":
-    articles = fetch_new_articles()
+    articles = fetch_and_analyze_articles()
     if not articles:
         print(f"Aucun article trouvé dans les {DAYS_BACK} derniers jours.")
     else:
