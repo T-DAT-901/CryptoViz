@@ -71,6 +71,8 @@ function formatTime(isoString: string): string {
             <span class="news-feed-dot">•</span>
             <Clock class="news-feed-time-icon" />
             <span class="news-feed-time">{{ formatTime(item.time) }}</span>
+            <span class="news-feed-dot">•</span>
+            <span class="news-feed-sentiment">{{ item.sentiment_score }}</span>
           </div>
         </div>
       </li>
