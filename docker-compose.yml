@@ -303,7 +303,6 @@ services:
 
   # Frontend Vue.js Service
   frontend-vue:
-    profiles: ["ui"]
     build:
       context: ./services/frontend-vue
       dockerfile: Dockerfile
