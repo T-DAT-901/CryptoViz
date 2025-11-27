@@ -37,9 +37,6 @@ class Config:
     # Perf
     max_concurrent: int
 
-    # Backfill
-    backfill_state_file: str
-
 
 def is_valid_timeframe(tf: str) -> bool:
     # Vérifie qu'un timeframe a le bon format (5s, 1m, 1h, etc.)
@@ -101,5 +98,4 @@ def load_config() -> Config:
         api_secret=os.getenv("BINANCE_SECRET_KEY"),
         default_type=os.getenv("BINANCE_DEFAULT_TYPE", "spot"),
         max_concurrent=int(os.getenv("MAX_CONCURRENT", "100")),
-        backfill_state_file=os.getenv("BACKFILL_STATE_FILE", "backfill_state.json"),
     )

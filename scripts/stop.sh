@@ -44,7 +44,7 @@ graceful_stop() {
 
     # Arrêter les microservices
     info "Arrêt des microservices..."
-    docker-compose stop data-collector news-scraper 2>/dev/null || true
+    docker-compose stop data-collector news-scraper indicators-scheduler 2>/dev/null || true
 
     # Arrêter les services de monitoring
     info "Arrêt des services de monitoring..."

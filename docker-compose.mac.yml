@@ -63,12 +63,7 @@ services:
 #    - This cleans up stale network references from previous runs
 #    - Common on Mac and Windows/WSL2 after cleanup operations
 #
-# 6. Backfill State File:
-#    - Should be at: services/data-collector/backfill_state.json
-#    - If missing, backfill will run on every restart
-#    - Check with: ls -la services/data-collector/*.json
-#
-# 7. Platform-Specific Commands:
+# 6. Platform-Specific Commands:
 #    Mac:         make mac-start, make mac-start-monitoring
 #    Windows/WSL: make windows-start, make windows-start-monitoring
 #    Both:        make help (shows platform-specific examples)

@@ -92,9 +92,49 @@ func NewIndicatorRepository(db *gorm.DB) IndicatorRepository {
 	return &indicatorRepository{db: db}
 }
 
-// Create insère un nouvel indicateur technique
+// Create insère un nouvel indicateur technique avec UPSERT (idempotent)
+// Utilise ON CONFLICT DO UPDATE pour mettre à jour les valeurs recalculées
 func (r *indicatorRepository) Create(indicator *Indicator) error {
-	return r.db.Create(indicator).Error
+	// UPSERT avec ON CONFLICT DO UPDATE
+	// Unique constraint: (time, symbol, timeframe, indicator_type)
+	// Si l'indicateur existe déjà (recalculé), on met à jour les valeurs
+	query := `
+		INSERT INTO indicators (
+			time, symbol, timeframe, indicator_type,
+			value, value_signal, value_histogram,
+			upper_band, lower_band, middle_band,
+			support_level, resistance_level,
+			support_strength, resistance_strength,
+			created_at
+		) VALUES (
+			?, ?, ?, ?,
+			?, ?, ?,
+			?, ?, ?,
+			?, ?,
+			?, ?,
+			?
+		)
+		ON CONFLICT (time, symbol, timeframe, indicator_type) DO UPDATE SET
+			value = EXCLUDED.value,
+			value_signal = EXCLUDED.value_signal,
+			value_histogram = EXCLUDED.value_histogram,
+			upper_band = EXCLUDED.upper_band,
+			lower_band = EXCLUDED.lower_band,
+			middle_band = EXCLUDED.middle_band,
+			support_level = EXCLUDED.support_level,
+			resistance_level = EXCLUDED.resistance_level,
+			support_strength = EXCLUDED.support_strength,
+			resistance_strength = EXCLUDED.resistance_strength
+	`
+
+	return r.db.Exec(query,
+		indicator.Time, indicator.Symbol, indicator.Timeframe, indicator.IndicatorType,
+		indicator.Value, indicator.ValueSignal, indicator.ValueHistogram,
+		indicator.UpperBand, indicator.LowerBand, indicator.MiddleBand,
+		indicator.SupportLevel, indicator.ResistanceLevel,
+		indicator.SupportStrength, indicator.ResistanceStrength,
+		indicator.CreatedAt,
+	).Error
 }
 
 // GetBySymbolAndType récupère les indicateurs par symbole et type (hot storage only)
