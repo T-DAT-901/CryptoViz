@@ -9,8 +9,6 @@ services:
       POSTGRES_PASSWORD: ${TIMESCALE_PASSWORD:-password}
       POSTGRES_HOST_AUTH_METHOD: trust
     # Memory limits to prevent unbounded growth during tiering operations
-    mem_limit: 6g              # Hard memory limit (comfortable for 28GB total available)
-    memswap_limit: 6g          # Prevent swap usage (matches mem_limit)
     shm_size: 512m             # Shared memory for PostgreSQL internal operations
     ports:
       - "7432:5432"
@@ -353,12 +351,6 @@ services:
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.15m --config cleanup.policy=compact,delete --config retention.ms=7776000000 --config segment.ms=3600000 --config min.cleanable.dirty.ratio=0.5 --config max.compaction.lag.ms=3600000
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.1h  --config cleanup.policy=compact,delete --config retention.ms=15552000000 --config segment.ms=3600000 --config min.cleanable.dirty.ratio=0.5 --config max.compaction.lag.ms=3600000
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.1d  --config cleanup.policy=compact,delete --config retention.ms=63072000000 --config segment.ms=3600000 --config min.cleanable.dirty.ratio=0.5 --config max.compaction.lag.ms=3600000
-
-        # INDICATORS (compactable) - Same fast compaction settings
-        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.indicators.rsi       --config cleanup.policy=compact,delete --config retention.ms=2592000000 --config segment.ms=3600000 --config min.cleanable.dirty.ratio=0.5 --config max.compaction.lag.ms=3600000
-        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.indicators.macd      --config cleanup.policy=compact,delete --config retention.ms=2592000000 --config segment.ms=3600000 --config min.cleanable.dirty.ratio=0.5 --config max.compaction.lag.ms=3600000
-        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.indicators.bollinger --config cleanup.policy=compact,delete --config retention.ms=2592000000 --config segment.ms=3600000 --config min.cleanable.dirty.ratio=0.5 --config max.compaction.lag.ms=3600000
-        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.indicators.momentum  --config cleanup.policy=compact,delete --config retention.ms=2592000000 --config segment.ms=3600000 --config min.cleanable.dirty.ratio=0.5 --config max.compaction.lag.ms=3600000
 
         # NEWS (peu critique)
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.news         --config cleanup.policy=delete --config retention.ms=604800000

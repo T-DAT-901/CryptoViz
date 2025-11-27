@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"cryptoviz-backend/internal/kafka"
 	"cryptoviz-backend/internal/kafka/utils"
 	"cryptoviz-backend/models"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/sirupsen/logrus"
 )
 
@@ -37,30 +37,101 @@ type CandleMessage struct {
 // CandleHandler gère les messages de candles (OHLCV) depuis Kafka
 type CandleHandler struct {
 	kafka.BaseHandler
-	repo      models.CandleRepository
-	redis     *redis.Client
-	logger    *logrus.Logger
-	broadcast BroadcastFunc
+	repo        models.CandleRepository
+	logger      *logrus.Logger
+	broadcast   BroadcastFunc
+	batchBuffer []*models.Candle
+	batchMutex  sync.Mutex
+	batchSize   int
+	flushTicker *time.Ticker
+	stopChan    chan struct{}
 }
 
 // NewCandleHandler crée un nouveau handler pour les candles
-func NewCandleHandler(cfg *kafka.KafkaConfig, repo models.CandleRepository, redisClient *redis.Client, logger *logrus.Logger) *CandleHandler {
+func NewCandleHandler(cfg *kafka.KafkaConfig, repo models.CandleRepository, logger *logrus.Logger) *CandleHandler {
 	topics := cfg.GetAggregatedTopics()
 
-	return &CandleHandler{
+	h := &CandleHandler{
 		BaseHandler: kafka.BaseHandler{
 			Name:   "CandleHandler",
 			Topics: topics,
 		},
-		repo:   repo,
-		redis:  redisClient,
-		logger: logger,
+		repo:        repo,
+		logger:      logger,
+		batchBuffer: make([]*models.Candle, 0, 100),
+		batchSize:   100,
+		flushTicker: time.NewTicker(250 * time.Millisecond),
+		stopChan:    make(chan struct{}),
 	}
+
+	// Start periodic flush goroutine
+	go h.flushLoop()
+
+	return h
 }
 
 // SetBroadcast sets the broadcast callback for WebSocket streaming
 func (h *CandleHandler) SetBroadcast(fn BroadcastFunc) {
 	h.broadcast = fn
+}
+
+// flushLoop periodically flushes the batch buffer
+func (h *CandleHandler) flushLoop() {
+	for {
+		select {
+		case <-h.stopChan:
+			h.flushBatch() // Final flush on shutdown
+			return
+		case <-h.flushTicker.C:
+			h.flushBatch()
+		}
+	}
+}
+
+// flushBatch writes all buffered candles to the database
+func (h *CandleHandler) flushBatch() {
+	h.batchMutex.Lock()
+	if len(h.batchBuffer) == 0 {
+		h.batchMutex.Unlock()
+		return
+	}
+	batch := h.batchBuffer
+	h.batchBuffer = make([]*models.Candle, 0, h.batchSize)
+	h.batchMutex.Unlock()
+
+	if err := h.repo.CreateBatch(batch); err != nil {
+		h.logger.Errorf("Failed to flush candle batch (%d items): %v", len(batch), err)
+		return
+	}
+
+	h.logger.Debugf("Flushed %d candles to database", len(batch))
+
+	// Broadcast closed candles
+	for _, candle := range batch {
+		if h.broadcast != nil && candle.Closed {
+			wsData := map[string]interface{}{
+				"type":         "candle",
+				"exchange":     candle.Exchange,
+				"symbol":       candle.Symbol,
+				"timeframe":    candle.Timeframe,
+				"window_start": candle.WindowStart.UnixMilli(),
+				"window_end":   candle.WindowEnd.UnixMilli(),
+				"open":         candle.Open,
+				"high":         candle.High,
+				"low":          candle.Low,
+				"close":        candle.Close,
+				"volume":       candle.Volume,
+				"closed":       candle.Closed,
+			}
+			go h.broadcast("candle", candle.Symbol, candle.Timeframe, wsData)
+		}
+	}
+}
+
+// Stop stops the flush goroutine
+func (h *CandleHandler) Stop() {
+	h.flushTicker.Stop()
+	close(h.stopChan)
 }
 
 // Handle traite un message de candle
@@ -99,61 +170,21 @@ func (h *CandleHandler) Handle(ctx context.Context, msg interface{}) error {
 		return fmt.Errorf("unexpected message type: %s (expected 'bar')", candleMsg.Type)
 	}
 
-	// Vérifier les duplicates (clé: exchange:symbol:timeframe:window_start)
-	dedupKey := utils.GenerateCustomDedupKey(
-		"candle",
-		candleMsg.Exchange,
-		candleMsg.Symbol,
-		candleMsg.Timeframe,
-		fmt.Sprintf("%d", candleMsg.WindowStart),
-	)
-
-	isDuplicate, err := utils.CheckAndMark(ctx, h.redis, dedupKey, 24*time.Hour)
-	if err != nil {
-		h.logger.Warnf("Failed to check duplicate: %v", err)
-	} else if isDuplicate {
-		h.logger.WithFields(logrus.Fields{
-			"exchange":  candleMsg.Exchange,
-			"symbol":    candleMsg.Symbol,
-			"timeframe": candleMsg.Timeframe,
-		}).Debug("Duplicate candle message, skipping")
-		return nil // Pas une erreur, juste un skip
-	}
+	// Note: Redis deduplication removed - DB UPSERT with ON CONFLICT handles duplicates
 
 	// Convertir en modèle Candle
 	candle := h.toCandle(&candleMsg, metadata.Source)
 
-	// Insérer dans la base de données
-	if err := h.repo.Create(candle); err != nil {
-		return fmt.Errorf("failed to insert candle: %w", err)
-	}
+	// Add to batch buffer
+	h.batchMutex.Lock()
+	h.batchBuffer = append(h.batchBuffer, candle)
+	shouldFlush := len(h.batchBuffer) >= h.batchSize
+	h.batchMutex.Unlock()
 
-	// Broadcast to WebSocket clients (only closed candles to reduce noise)
-	if h.broadcast != nil && candle.Closed {
-		wsData := map[string]interface{}{
-			"type":         "candle",
-			"exchange":     candle.Exchange,
-			"symbol":       candle.Symbol,
-			"timeframe":    candle.Timeframe,
-			"window_start": candle.WindowStart.UnixMilli(),
-			"window_end":   candle.WindowEnd.UnixMilli(),
-			"open":         candle.Open,
-			"high":         candle.High,
-			"low":          candle.Low,
-			"close":        candle.Close,
-			"volume":       candle.Volume,
-			"closed":       candle.Closed,
-		}
-		h.broadcast("candle", candle.Symbol, candle.Timeframe, wsData)
+	// Flush if batch is full
+	if shouldFlush {
+		h.flushBatch()
 	}
-
-	h.logger.WithFields(logrus.Fields{
-		"exchange":  candle.Exchange,
-		"symbol":    candle.Symbol,
-		"timeframe": candle.Timeframe,
-		"window":    candle.WindowStart.Format(time.RFC3339),
-		"closed":    candle.Closed,
-	}).Debug("Candle inserted successfully")
 
 	return nil
 }

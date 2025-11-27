@@ -71,11 +71,11 @@ func main() {
 	kafkaConfig := kafka.NewKafkaConfig(cfg)
 	consumerManager := kafka.NewConsumerManager(logger)
 
-	// Enregistrer les handlers Kafka
-	candleHandler := consumers.NewCandleHandler(kafkaConfig, deps.CandleRepo, redisClient, logger)
-	tradeHandler := consumers.NewTradeHandler(kafkaConfig, deps.TradeRepo, redisClient, logger)
-	indicatorHandler := consumers.NewIndicatorHandler(kafkaConfig, deps.IndicatorRepo, redisClient, logger)
-	newsHandler := consumers.NewNewsHandler(kafkaConfig, deps.NewsRepo, redisClient, logger)
+	// Enregistrer les handlers Kafka (Redis dedup removed - DB handles duplicates via UPSERT)
+	candleHandler := consumers.NewCandleHandler(kafkaConfig, deps.CandleRepo, logger)
+	tradeHandler := consumers.NewTradeHandler(kafkaConfig, deps.TradeRepo, logger)
+	indicatorHandler := consumers.NewIndicatorHandler(kafkaConfig, deps.IndicatorRepo, logger)
+	newsHandler := consumers.NewNewsHandler(kafkaConfig, deps.NewsRepo, logger)
 
 	// Connect handlers to WebSocket Hub for real-time broadcasting
 	tradeHandler.SetBroadcast(wsHub.Broadcast)

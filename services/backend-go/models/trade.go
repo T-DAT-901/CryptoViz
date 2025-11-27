@@ -27,6 +27,7 @@ func (Trade) TableName() string {
 // TradeRepository interface pour les opérations sur Trade
 type TradeRepository interface {
 	Create(trade *Trade) error
+	CreateBatch(trades []*Trade) error
 	GetBySymbol(symbol string, limit int) ([]Trade, error)
 	GetByExchangeAndSymbol(exchange string, symbol string, limit int) ([]Trade, error)
 	GetByTimeRange(symbol string, start, end time.Time) ([]Trade, error)
@@ -64,6 +65,36 @@ func (r *tradeRepository) Create(trade *Trade) error {
 		trade.EventTs, trade.Exchange, trade.Symbol, trade.TradeID,
 		trade.Price, trade.Amount, trade.Side, trade.CreatedAt,
 	).Error
+}
+
+// CreateBatch insère plusieurs trades en une seule transaction
+func (r *tradeRepository) CreateBatch(trades []*Trade) error {
+	if len(trades) == 0 {
+		return nil
+	}
+
+	// Use transaction for batch insert
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		for _, trade := range trades {
+			query := `
+				INSERT INTO trades (
+					event_ts, exchange, symbol, trade_id,
+					price, amount, side, created_at
+				) VALUES (
+					?, ?, ?, ?,
+					?, ?, ?, ?
+				)
+				ON CONFLICT (trade_id, exchange, symbol, event_ts) DO NOTHING
+			`
+			if err := tx.Exec(query,
+				trade.EventTs, trade.Exchange, trade.Symbol, trade.TradeID,
+				trade.Price, trade.Amount, trade.Side, trade.CreatedAt,
+			).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // GetBySymbol récupère les trades par symbole

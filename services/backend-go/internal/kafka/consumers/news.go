@@ -4,13 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"cryptoviz-backend/internal/kafka"
-	"cryptoviz-backend/internal/kafka/utils"
 	"cryptoviz-backend/models"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/sirupsen/logrus"
 )
 
@@ -29,28 +28,94 @@ type NewsMessage struct {
 // NewsHandler gère les messages d'actualités depuis Kafka
 type NewsHandler struct {
 	kafka.BaseHandler
-	repo      models.NewsRepository
-	redis     *redis.Client
-	logger    *logrus.Logger
-	broadcast BroadcastFunc
+	repo        models.NewsRepository
+	logger      *logrus.Logger
+	broadcast   BroadcastFunc
+	batchBuffer []*models.News
+	batchMutex  sync.Mutex
+	batchSize   int
+	flushTicker *time.Ticker
+	stopChan    chan struct{}
 }
 
 // NewNewsHandler crée un nouveau handler pour les actualités
-func NewNewsHandler(cfg *kafka.KafkaConfig, repo models.NewsRepository, redisClient *redis.Client, logger *logrus.Logger) *NewsHandler {
-	return &NewsHandler{
+func NewNewsHandler(cfg *kafka.KafkaConfig, repo models.NewsRepository, logger *logrus.Logger) *NewsHandler {
+	h := &NewsHandler{
 		BaseHandler: kafka.BaseHandler{
 			Name:   "NewsHandler",
 			Topics: []string{cfg.TopicNews},
 		},
-		repo:   repo,
-		redis:  redisClient,
-		logger: logger,
+		repo:        repo,
+		logger:      logger,
+		batchBuffer: make([]*models.News, 0, 20),
+		batchSize:   20,
+		flushTicker: time.NewTicker(1 * time.Second),
+		stopChan:    make(chan struct{}),
 	}
+
+	go h.flushLoop()
+	return h
 }
 
 // SetBroadcast sets the broadcast callback for WebSocket streaming
 func (h *NewsHandler) SetBroadcast(fn BroadcastFunc) {
 	h.broadcast = fn
+}
+
+// flushLoop periodically flushes the batch buffer
+func (h *NewsHandler) flushLoop() {
+	for {
+		select {
+		case <-h.stopChan:
+			h.flushBatch()
+			return
+		case <-h.flushTicker.C:
+			h.flushBatch()
+		}
+	}
+}
+
+// flushBatch writes all buffered news to the database
+func (h *NewsHandler) flushBatch() {
+	h.batchMutex.Lock()
+	if len(h.batchBuffer) == 0 {
+		h.batchMutex.Unlock()
+		return
+	}
+	batch := h.batchBuffer
+	h.batchBuffer = make([]*models.News, 0, h.batchSize)
+	h.batchMutex.Unlock()
+
+	if err := h.repo.CreateBatch(batch); err != nil {
+		h.logger.Errorf("Failed to flush news batch (%d items): %v", len(batch), err)
+		return
+	}
+
+	h.logger.Debugf("Flushed %d news to database", len(batch))
+
+	// Broadcast news
+	for _, news := range batch {
+		if h.broadcast != nil {
+			wsData := map[string]interface{}{
+				"time":            news.Time.UnixMilli(),
+				"source":          news.Source,
+				"url":             news.URL,
+				"title":           news.Title,
+				"content":         news.Content,
+				"sentiment_score": news.SentimentScore,
+				"symbols":         news.Symbols,
+			}
+			for _, symbol := range news.Symbols {
+				go h.broadcast("news", symbol, "", wsData)
+			}
+		}
+	}
+}
+
+// Stop stops the flush goroutine
+func (h *NewsHandler) Stop() {
+	h.flushTicker.Stop()
+	close(h.stopChan)
 }
 
 // Handle traite un message d'actualité
@@ -77,57 +142,20 @@ func (h *NewsHandler) Handle(ctx context.Context, msg interface{}) error {
 		return fmt.Errorf("unexpected message type: %s (expected 'news')", newsMsg.Type)
 	}
 
-	// Vérifier les duplicates (clé composite: time:source:url)
-	dedupKey := utils.GenerateCustomDedupKey(
-		"news",
-		fmt.Sprintf("%d", newsMsg.Time),
-		newsMsg.Source,
-		newsMsg.URL,
-	)
-
-	isDuplicate, err := utils.CheckAndMark(ctx, h.redis, dedupKey, 48*time.Hour)
-	if err != nil {
-		h.logger.Warnf("Failed to check duplicate: %v", err)
-	} else if isDuplicate {
-		h.logger.WithFields(logrus.Fields{
-			"source": newsMsg.Source,
-			"url":    newsMsg.URL,
-		}).Debug("Duplicate news message, skipping")
-		return nil // Pas une erreur, juste un skip
-	}
+	// Note: Redis deduplication removed - DB UPSERT with ON CONFLICT handles duplicates
 
 	// Convertir en modèle News
 	news := h.toNews(&newsMsg)
 
-	// Insérer dans la base de données
-	if err := h.repo.Create(news); err != nil {
-		return fmt.Errorf("failed to insert news: %w", err)
-	}
+	// Add to batch buffer
+	h.batchMutex.Lock()
+	h.batchBuffer = append(h.batchBuffer, news)
+	shouldFlush := len(h.batchBuffer) >= h.batchSize
+	h.batchMutex.Unlock()
 
-	h.logger.WithFields(logrus.Fields{
-		"source":  news.Source,
-		"title":   news.Title,
-		"symbols": news.Symbols,
-		"time":    news.Time.Format(time.RFC3339),
-	}).Debug("News inserted successfully")
-
-	// Broadcast to WebSocket clients if callback is set
-	if h.broadcast != nil {
-		// Prepare WebSocket data
-		wsData := map[string]interface{}{
-			"time":            news.Time.UnixMilli(),
-			"source":          news.Source,
-			"url":             news.URL,
-			"title":           news.Title,
-			"content":         news.Content,
-			"sentiment_score": news.SentimentScore,
-			"symbols":         news.Symbols,
-		}
-
-		// Broadcast to each symbol the news mentions
-		for _, symbol := range newsMsg.Symbols {
-			h.broadcast("news", symbol, "", wsData)
-		}
+	// Flush if batch is full
+	if shouldFlush {
+		h.flushBatch()
 	}
 
 	return nil

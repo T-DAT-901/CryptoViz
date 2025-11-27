@@ -69,6 +69,7 @@ func (AllNews) TableName() string {
 // NewsRepository interface pour les opérations sur News
 type NewsRepository interface {
 	Create(news *News) error
+	CreateBatch(news []*News) error
 	GetAll(limit int) ([]News, error)
 	GetBySymbol(symbol string, limit int) ([]News, error)
 	GetByTimeRange(start, end time.Time, limit int) ([]News, error)
@@ -97,6 +98,22 @@ func NewNewsRepository(db *gorm.DB) NewsRepository {
 // Create insère une nouvelle actualité
 func (r *newsRepository) Create(news *News) error {
 	return r.db.Create(news).Error
+}
+
+// CreateBatch insère plusieurs actualités en une seule transaction
+func (r *newsRepository) CreateBatch(news []*News) error {
+	if len(news) == 0 {
+		return nil
+	}
+
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		for _, n := range news {
+			if err := tx.Create(n).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // GetAll récupère toutes les actualités (hot storage only)
