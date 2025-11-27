@@ -39,11 +39,11 @@ CREATE TABLE IF NOT EXISTS backfill_progress (
 );
 
 -- Index for querying by status
-CREATE INDEX idx_backfill_progress_status
+CREATE INDEX IF NOT EXISTS idx_backfill_progress_status
 ON backfill_progress (status);
 
 -- Index for querying by symbol
-CREATE INDEX idx_backfill_progress_symbol
+CREATE INDEX IF NOT EXISTS idx_backfill_progress_symbol
 ON backfill_progress (symbol, timeframe);
 
 -- =============================================================================

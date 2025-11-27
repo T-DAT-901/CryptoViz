@@ -1,18 +1,15 @@
 -- =============================================================================
--- News Deduplication - Unique URL + Time Constraint
+-- News Deduplication - Unique Title + Time Constraint
 -- =============================================================================
--- TimescaleDB hypertables require partitioning column (time) in unique indexes.
--- This prevents same URL at same timestamp. Combined with Redis dedup (48h TTL).
+-- URL dedup doesn't work due to UTM tracking params creating different URLs for same article.
+-- Title + time constraint catches duplicates regardless of URL variations.
 
--- First, remove existing duplicates (keep earliest by ctid)
+-- Drop old URL-based index if it exists
+DROP INDEX IF EXISTS idx_news_unique_url_time;
+
+-- Remove existing duplicates by title+time (keep earliest by ctid)
 DELETE FROM news a USING news b
-WHERE a.ctid > b.ctid AND a.url = b.url AND a.time = b.time;
+WHERE a.ctid > b.ctid AND a.title = b.title AND a.time = b.time;
 
--- Add unique constraint on URL + time (required for TimescaleDB hypertables)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_news_unique_url_time ON news (url, time);
-
--- Log completion
-DO $$
-BEGIN
-    RAISE NOTICE 'Migration complete';
-END $$;
+-- Add unique constraint on title + time
+CREATE UNIQUE INDEX IF NOT EXISTS idx_news_unique_title_time ON news (title, time);
