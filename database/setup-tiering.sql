@@ -43,15 +43,44 @@ END $$;
 -- Create schema for cold storage tables
 CREATE SCHEMA IF NOT EXISTS cold_storage;
 
+-- Enable dblink extension for autonomous transactions (each batch commits independently)
+CREATE EXTENSION IF NOT EXISTS dblink;
+
 -- Cold storage for candles (older than 7 days)
 CREATE TABLE IF NOT EXISTS cold_storage.candles (
     LIKE candles INCLUDING ALL
 );
 
 -- Cold storage for indicators (older than 30 days)
+-- NOTE: Define columns explicitly to prevent schema drift when main table is altered
 CREATE TABLE IF NOT EXISTS cold_storage.indicators (
-    LIKE indicators INCLUDING ALL
+    time TIMESTAMPTZ NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    timeframe VARCHAR(5) NOT NULL,
+    indicator_type VARCHAR(20) NOT NULL,
+    value DECIMAL(20,8),
+    value_signal DECIMAL(20,8),
+    value_histogram DECIMAL(20,8),
+    upper_band DECIMAL(20,8),
+    lower_band DECIMAL(20,8),
+    middle_band DECIMAL(20,8),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    support_level DECIMAL(20,8),
+    resistance_level DECIMAL(20,8),
+    support_strength DECIMAL(5,2),
+    resistance_strength DECIMAL(5,2)
 );
+
+-- Ensure cold_storage.indicators has all columns (for existing databases)
+DO $$
+BEGIN
+    ALTER TABLE cold_storage.indicators ADD COLUMN IF NOT EXISTS support_level DECIMAL(20,8);
+    ALTER TABLE cold_storage.indicators ADD COLUMN IF NOT EXISTS resistance_level DECIMAL(20,8);
+    ALTER TABLE cold_storage.indicators ADD COLUMN IF NOT EXISTS support_strength DECIMAL(5,2);
+    ALTER TABLE cold_storage.indicators ADD COLUMN IF NOT EXISTS resistance_strength DECIMAL(5,2);
+EXCEPTION WHEN OTHERS THEN
+    NULL; -- Ignore if columns already exist
+END $$;
 
 -- Cold storage for news (older than 30 days)
 CREATE TABLE IF NOT EXISTS cold_storage.news (
@@ -66,39 +95,57 @@ CREATE TABLE IF NOT EXISTS cold_storage.news (
 -- Retention configured in .env:
 --   HOT_RETENTION_1M=7, HOT_RETENTION_5M=14, HOT_RETENTION_15M=30
 --   HOT_RETENTION_1H=90, HOT_RETENTION_1D=36500
--- NOTE: Uses batching to prevent memory exhaustion on large datasets
+-- NOTE: Uses dblink for autonomous transactions - each batch commits independently
+--       This prevents memory exhaustion and works correctly with TimescaleDB hypertables
 CREATE OR REPLACE FUNCTION tier_old_candles()
 RETURNS void AS $$
 DECLARE
     rows_moved_total INTEGER := 0;
     rows_moved_batch INTEGER;
     rows_moved_interval INTEGER;
-    batch_size INTEGER := 10000;  -- Process 10k rows at a time to limit memory usage
+    batch_size INTEGER := 5000;  -- Process 5k rows at a time (reduced for memory safety)
+    conn_str TEXT;
 BEGIN
+    -- Connection string for autonomous transactions via dblink
+    conn_str := 'dbname=' || current_database() || ' user=' || current_user;
+
     -- Tier 1m candles older than 7 days (HOT_RETENTION_1M)
     RAISE NOTICE 'Starting tiering for 1m candles (batch size: %)', batch_size;
     rows_moved_interval := 0;
     LOOP
-        WITH moved AS (
-            DELETE FROM candles
-            WHERE ctid IN (
-                SELECT ctid FROM candles
+        -- Execute batch in autonomous transaction via dblink
+        -- Each batch commits independently, releasing memory
+        SELECT cnt INTO rows_moved_batch FROM dblink(conn_str, format($q$
+            WITH to_move AS (
+                SELECT window_start, exchange, symbol, timeframe
+                FROM candles
                 WHERE timeframe = '1m' AND window_start < NOW() - INTERVAL '7 days'
-                LIMIT batch_size
+                LIMIT %s
+            ),
+            moved AS (
+                DELETE FROM candles c
+                USING to_move t
+                WHERE c.window_start = t.window_start
+                  AND c.exchange = t.exchange
+                  AND c.symbol = t.symbol
+                  AND c.timeframe = t.timeframe
+                RETURNING c.*
+            ),
+            inserted AS (
+                INSERT INTO cold_storage.candles SELECT * FROM moved
+                RETURNING 1
             )
-            RETURNING *
-        )
-        INSERT INTO cold_storage.candles SELECT * FROM moved;
+            SELECT COUNT(*)::INTEGER FROM inserted
+        $q$, batch_size)) AS t(cnt INTEGER);
 
-        GET DIAGNOSTICS rows_moved_batch = ROW_COUNT;
-        EXIT WHEN rows_moved_batch = 0;
+        EXIT WHEN rows_moved_batch IS NULL OR rows_moved_batch = 0;
 
         rows_moved_interval := rows_moved_interval + rows_moved_batch;
         rows_moved_total := rows_moved_total + rows_moved_batch;
         RAISE NOTICE '  Tiered % rows (1m batch) - interval total: %', rows_moved_batch, rows_moved_interval;
 
-        -- Small delay to allow WAL to flush and prevent memory buildup
-        PERFORM pg_sleep(0.1);
+        -- Small delay to allow memory cleanup between batches
+        PERFORM pg_sleep(0.2);
     END LOOP;
     RAISE NOTICE 'Completed 1m: % rows to cold storage', rows_moved_interval;
 
@@ -106,25 +153,36 @@ BEGIN
     RAISE NOTICE 'Starting tiering for 5m candles (batch size: %)', batch_size;
     rows_moved_interval := 0;
     LOOP
-        WITH moved AS (
-            DELETE FROM candles
-            WHERE ctid IN (
-                SELECT ctid FROM candles
+        SELECT cnt INTO rows_moved_batch FROM dblink(conn_str, format($q$
+            WITH to_move AS (
+                SELECT window_start, exchange, symbol, timeframe
+                FROM candles
                 WHERE timeframe = '5m' AND window_start < NOW() - INTERVAL '14 days'
-                LIMIT batch_size
+                LIMIT %s
+            ),
+            moved AS (
+                DELETE FROM candles c
+                USING to_move t
+                WHERE c.window_start = t.window_start
+                  AND c.exchange = t.exchange
+                  AND c.symbol = t.symbol
+                  AND c.timeframe = t.timeframe
+                RETURNING c.*
+            ),
+            inserted AS (
+                INSERT INTO cold_storage.candles SELECT * FROM moved
+                RETURNING 1
             )
-            RETURNING *
-        )
-        INSERT INTO cold_storage.candles SELECT * FROM moved;
+            SELECT COUNT(*)::INTEGER FROM inserted
+        $q$, batch_size)) AS t(cnt INTEGER);
 
-        GET DIAGNOSTICS rows_moved_batch = ROW_COUNT;
-        EXIT WHEN rows_moved_batch = 0;
+        EXIT WHEN rows_moved_batch IS NULL OR rows_moved_batch = 0;
 
         rows_moved_interval := rows_moved_interval + rows_moved_batch;
         rows_moved_total := rows_moved_total + rows_moved_batch;
         RAISE NOTICE '  Tiered % rows (5m batch) - interval total: %', rows_moved_batch, rows_moved_interval;
 
-        PERFORM pg_sleep(0.1);
+        PERFORM pg_sleep(0.2);
     END LOOP;
     RAISE NOTICE 'Completed 5m: % rows to cold storage', rows_moved_interval;
 
@@ -132,25 +190,36 @@ BEGIN
     RAISE NOTICE 'Starting tiering for 15m candles (batch size: %)', batch_size;
     rows_moved_interval := 0;
     LOOP
-        WITH moved AS (
-            DELETE FROM candles
-            WHERE ctid IN (
-                SELECT ctid FROM candles
+        SELECT cnt INTO rows_moved_batch FROM dblink(conn_str, format($q$
+            WITH to_move AS (
+                SELECT window_start, exchange, symbol, timeframe
+                FROM candles
                 WHERE timeframe = '15m' AND window_start < NOW() - INTERVAL '30 days'
-                LIMIT batch_size
+                LIMIT %s
+            ),
+            moved AS (
+                DELETE FROM candles c
+                USING to_move t
+                WHERE c.window_start = t.window_start
+                  AND c.exchange = t.exchange
+                  AND c.symbol = t.symbol
+                  AND c.timeframe = t.timeframe
+                RETURNING c.*
+            ),
+            inserted AS (
+                INSERT INTO cold_storage.candles SELECT * FROM moved
+                RETURNING 1
             )
-            RETURNING *
-        )
-        INSERT INTO cold_storage.candles SELECT * FROM moved;
+            SELECT COUNT(*)::INTEGER FROM inserted
+        $q$, batch_size)) AS t(cnt INTEGER);
 
-        GET DIAGNOSTICS rows_moved_batch = ROW_COUNT;
-        EXIT WHEN rows_moved_batch = 0;
+        EXIT WHEN rows_moved_batch IS NULL OR rows_moved_batch = 0;
 
         rows_moved_interval := rows_moved_interval + rows_moved_batch;
         rows_moved_total := rows_moved_total + rows_moved_batch;
         RAISE NOTICE '  Tiered % rows (15m batch) - interval total: %', rows_moved_batch, rows_moved_interval;
 
-        PERFORM pg_sleep(0.1);
+        PERFORM pg_sleep(0.2);
     END LOOP;
     RAISE NOTICE 'Completed 15m: % rows to cold storage', rows_moved_interval;
 
@@ -158,25 +227,36 @@ BEGIN
     RAISE NOTICE 'Starting tiering for 1h candles (batch size: %)', batch_size;
     rows_moved_interval := 0;
     LOOP
-        WITH moved AS (
-            DELETE FROM candles
-            WHERE ctid IN (
-                SELECT ctid FROM candles
+        SELECT cnt INTO rows_moved_batch FROM dblink(conn_str, format($q$
+            WITH to_move AS (
+                SELECT window_start, exchange, symbol, timeframe
+                FROM candles
                 WHERE timeframe = '1h' AND window_start < NOW() - INTERVAL '90 days'
-                LIMIT batch_size
+                LIMIT %s
+            ),
+            moved AS (
+                DELETE FROM candles c
+                USING to_move t
+                WHERE c.window_start = t.window_start
+                  AND c.exchange = t.exchange
+                  AND c.symbol = t.symbol
+                  AND c.timeframe = t.timeframe
+                RETURNING c.*
+            ),
+            inserted AS (
+                INSERT INTO cold_storage.candles SELECT * FROM moved
+                RETURNING 1
             )
-            RETURNING *
-        )
-        INSERT INTO cold_storage.candles SELECT * FROM moved;
+            SELECT COUNT(*)::INTEGER FROM inserted
+        $q$, batch_size)) AS t(cnt INTEGER);
 
-        GET DIAGNOSTICS rows_moved_batch = ROW_COUNT;
-        EXIT WHEN rows_moved_batch = 0;
+        EXIT WHEN rows_moved_batch IS NULL OR rows_moved_batch = 0;
 
         rows_moved_interval := rows_moved_interval + rows_moved_batch;
         rows_moved_total := rows_moved_total + rows_moved_batch;
         RAISE NOTICE '  Tiered % rows (1h batch) - interval total: %', rows_moved_batch, rows_moved_interval;
 
-        PERFORM pg_sleep(0.1);
+        PERFORM pg_sleep(0.2);
     END LOOP;
     RAISE NOTICE 'Completed 1h: % rows to cold storage', rows_moved_interval;
 
@@ -191,36 +271,53 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Function to manually tier indicators to cold storage
--- NOTE: Uses batching to prevent memory exhaustion on large datasets
+-- NOTE: Uses dblink for autonomous transactions - each batch commits independently
+--       This prevents memory exhaustion and works correctly with TimescaleDB hypertables
 CREATE OR REPLACE FUNCTION tier_old_indicators()
 RETURNS void AS $$
 DECLARE
     rows_moved_total INTEGER := 0;
     rows_moved_batch INTEGER;
-    batch_size INTEGER := 10000;  -- Process 10k rows at a time to limit memory usage
+    batch_size INTEGER := 5000;  -- Process 5k rows at a time (reduced for memory safety)
+    conn_str TEXT;
 BEGIN
+    -- Connection string for autonomous transactions via dblink
+    conn_str := 'dbname=' || current_database() || ' user=' || current_user;
+
     RAISE NOTICE 'Starting tiering for indicators (batch size: %)', batch_size;
 
     -- Move indicators older than 30 days to cold storage
     LOOP
-        WITH moved AS (
-            DELETE FROM indicators
-            WHERE ctid IN (
-                SELECT ctid FROM indicators
+        -- Execute batch in autonomous transaction via dblink
+        SELECT cnt INTO rows_moved_batch FROM dblink(conn_str, format($q$
+            WITH to_move AS (
+                SELECT time, symbol, timeframe, indicator_type
+                FROM indicators
                 WHERE time < NOW() - INTERVAL '30 days'
-                LIMIT batch_size
+                LIMIT %s
+            ),
+            moved AS (
+                DELETE FROM indicators i
+                USING to_move t
+                WHERE i.time = t.time
+                  AND i.symbol = t.symbol
+                  AND i.timeframe = t.timeframe
+                  AND i.indicator_type = t.indicator_type
+                RETURNING i.*
+            ),
+            inserted AS (
+                INSERT INTO cold_storage.indicators SELECT * FROM moved
+                RETURNING 1
             )
-            RETURNING *
-        )
-        INSERT INTO cold_storage.indicators SELECT * FROM moved;
+            SELECT COUNT(*)::INTEGER FROM inserted
+        $q$, batch_size)) AS t(cnt INTEGER);
 
-        GET DIAGNOSTICS rows_moved_batch = ROW_COUNT;
-        EXIT WHEN rows_moved_batch = 0;
+        EXIT WHEN rows_moved_batch IS NULL OR rows_moved_batch = 0;
 
         rows_moved_total := rows_moved_total + rows_moved_batch;
         RAISE NOTICE '  Tiered % indicator rows (batch) - total: %', rows_moved_batch, rows_moved_total;
 
-        PERFORM pg_sleep(0.1);
+        PERFORM pg_sleep(0.2);
     END LOOP;
 
     RAISE NOTICE 'Completed indicators: % rows to cold storage', rows_moved_total;
@@ -228,36 +325,53 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Function to manually tier news to cold storage
--- NOTE: Uses batching to prevent memory exhaustion on large datasets
+-- NOTE: Uses dblink for autonomous transactions - each batch commits independently
+--       This prevents memory exhaustion and works correctly with TimescaleDB hypertables
 CREATE OR REPLACE FUNCTION tier_old_news()
 RETURNS void AS $$
 DECLARE
     rows_moved_total INTEGER := 0;
     rows_moved_batch INTEGER;
-    batch_size INTEGER := 10000;  -- Process 10k rows at a time to limit memory usage
+    batch_size INTEGER := 5000;  -- Process 5k rows at a time (reduced for memory safety)
+    conn_str TEXT;
 BEGIN
+    -- Connection string for autonomous transactions via dblink
+    conn_str := 'dbname=' || current_database() || ' user=' || current_user;
+
     RAISE NOTICE 'Starting tiering for news (batch size: %)', batch_size;
 
     -- Move news older than 30 days to cold storage
     LOOP
-        WITH moved AS (
-            DELETE FROM news
-            WHERE ctid IN (
-                SELECT ctid FROM news
+        -- Execute batch in autonomous transaction via dblink
+        -- News table has PRIMARY KEY (time, source, url)
+        SELECT cnt INTO rows_moved_batch FROM dblink(conn_str, format($q$
+            WITH to_move AS (
+                SELECT time, source, url
+                FROM news
                 WHERE time < NOW() - INTERVAL '30 days'
-                LIMIT batch_size
+                LIMIT %s
+            ),
+            moved AS (
+                DELETE FROM news n
+                USING to_move t
+                WHERE n.time = t.time
+                  AND n.source = t.source
+                  AND n.url = t.url
+                RETURNING n.*
+            ),
+            inserted AS (
+                INSERT INTO cold_storage.news SELECT * FROM moved
+                RETURNING 1
             )
-            RETURNING *
-        )
-        INSERT INTO cold_storage.news SELECT * FROM moved;
+            SELECT COUNT(*)::INTEGER FROM inserted
+        $q$, batch_size)) AS t(cnt INTEGER);
 
-        GET DIAGNOSTICS rows_moved_batch = ROW_COUNT;
-        EXIT WHEN rows_moved_batch = 0;
+        EXIT WHEN rows_moved_batch IS NULL OR rows_moved_batch = 0;
 
         rows_moved_total := rows_moved_total + rows_moved_batch;
         RAISE NOTICE '  Tiered % news rows (batch) - total: %', rows_moved_batch, rows_moved_total;
 
-        PERFORM pg_sleep(0.1);
+        PERFORM pg_sleep(0.2);
     END LOOP;
 
     RAISE NOTICE 'Completed news: % rows to cold storage', rows_moved_total;
