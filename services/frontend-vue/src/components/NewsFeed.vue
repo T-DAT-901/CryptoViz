@@ -58,7 +58,7 @@ function formatTime(isoString: string): string {
       >
         <div class="news-feed-content">
           <a
-            :href="item.link"
+            :href="item.url"
             target="_blank"
             rel="noopener noreferrer"
             class="news-feed-title"
@@ -70,7 +70,7 @@ function formatTime(isoString: string): string {
             <span class="news-feed-source">{{ item.source }}</span>
             <span class="news-feed-dot">•</span>
             <Clock class="news-feed-time-icon" />
-            <span class="news-feed-time">{{ formatTime(item.published) }}</span>
+            <span class="news-feed-time">{{ formatTime(item.time) }}</span>
           </div>
         </div>
       </li>

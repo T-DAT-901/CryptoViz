@@ -140,27 +140,40 @@
 }
 
 .candle-chart-tooltip-ohlc {
+  margin-bottom: var(--space-sm);
+}
+
+.candle-chart-ohlc-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+}
+
+.candle-chart-ohlc-column {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-xs);
-  margin-bottom: var(--space-sm);
 }
 
 .candle-chart-ohlc-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: var(--space-sm);
 }
 
 .candle-chart-ohlc-label {
   color: var(--text-secondary);
   font-weight: var(--font-weight-semibold);
-  width: 20px;
+  min-width: 45px;
+  flex-shrink: 0;
 }
 
 .candle-chart-ohlc-value {
   color: var(--text-primary);
   font-weight: var(--font-weight-medium);
+  text-align: right;
+  flex-shrink: 0;
 }
 
 .candle-chart-ohlc-value--high {
@@ -176,6 +189,16 @@
   font-weight: var(--font-weight-semibold);
   padding-top: var(--space-xs);
   border-top: 1px solid var(--bg-interactive);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.candle-chart-change-label {
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-xs);
 }
 
 .candle-chart-change--positive {
@@ -184,6 +207,27 @@
 
 .candle-chart-change--negative {
   color: var(--accent-red);
+}
+
+.candle-chart-tooltip-volume {
+  text-align: center;
+  font-size: var(--font-size-xs);
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--bg-interactive);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.candle-chart-volume-label {
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.candle-chart-volume-value {
+  color: var(--accent-blue);
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-semibold);
 }
 
 @media (max-width: 768px) {

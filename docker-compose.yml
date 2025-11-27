@@ -8,21 +8,40 @@ services:
       POSTGRES_USER: ${TIMESCALE_USER:-postgres}
       POSTGRES_PASSWORD: ${TIMESCALE_PASSWORD:-password}
       POSTGRES_HOST_AUTH_METHOD: trust
+    # Memory limits to prevent unbounded growth during tiering operations
+    mem_limit: 6g              # Hard memory limit (comfortable for 28GB total available)
+    memswap_limit: 6g          # Prevent swap usage (matches mem_limit)
+    shm_size: 512m             # Shared memory for PostgreSQL internal operations
     ports:
       - "7432:5432"
     volumes:
       - timescaledb_data:/var/lib/postgresql/data
+      # Database initialization scripts (executed ONLY on first startup when volume is empty)
+      # NOTE: If the database already exists, these scripts will NOT re-run
+      # To force re-initialization: use 'make db-reset' or 'make clean && make start'
       - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./database/setup-tiering.sql:/docker-entrypoint-initdb.d/02-setup-tiering.sql
       - ./database/setup-indicators.sql:/docker-entrypoint-initdb.d/03-setup-indicators.sql
+      - ./database/04-backfill-tracking.sql:/docker-entrypoint-initdb.d/04-backfill-tracking.sql
+      - ./database/05-news-dedup.sql:/docker-entrypoint-initdb.d/05-news-dedup.sql
     networks:
       - cryptoviz-network
     restart: unless-stopped
+    # PostgreSQL Memory Tuning (optimized for 6GB memory limit)
+    # shared_buffers: 25% of mem_limit (1536MB of 6GB)
+    # work_mem: per-operation memory for sorts/hashes (32MB allows ~20 concurrent ops)
+    # maintenance_work_mem: for DELETE/VACUUM/INDEX operations (512MB for large tiering ops)
+    command: >
+      postgres
+      -c shared_buffers=1536MB
+      -c work_mem=32MB
+      -c maintenance_work_mem=512MB
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${TIMESCALE_USER:-postgres} -d ${TIMESCALE_DB:-cryptoviz}"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 90s  # Grace period for database initialization scripts (init.sql, setup-tiering.sql)
 
   # Zookeeper pour Kafka
   zookeeper:
@@ -84,7 +103,8 @@ services:
       test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 120s  # Grace period for Kafka broker initialization and consumer offsets loading
 
   # Redis (optionnel pour cache)
   redis:
@@ -143,6 +163,7 @@ services:
       "
     networks:
       - cryptoviz-network
+    restart: "no"  # One-time init container - only runs once to create bucket
 
   # Data Collector Service
   data-collector:
@@ -151,6 +172,8 @@ services:
       dockerfile: Dockerfile
     container_name: cryptoviz-data-collector
     depends_on:
+      kafka-init:
+        condition: service_completed_successfully
       kafka:
         condition: service_healthy
       timescaledb:
@@ -187,6 +210,12 @@ services:
     networks:
       - cryptoviz-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'python.*main.py' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s  # Grace period for Kafka connection + Binance API fetching
     volumes:
       - ./services/data-collector:/app
     logging:
@@ -202,6 +231,8 @@ services:
       dockerfile: Dockerfile
     container_name: cryptoviz-news-scraper
     depends_on:
+      kafka-init:
+        condition: service_completed_successfully
       kafka:
         condition: service_healthy
     environment:
@@ -210,6 +241,12 @@ services:
     networks:
       - cryptoviz-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'python.*app.py' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s  # Grace period for Kafka connection and initial scraping setup
     volumes:
       - ./services/news-scraper:/app
     logging:
@@ -225,6 +262,10 @@ services:
       dockerfile: Dockerfile
     container_name: cryptoviz-backend-go
     depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
       kafka:
         condition: service_healthy
       timescaledb:
@@ -247,6 +288,12 @@ services:
     networks:
       - cryptoviz-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f './main' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s  # Grace period for database/Kafka/Redis connections and WebSocket hub initialization
     volumes:
       - ./services/backend-go:/app
     logging:
@@ -257,7 +304,6 @@ services:
 
   # Frontend Vue.js Service
   frontend-vue:
-    profiles: ["ui"]
     build:
       context: ./services/frontend-vue
       dockerfile: Dockerfile
@@ -298,17 +344,21 @@ services:
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.ticker      --config cleanup.policy=compact,delete --config retention.ms=259200000
 
         # AGGREGATED OHLCV (compactable) - Intervals: 1m, 5m, 15m, 1h, 1d
-        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.1m  --config cleanup.policy=compact,delete --config retention.ms=2592000000
-        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.5m  --config cleanup.policy=compact,delete --config retention.ms=5184000000
-        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.15m --config cleanup.policy=compact,delete --config retention.ms=7776000000
-        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.1h  --config cleanup.policy=compact,delete --config retention.ms=15552000000
-        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.1d  --config cleanup.policy=compact,delete --config retention.ms=63072000000
+        # Fast compaction settings to prevent duplicate accumulation:
+        # - segment.ms=3600000 (1h) - Close segments hourly instead of default 7 days
+        # - min.cleanable.dirty.ratio=0.5 - Compact when 50% of log is dirty (duplicates)
+        # - max.compaction.lag.ms=3600000 (1h) - Force compaction at least once per hour
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.1m  --config cleanup.policy=compact,delete --config retention.ms=2592000000 --config segment.ms=3600000 --config min.cleanable.dirty.ratio=0.5 --config max.compaction.lag.ms=3600000
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.5m  --config cleanup.policy=compact,delete --config retention.ms=5184000000 --config segment.ms=3600000 --config min.cleanable.dirty.ratio=0.5 --config max.compaction.lag.ms=3600000
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.15m --config cleanup.policy=compact,delete --config retention.ms=7776000000 --config segment.ms=3600000 --config min.cleanable.dirty.ratio=0.5 --config max.compaction.lag.ms=3600000
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.1h  --config cleanup.policy=compact,delete --config retention.ms=15552000000 --config segment.ms=3600000 --config min.cleanable.dirty.ratio=0.5 --config max.compaction.lag.ms=3600000
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.aggregated.1d  --config cleanup.policy=compact,delete --config retention.ms=63072000000 --config segment.ms=3600000 --config min.cleanable.dirty.ratio=0.5 --config max.compaction.lag.ms=3600000
 
-        # INDICATORS (compactable)
-        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.indicators.rsi       --config cleanup.policy=compact,delete --config retention.ms=2592000000
-        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.indicators.macd      --config cleanup.policy=compact,delete --config retention.ms=2592000000
-        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.indicators.bollinger --config cleanup.policy=compact,delete --config retention.ms=2592000000
-        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.indicators.momentum  --config cleanup.policy=compact,delete --config retention.ms=2592000000
+        # INDICATORS (compactable) - Same fast compaction settings
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.indicators.rsi       --config cleanup.policy=compact,delete --config retention.ms=2592000000 --config segment.ms=3600000 --config min.cleanable.dirty.ratio=0.5 --config max.compaction.lag.ms=3600000
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.indicators.macd      --config cleanup.policy=compact,delete --config retention.ms=2592000000 --config segment.ms=3600000 --config min.cleanable.dirty.ratio=0.5 --config max.compaction.lag.ms=3600000
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.indicators.bollinger --config cleanup.policy=compact,delete --config retention.ms=2592000000 --config segment.ms=3600000 --config min.cleanable.dirty.ratio=0.5 --config max.compaction.lag.ms=3600000
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.indicators.momentum  --config cleanup.policy=compact,delete --config retention.ms=2592000000 --config segment.ms=3600000 --config min.cleanable.dirty.ratio=0.5 --config max.compaction.lag.ms=3600000
 
         # NEWS (peu critique)
         kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 3 --replication-factor 1 --topic crypto.news         --config cleanup.policy=delete --config retention.ms=604800000
@@ -318,6 +368,7 @@ services:
       "
     networks:
       - cryptoviz-network
+    restart: "no"  # One-time init container - only runs once to create topics
 
   # ========== MONITORING STACK ==========
 
@@ -490,6 +541,12 @@ services:
     networks:
       - cryptoviz-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'python.*scheduler.py' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s  # Grace period for database connection and scheduler initialization
     depends_on:
       timescaledb:
         condition: service_healthy

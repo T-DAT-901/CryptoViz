@@ -2,7 +2,7 @@
 # CryptoViz Makefile
 # =============================================================================
 
-.PHONY: help start stop restart build clean logs status test lint format mac-start mac-start-monitoring mac-build mac-clean mac-reset-backfill windows-start windows-start-monitoring windows-build windows-clean windows-reset-backfill debug-backfill debug-timescale check-docker-resources
+.PHONY: help start stop restart build clean logs status test lint format mac-start mac-start-monitoring mac-build mac-clean mac-reset-backfill windows-start windows-start-monitoring windows-build windows-clean windows-reset-backfill debug-backfill debug-timescale check-docker-resources tiering tiering-stats
 
 # Variables
 COMPOSE_FILE = docker-compose.yml
@@ -139,6 +139,8 @@ build-service: ## Construire une image spécifique (usage: make build-service SE
 clean: ## Nettoyer les conteneurs, images et volumes
 	@echo "$(RED)Nettoyage complet...$(NC)"
 	@./scripts/stop.sh --cleanup
+	@echo "$(RED)Suppression explicite du volume de base de données...$(NC)"
+	@docker volume rm cryptoviz_timescaledb_data 2>/dev/null || true
 	@echo "$(RED)Suppression des images Docker...$(NC)"
 	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) down --rmi all
 	@echo "$(RED)Suppression du cache de build Docker...$(NC)"
@@ -164,6 +166,10 @@ health: ## Vérifier la santé des services
 	@docker-compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
 
 # Base de données
+db-migrate: ## Exécuter les migrations de base de données (idempotent)
+	@echo "$(GREEN)Running database migrations...$(NC)"
+	@./scripts/run-migrations.sh
+
 db-connect: ## Se connecter à la base de données TimescaleDB
 	@docker-compose exec timescaledb psql -U postgres -d cryptoviz
 
@@ -180,6 +186,57 @@ db-restore: ## Restaurer la base de données (usage: make db-restore BACKUP=fich
 	fi
 	@echo "$(YELLOW)Restauration de la base de données depuis $(BACKUP)...$(NC)"
 	@docker-compose exec -T timescaledb psql -U postgres -d cryptoviz < $(BACKUP)
+
+db-verify-tiering: ## Vérifier si le tiering (cold storage) est configuré
+	@echo "$(GREEN)Vérification de la configuration du tiering...$(NC)"
+	@docker-compose exec -T timescaledb psql -U postgres -d cryptoviz -c "\
+		SELECT EXISTS ( \
+			SELECT FROM information_schema.tables \
+			WHERE table_name = 'all_candles' \
+		) AS all_candles_exists, \
+		EXISTS ( \
+			SELECT FROM information_schema.schemata \
+			WHERE schema_name = 'cold_storage' \
+		) AS cold_storage_exists;" || echo "$(RED)Base de données non accessible$(NC)"
+
+db-setup-tiering: ## Configurer le cold storage et les vues unifiées
+	@echo "$(GREEN)Configuration du cold storage et du tiering...$(NC)"
+	@docker-compose exec -T timescaledb psql -U postgres -d cryptoviz < database/setup-tiering.sql
+	@echo "$(GREEN)Configuration du tiering terminée!$(NC)"
+	@echo "$(YELLOW)Vérification de l'installation...$(NC)"
+	@make db-verify-tiering
+
+db-reset: ## Réinitialiser la base de données complètement (SUPPRIME TOUTES LES DONNÉES)
+	@echo "$(RED)ATTENTION: Cette commande va SUPPRIMER TOUTES LES DONNÉES DE LA BASE!$(NC)"
+	@read -p "Tapez 'yes' pour confirmer: " confirm; \
+	if [ "$$confirm" = "yes" ]; then \
+		echo "$(YELLOW)Arrêt de timescaledb...$(NC)"; \
+		docker-compose stop timescaledb; \
+		echo "$(RED)Suppression du volume de la base de données...$(NC)"; \
+		docker volume rm cryptoviz_timescaledb_data 2>/dev/null || true; \
+		echo "$(GREEN)Redémarrage de timescaledb (exécutera tous les scripts d'init)...$(NC)"; \
+		docker-compose up -d timescaledb; \
+		sleep 10; \
+		echo "$(GREEN)Réinitialisation terminée! Tous les scripts ont été exécutés.$(NC)"; \
+		make db-verify-tiering; \
+	else \
+		echo "$(YELLOW)Réinitialisation annulée$(NC)"; \
+	fi
+
+tiering: ## Exécuter manuellement le tiering (hot → cold storage)
+	@echo "$(GREEN)Exécution du tiering manuel (hot → cold storage)...$(NC)"
+	@docker-compose exec -T timescaledb psql -U postgres -d cryptoviz \
+		-c "SELECT tier_old_candles();" \
+		-c "SELECT tier_old_indicators();" \
+		-c "SELECT tier_old_news();"
+	@echo "$(GREEN)Tiering terminé!$(NC)"
+	@echo "$(YELLOW)Vérification des résultats...$(NC)"
+	@make tiering-stats
+
+tiering-stats: ## Afficher les statistiques de tiering (hot/cold distribution)
+	@echo "$(GREEN)Statistiques de tiering (hot vs cold storage):$(NC)"
+	@docker-compose exec -T timescaledb psql -U postgres -d cryptoviz \
+		-c "SELECT * FROM get_tiering_stats();"
 
 # Kafka
 kafka-topics: ## Lister les topics Kafka
@@ -277,48 +334,44 @@ mac-clean: ## [Mac/Windows] Nettoyer Docker + stale networks/volumes (Docker Des
 	@docker image prune -f
 	@echo "$(GREEN)✓ Nettoyage $(PLATFORM) terminé$(NC)"
 
-mac-reset-backfill: ## [Mac/Windows] Supprimer l'état du backfill et redémarrer
-	@echo "$(YELLOW)Suppression de l'état du backfill...$(NC)"
-	@rm -f services/data-collector/backfill_state.json
-	@echo "$(GREEN)✓ État du backfill supprimé$(NC)"
-	@echo "$(BLUE)Au prochain démarrage, le backfill sera réexécuté$(NC)"
-	@echo "Voulez-vous redémarrer le data-collector maintenant? (Ctrl+C pour annuler)"
-	@read -p "Appuyez sur Entrée pour continuer..."
-	@docker-compose -f docker-compose.yml $(DESKTOP_OVERRIDE) restart data-collector
-	@echo "$(GREEN)✓ Data-collector redémarré$(NC)"
-
 # Windows/WSL2 aliases (same as Mac commands, just different names for clarity)
 windows-start: mac-start ## [Windows/WSL2] Alias for mac-start (same Docker Desktop fixes)
 windows-start-monitoring: mac-start-monitoring ## [Windows/WSL2] Alias for mac-start-monitoring
 windows-build: mac-build ## [Windows/WSL2] Alias for mac-build
 windows-clean: mac-clean ## [Windows/WSL2] Alias for mac-clean
-windows-reset-backfill: mac-reset-backfill ## [Windows/WSL2] Alias for mac-reset-backfill
 
 # =============================================================================
 # Debugging - Diagnostic des problèmes multi-machines
 # =============================================================================
 
-debug-backfill: ## Vérifier l'état du backfill historique
+debug-backfill: ## Vérifier l'état du backfill historique (database-backed)
 	@echo "$(GREEN)=== Vérification du Backfill ===$(NC)"
 	@echo ""
-	@echo "$(YELLOW)1. État du fichier backfill_state.json:$(NC)"
-	@if [ -f services/data-collector/backfill_state.json ]; then \
-		echo "$(GREEN)✓ Fichier trouvé$(NC)"; \
-		ls -lh services/data-collector/backfill_state.json; \
-		echo ""; \
-		echo "$(YELLOW)Contenu (premiers symboles):$(NC)"; \
-		head -20 services/data-collector/backfill_state.json 2>/dev/null || cat services/data-collector/backfill_state.json; \
-	else \
-		echo "$(RED)✗ Fichier NON trouvé - Le backfill n'a jamais été exécuté$(NC)"; \
-	fi
+	@echo "$(YELLOW)1. État de la table backfill_progress:$(NC)"
+	@docker exec cryptoviz-timescaledb psql -U postgres -d cryptoviz -c "\
+		SELECT symbol, timeframe, status, \
+		       backfill_start_ts::date as start_date, \
+		       current_position_ts::date as current_date, \
+		       total_candles_fetched, total_batches_processed \
+		FROM backfill_progress \
+		ORDER BY symbol, timeframe \
+		LIMIT 20;" 2>/dev/null || echo "$(RED)Erreur: TimescaleDB non accessible ou table non créée$(NC)"
 	@echo ""
-	@echo "$(YELLOW)2. Variable ENABLE_BACKFILL dans .env:$(NC)"
+	@echo "$(YELLOW)2. Statistiques par statut:$(NC)"
+	@docker exec cryptoviz-timescaledb psql -U postgres -d cryptoviz -c "\
+		SELECT status, COUNT(*) as count, \
+		       SUM(total_candles_fetched) as total_candles \
+		FROM backfill_progress \
+		GROUP BY status \
+		ORDER BY status;" 2>/dev/null || echo "$(RED)Erreur: TimescaleDB non accessible$(NC)"
+	@echo ""
+	@echo "$(YELLOW)3. Variable ENABLE_BACKFILL dans .env:$(NC)"
 	@grep -i "ENABLE_BACKFILL" .env || echo "$(RED)Variable non trouvée dans .env$(NC)"
 	@echo ""
-	@echo "$(YELLOW)3. Logs du data-collector (dernières 30 lignes):$(NC)"
+	@echo "$(YELLOW)4. Logs du data-collector (dernières 30 lignes):$(NC)"
 	@docker logs cryptoviz-data-collector 2>&1 | grep -i "backfill" | tail -30 || echo "$(RED)Container non trouvé ou pas de logs backfill$(NC)"
 	@echo ""
-	@echo "$(YELLOW)4. État du container data-collector:$(NC)"
+	@echo "$(YELLOW)5. État du container data-collector:$(NC)"
 	@docker ps -a | grep data-collector || echo "$(RED)Container non trouvé$(NC)"
 
 debug-timescale: ## Vérifier les données historiques dans TimescaleDB

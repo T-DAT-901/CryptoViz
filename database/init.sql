@@ -165,6 +165,37 @@ ALTER TABLE news SET (
 -- INDEX OPTIMISÉS
 -- =============================================================================
 
+-- =============================================================================
+-- UNIQUE CONSTRAINTS (Duplicate Prevention)
+-- =============================================================================
+-- These UNIQUE indexes prevent duplicate data from being inserted into the database
+-- This is critical for preventing Kafka message duplication and backfill re-runs
+
+-- TRADES: Prevent duplicate trades from Kafka retries or backfill re-runs
+-- A trade is unique by its trade_id, exchange, and symbol combination
+CREATE UNIQUE INDEX IF NOT EXISTS idx_trades_unique_id
+    ON trades (trade_id, exchange, symbol, event_ts);
+
+-- CANDLES: Prevent duplicate candles from multiple sources (websocket + historical + aggregation)
+-- A candle is unique by its window_start time, exchange, symbol, and timeframe
+CREATE UNIQUE INDEX IF NOT EXISTS idx_candles_unique_window
+    ON candles (window_start, exchange, symbol, timeframe);
+
+-- INDICATORS: Prevent duplicate indicator calculations
+-- An indicator value is unique by its time, symbol, timeframe, and indicator type
+CREATE UNIQUE INDEX IF NOT EXISTS idx_indicators_unique_calculation
+    ON indicators (time, symbol, timeframe, indicator_type);
+
+-- =============================================================================
+-- PERFORMANCE INDEXES
+-- =============================================================================
+
+-- Index for efficient backfill checks (used by check_backfill_needed function)
+-- Optimizes queries that check MIN/MAX timestamps for historical data
+CREATE INDEX IF NOT EXISTS idx_candles_backfill_check
+    ON candles (source, symbol, timeframe, window_start DESC)
+    WHERE source = 'historical';
+
 -- Index pour trades
 CREATE INDEX IF NOT EXISTS idx_trades_exchange_symbol_time
     ON trades (exchange, symbol, event_ts DESC);
@@ -503,7 +534,31 @@ END
 $$;
 
 -- =============================================================================
+-- SETUP DATA TIERING (executed from external file)
+-- =============================================================================
+-- Creates cold storage schema, tiering functions, and unified views (all_candles, all_indicators, all_news)
+
+\i /docker-entrypoint-initdb.d/02-setup-tiering.sql
+
+-- =============================================================================
 -- SETUP INDICATORS (executed from external file)
 -- =============================================================================
 
 \i /docker-entrypoint-initdb.d/03-setup-indicators.sql
+
+-- =============================================================================
+-- SETUP BACKFILL TRACKING (executed from external file)
+-- =============================================================================
+-- Creates backfill_progress table and helper functions for database-backed backfill tracking
+-- Functions: update_backfill_progress(), get_last_backfill_timestamp(), check_backfill_needed()
+-- Features: Idempotent progress tracking, gap detection (2-minute threshold), config change detection
+
+\i /docker-entrypoint-initdb.d/04-backfill-tracking.sql
+
+-- =============================================================================
+-- NEWS DEDUPLICATION (executed from external file)
+-- =============================================================================
+-- Adds unique constraint on URL to prevent duplicate news articles
+-- Same URL from any source = 1 row (first insertion wins)
+
+\i /docker-entrypoint-initdb.d/05-news-dedup.sql

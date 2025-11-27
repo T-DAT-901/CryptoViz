@@ -119,13 +119,12 @@ start_services() {
     info "Attente de la disponibilité des services..."
     sleep 30
 
-    # Initialiser MinIO
-    info "Initialisation de MinIO (buckets)..."
-    docker-compose -f docker-compose.yml $OVERRIDE_FILE up minio-init
+    # Run database migrations (idempotent - safe to run on every start)
+    info "Running database migrations..."
+    ./scripts/run-migrations.sh
 
-    # Initialiser les topics Kafka
-    info "Initialisation des topics Kafka..."
-    docker-compose -f docker-compose.yml $OVERRIDE_FILE up kafka-init
+    # Note: minio-init and kafka-init run automatically via depends_on when their
+    # dependent services start. With restart: "no", they only run once and skip on subsequent starts.
 
     # Démarrer les microservices
     info "Démarrage des microservices..."
@@ -151,7 +150,7 @@ start_monitoring() {
     log "Démarrage de la stack de monitoring..."
 
     info "Démarrage des services de monitoring (Grafana, Prometheus, Kafka UI, etc.)..."
-    docker-compose -f docker-compose.yml $OVERRIDE_FILE up -d kafka-ui prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter gatus
+    docker-compose -f docker-compose.yml $OVERRIDE_FILE up -d kafka-ui prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter kafka-exporter gatus
 
     log "Stack de monitoring démarrée"
 }

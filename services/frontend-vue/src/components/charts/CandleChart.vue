@@ -34,6 +34,17 @@ const props = defineProps<{
   } | null;
 }>();
 
+const emit = defineEmits<{
+  (
+    e: "pan-complete",
+    payload: { minVisible: number; maxVisible: number }
+  ): void;
+  (
+    e: "zoom-complete",
+    payload: { minVisible: number; maxVisible: number }
+  ): void;
+}>();
+
 const canvasEl = ref<HTMLCanvasElement | null>(null);
 let chart: Chart<"candlestick"> | null = null;
 
@@ -109,6 +120,14 @@ const options: ChartOptions<"candlestick"> = {
         enabled: true,
         mode: "x",
         modifierKey: undefined,
+        onPanComplete: ({ chart }: any) => {
+          if (chart.scales.x) {
+            emit("pan-complete", {
+              minVisible: chart.scales.x.min,
+              maxVisible: chart.scales.x.max,
+            });
+          }
+        },
       },
       zoom: {
         wheel: {
@@ -120,6 +139,14 @@ const options: ChartOptions<"candlestick"> = {
           enabled: true,
         },
         mode: "x",
+        onZoomComplete: ({ chart }: any) => {
+          if (chart.scales.x) {
+            emit("zoom-complete", {
+              minVisible: chart.scales.x.min,
+              maxVisible: chart.scales.x.max,
+            });
+          }
+        },
       },
     },
   },
@@ -188,10 +215,11 @@ const options: ChartOptions<"candlestick"> = {
 };
 
 function getTimeDisplayFormat(timeframe: string) {
+  // Return only displayFormats, let Chart.js auto-detect unit based on visible range
+  // This prevents "too far apart" errors when data spans large time ranges
   switch (timeframe) {
     case "1h":
       return {
-        unit: "minute",
         displayFormats: {
           minute: "HH:mm",
           hour: "HH:mm",
@@ -200,7 +228,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     case "1d":
       return {
-        unit: "hour",
         displayFormats: {
           hour: "dd/MM",
           minute: "dd/MM",
@@ -209,7 +236,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     case "7d":
       return {
-        unit: "day",
         displayFormats: {
           day: "dd/MM",
           hour: "dd/MM HH:mm",
@@ -218,7 +244,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     case "1M":
       return {
-        unit: "week",
         displayFormats: {
           week: "dd/MM",
           day: "dd/MM",
@@ -227,7 +252,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     case "1y":
       return {
-        unit: "month",
         displayFormats: {
           month: "MMM yyyy",
           week: "dd/MM",
@@ -236,7 +260,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     case "all":
       return {
-        unit: "year",
         displayFormats: {
           year: "yyyy",
           month: "MMM yyyy",
@@ -245,7 +268,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     default:
       return {
-        unit: "minute",
         displayFormats: {
           minute: "HH:mm",
           hour: "HH:mm",
@@ -302,7 +324,7 @@ function fitChartToTimeframe() {
     const xScale = chart.options.scales.x as any;
     xScale.time = {
       ...xScale.time,
-      unit: timeConfig.unit,
+      // Let Chart.js auto-detect unit based on visible range
       displayFormats: timeConfig.displayFormats,
     };
     xScale.ticks.maxTicksLimit = timeConfig.maxTicksLimit;
@@ -316,7 +338,7 @@ function fitChartToTimeframe() {
     if (["1m", "5m", "15m", "1h"].includes(props.timeframe || "")) {
       x2Scale.time = {
         ...x2Scale.time,
-        unit: "day",
+        // Let Chart.js auto-detect unit
         displayFormats: {
           day: "dd/MM",
         },
@@ -327,7 +349,7 @@ function fitChartToTimeframe() {
     else {
       x2Scale.time = {
         ...x2Scale.time,
-        unit: "week",
+        // Let Chart.js auto-detect unit
         displayFormats: {
           week: "dd/MM",
           day: "dd/MM",
@@ -487,7 +509,10 @@ function handleMouseMove(event: MouseEvent) {
           }) + " €",
         change: `${change > 0 ? "+" : ""}${change.toFixed(2)} €`,
         changePercent: `${change > 0 ? "+" : ""}${changePercent.toFixed(2)}%`,
-        volume: "Volume: N/A",
+        volume: candle.volume.toLocaleString("fr-FR", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }),
         isPositive: change >= 0,
         candleIndex: dataIndex,
       };
@@ -633,6 +658,7 @@ defineExpose({
         </div>
       </div>
       <div class="candle-chart-tooltip-change">
+        <span class="candle-chart-change-label">Variation:</span>
         <span
           :class="{
             'candle-chart-change--positive': tooltipData.isPositive,
@@ -642,183 +668,10 @@ defineExpose({
           {{ tooltipData.change }} ({{ tooltipData.changePercent }})
         </span>
       </div>
+      <div class="candle-chart-tooltip-volume">
+        <span class="candle-chart-volume-label">Volume:</span>
+        <span class="candle-chart-volume-value">{{ tooltipData.volume }}</span>
+      </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.candle-chart {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-
-.candle-chart-canvas-wrapper {
-  width: 100%;
-  height: 100%;
-}
-
-.candle-chart-reset-btn {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 10;
-  padding: 6px 12px;
-  background: rgba(16, 185, 129, 0.2);
-  border: 1px solid rgba(16, 185, 129, 0.5);
-  color: #10b981;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: all 0.2s ease;
-}
-
-.candle-chart-reset-btn:hover {
-  background: rgba(16, 185, 129, 0.4);
-  border-color: #10b981;
-}
-
-.candle-chart-crosshair-container {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
-.candle-chart-crosshair-line {
-  position: absolute;
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-.candle-chart-crosshair-line--vertical {
-  top: 0;
-  width: 1px;
-  height: 100%;
-  border-left: 1px dashed rgba(255, 255, 255, 0.3);
-}
-
-.candle-chart-crosshair-line--horizontal {
-  left: 0;
-  width: 100%;
-  height: 1px;
-  border-top: 1px dashed rgba(255, 255, 255, 0.3);
-}
-
-.candle-chart-crosshair-label {
-  position: absolute;
-  background: rgba(31, 41, 55, 0.9);
-  color: rgba(255, 255, 255, 0.8);
-  padding: 4px 8px;
-  font-size: 11px;
-  border-radius: 3px;
-  white-space: nowrap;
-  z-index: 20;
-}
-
-.candle-chart-date-label {
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: -24px;
-}
-
-.candle-chart-price-label {
-  right: -8px;
-  top: 50%;
-  transform: translateY(-50%);
-  margin-right: -60px;
-}
-
-.candle-chart-tooltip {
-  position: absolute;
-  background: rgba(7, 14, 16, 0.95);
-  border: 1px solid rgba(232, 240, 240, 0.15);
-  border-radius: 4px;
-  padding: 7px 9px;
-  z-index: 1000;
-  color: rgba(232, 240, 240, 0.9);
-  font-size: 9px;
-  pointer-events: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  max-width: 200px;
-  backdrop-filter: blur(8px);
-  white-space: nowrap;
-}
-
-.candle-chart-tooltip-date {
-  font-weight: 600;
-  margin-bottom: 6px;
-  color: rgba(232, 240, 240, 0.95);
-  border-bottom: 1px solid rgba(232, 240, 240, 0.1);
-  padding-bottom: 4px;
-  font-size: 9px;
-  text-align: center;
-}
-
-.candle-chart-tooltip-ohlc {
-  margin-bottom: 6px;
-}
-
-.candle-chart-ohlc-columns {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.candle-chart-ohlc-column {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.candle-chart-ohlc-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 9px;
-  gap: 4px;
-}
-
-.candle-chart-ohlc-label {
-  color: rgba(232, 240, 240, 0.6);
-  font-weight: 500;
-  min-width: 40px;
-  text-align: left;
-  flex-shrink: 0;
-}
-
-.candle-chart-ohlc-value {
-  color: rgba(232, 240, 240, 0.9);
-  font-family: "Monaco", "Courier New", monospace;
-  text-align: right;
-  font-size: 9px;
-  font-weight: 500;
-  flex-shrink: 0;
-}
-
-.candle-chart-ohlc-value--high {
-  color: #10b981;
-}
-
-.candle-chart-ohlc-value--low {
-  color: #ef4444;
-}
-
-.candle-chart-tooltip-change {
-  text-align: center;
-  font-weight: 600;
-  font-size: 9px;
-  padding-top: 4px;
-  border-top: 1px solid rgba(232, 240, 240, 0.1);
-}
-
-.candle-chart-change--positive {
-  color: #10b981;
-}
-
-.candle-chart-change--negative {
-  color: #ef4444;
-}
-</style>
