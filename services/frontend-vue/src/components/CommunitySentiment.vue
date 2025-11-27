@@ -1,149 +1,174 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
-import {
-  BarChart3,
-  TrendingUp,
-  TrendingDown,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-vue-next";
+import { ref, computed, onMounted, watch } from "vue";
+import { BarChart3 } from "lucide-vue-next";
+import { NewsService, type NewsArticle } from "@/services/news.api";
 
 const props = defineProps<{
   symbol?: string;
 }>();
 
-// Données de sentiment (mockées pour l'exemple)
-const sentimentData = ref({
-  totalVotes: 5200000, // 5.2M votes
-  bullishVotes: 4264000, // 82%
-  bearishVotes: 936000, // 18%
-  currentPage: 1,
-  totalPages: 2,
-});
+const totalArticles = ref(0);
+const averageSentiment = ref(0); // Score de -1 (bearish) à 1 (bullish)
+const isLoading = ref(true);
 
-// Calculs des pourcentages
-const bullishPercentage = computed(() => {
-  const total =
-    sentimentData.value.bullishVotes + sentimentData.value.bearishVotes;
-  return Math.round((sentimentData.value.bullishVotes / total) * 100);
-});
+async function fetchSentimentData(symbol: string) {
+  if (!symbol) return;
 
-const bearishPercentage = computed(() => {
-  const total =
-    sentimentData.value.bullishVotes + sentimentData.value.bearishVotes;
-  return Math.round((sentimentData.value.bearishVotes / total) * 100);
-});
+  isLoading.value = true;
+  // Extrait le token de base (ex: BTC de BTC/USDT) et le met en minuscule
+  const baseToken = symbol.split('/')[0].toLowerCase();
+  console.log(`[Sentiment] 1. Fetching sentiment for base token: ${baseToken}`);
 
-// Formatage du nombre de votes
-const formattedVotes = computed(() => {
-  const votes = sentimentData.value.totalVotes;
-  if (votes >= 1000000) {
-    return (votes / 1000000).toFixed(1) + "M";
-  } else if (votes >= 1000) {
-    return (votes / 1000).toFixed(1) + "K";
-  }
-  return votes.toString();
-});
+  try {
+    const fetchedArticles = await NewsService.getNewsBySymbol(baseToken, 500);
+    console.log(`[Sentiment] 2. Fetched ${fetchedArticles.length} articles from the API for token '${baseToken}'.`);
 
-// Navigation entre pages
-function navigatePage(direction: "prev" | "next") {
-  if (direction === "prev" && sentimentData.value.currentPage > 1) {
-    sentimentData.value.currentPage--;
-  } else if (
-    direction === "next" &&
-    sentimentData.value.currentPage < sentimentData.value.totalPages
-  ) {
-    sentimentData.value.currentPage++;
+    const twentyFourHoursAgo = new Date();
+    twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
+
+    const recentArticles = fetchedArticles.filter(
+      (article) =>
+        new Date(article.time) > twentyFourHoursAgo &&
+        article.sentiment_score !== null
+    );
+    console.log(`[Sentiment] 3. Found ${recentArticles.length} articles from the last 24 hours with a sentiment score.`);
+
+    totalArticles.value = recentArticles.length;
+
+    if (recentArticles.length > 0) {
+      const sentimentSum = recentArticles.reduce(
+        (sum, article) => sum + article.sentiment_score!,
+        0
+      );
+      averageSentiment.value = sentimentSum / recentArticles.length;
+      console.log(`[Sentiment] 4. Calculated average sentiment: ${averageSentiment.value}`);
+    } else {
+      averageSentiment.value = 0; // Neutre si pas d'articles
+      console.log(`[Sentiment] 4. No recent articles with score found, sentiment is neutral (0).`);
+    }
+  } catch (error) {
+    console.error(`[Sentiment] Failed to fetch sentiment data for ${baseToken}:`, error);
+    totalArticles.value = 0;
+    averageSentiment.value = 0;
+  } finally {
+    isLoading.value = false;
   }
 }
+
+// Convertit le score de [-1, 1] à un pourcentage de [0, 100] pour la barre
+const sentimentBarPercentage = computed(() => {
+  return (averageSentiment.value + 1) / 2 * 100;
+});
+
+const sentimentLabel = computed(() => {
+  if (averageSentiment.value > 0.1) return "Plutôt positif";
+  if (averageSentiment.value < -0.1) return "Plutôt négatif";
+  return "Neutre";
+});
+
+const sentimentColor = computed(() => {
+  if (averageSentiment.value > 0.1) return "var(--accent-green)";
+  if (averageSentiment.value < -0.1) return "var(--accent-red)";
+  return "var(--text-secondary)";
+});
+
+onMounted(() => {
+  if (props.symbol) {
+    fetchSentimentData(props.symbol);
+  }
+});
+
+watch(
+  () => props.symbol,
+  (newSymbol) => {
+    if (newSymbol) {
+      fetchSentimentData(newSymbol);
+    }
+  }
+);
 </script>
 
 <template>
   <div class="community-sentiment">
-    <!-- Header avec navigation -->
     <div class="community-sentiment-header">
       <div class="community-sentiment-header-left">
-        <!-- Icône de chart Lucide -->
         <BarChart3 class="community-sentiment-icon" />
         <div class="community-sentiment-title-section">
-          <h3 class="community-sentiment-title">Sentiment</h3>
-          <span class="community-sentiment-vote-count"
-            >{{ formattedVotes }} votes</span
-          >
+          <h3 class="community-sentiment-title">Analyse de Sentiment (24h)</h3>
+          <span v-if="!isLoading" class="community-sentiment-vote-count">
+            {{ totalArticles }} articles analysés
+          </span>
+          <span v-else class="community-sentiment-vote-count">Loading...</span>
         </div>
-      </div>
-
-      <div class="community-sentiment-pagination">
-        <button
-          class="community-sentiment-nav-btn"
-          @click="navigatePage('prev')"
-          :disabled="sentimentData.currentPage === 1"
-        >
-          <ChevronLeft />
-        </button>
-        <span class="community-sentiment-page-info"
-          >{{ sentimentData.currentPage }}/{{ sentimentData.totalPages }}</span
-        >
-        <button
-          class="community-sentiment-nav-btn"
-          @click="navigatePage('next')"
-          :disabled="sentimentData.currentPage === sentimentData.totalPages"
-        >
-          <ChevronRight />
-        </button>
       </div>
     </div>
 
-    <!-- Barre de sentiment avec pourcentages -->
-    <div class="community-sentiment-sentiment-section">
-      <div class="community-sentiment-percentage-row">
-        <div class="community-sentiment-bullish-section">
-          <!-- Icône trending up Lucide -->
-          <TrendingUp
-            class="community-sentiment-trend-icon community-sentiment-trend-icon--bullish"
-          />
-          <span class="community-sentiment-percentage"
-            >{{ bullishPercentage }}%</span
-          >
+    <div v-if="!isLoading" class="sentiment-analysis-section">
+       <div class="sentiment-bar-container">
+        <div class="sentiment-bar-labels">
+          <span>Négatif</span>
+          <span>Positif</span>
         </div>
-        <div class="community-sentiment-bearish-section">
-          <span class="community-sentiment-percentage"
-            >{{ bearishPercentage }}%</span
-          >
-          <!-- Icône trending down Lucide -->
-          <TrendingDown
-            class="community-sentiment-trend-icon community-sentiment-trend-icon--bearish"
-          />
+        <div class="sentiment-bar">
+          <div class="sentiment-bar-background"></div>
+          <div
+            class="sentiment-bar-indicator"
+            :style="{ left: `${sentimentBarPercentage}%`, backgroundColor: sentimentColor }"
+          ></div>
         </div>
       </div>
-
-      <!-- Barre de progression raffinée -->
-      <div class="community-sentiment-bar">
-        <div
-          class="community-sentiment-bullish-fill"
-          :style="{ width: bullishPercentage + '%' }"
-        ></div>
-        <div
-          class="community-sentiment-bearish-fill"
-          :style="{ width: bearishPercentage + '%' }"
-        ></div>
+       <div class="sentiment-summary">
+        <span :style="{ color: sentimentColor }">{{ sentimentLabel }}</span>
       </div>
     </div>
-
-    <!-- Boutons de vote raffinés -->
-    <div class="community-sentiment-vote-buttons">
-      <button
-        class="community-sentiment-vote-btn community-sentiment-vote-btn--bullish"
-      >
-        <TrendingUp class="community-sentiment-vote-icon" />
-        <span class="community-sentiment-vote-label">Bullish</span>
-      </button>
-      <button
-        class="community-sentiment-vote-btn community-sentiment-vote-btn--bearish"
-      >
-        <TrendingDown class="community-sentiment-vote-icon" />
-        <span class="community-sentiment-vote-label">Bearish</span>
-      </button>
-    </div>
+    <div v-else class="loading-shimmer" style="height: 60px; margin-top: 10px;"></div>
   </div>
 </template>
+
+<style scoped>
+.sentiment-analysis-section {
+  padding-top: 1rem;
+}
+
+.sentiment-bar-container {
+  width: 100%;
+}
+
+.sentiment-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.sentiment-bar {
+  position: relative;
+  width: 100%;
+  height: 8px;
+}
+
+.sentiment-bar-background {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to right, var(--accent-red), var(--accent-orange), var(--accent-green));
+  border-radius: 4px;
+}
+
+.sentiment-bar-indicator {
+  position: absolute;
+  top: -4px; /* Center on the bar */
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  border: 2px solid var(--bg-primary);
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+}
+
+.sentiment-summary {
+  text-align: center;
+  margin-top: 1rem;
+  font-weight: 500;
+}
+</style>
