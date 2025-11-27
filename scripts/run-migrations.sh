@@ -46,6 +46,9 @@ run_migrations() {
     # Backfill tracking (update_backfill_progress, get_last_backfill_timestamp, etc.)
     docker exec -i cryptoviz-timescaledb psql -U postgres -d cryptoviz < database/04-backfill-tracking.sql
 
+    # News deduplication (unique URL constraint)
+    docker exec -i cryptoviz-timescaledb psql -U postgres -d cryptoviz < database/05-news-dedup.sql
+
     log "✓ Migrations complete"
 }
 
