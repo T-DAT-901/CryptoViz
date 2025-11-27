@@ -256,6 +256,7 @@ timescaledb-data/
 # Local development
 .local/
 local/
+info-doc/
 
 # Monitoring and metrics
 prometheus-data/
@@ -360,3 +361,5 @@ public/assets/
 docs/
 # Data collector state files
 services/data-collector/backfill_state.json
+
+

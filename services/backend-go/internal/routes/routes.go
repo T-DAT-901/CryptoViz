@@ -34,6 +34,7 @@ func Setup(deps *controllers.Dependencies, logger *logrus.Logger) *gin.Engine {
 		// Routes candles (using query parameters for symbols with slashes)
 		v1.GET("/crypto/data", middleware.ValidateSymbolQuery(), middleware.ValidateInterval(), candleCtrl.GetCandleData)
 		v1.GET("/crypto/latest", middleware.ValidateSymbolQuery(), candleCtrl.GetLatestPrice)
+		v1.GET("/crypto/symbols", candleCtrl.GetAvailableSymbols)
 		v1.GET("/stats", middleware.ValidateSymbolQuery(), middleware.ValidateInterval(), candleCtrl.GetStats)
 
 		// Routes indicateurs (using query parameters for symbols with slashes)

@@ -14,9 +14,10 @@ import {
   type ChartData,
   type ChartOptions,
 } from "chart.js";
+import zoomPlugin from "chartjs-plugin-zoom";
 import "chartjs-adapter-date-fns";
 import { useIndicatorsStore } from "@/stores/indicators";
-import { transformOldCandlesArray } from "@/utils/mockTransform";
+import { fetchIndicators } from "@/services/markets.api";
 
 Chart.register(
   LineController,
@@ -26,7 +27,8 @@ Chart.register(
   PointElement,
   LinearScale,
   TimeScale,
-  Tooltip
+  Tooltip,
+  zoomPlugin
 );
 
 const props = defineProps<{ symbol: string }>();
@@ -40,185 +42,26 @@ const macdData = ref<
   Array<{ timestamp: number; macd: number; signal: number; histogram: number }>
 >([]);
 
-// Load mock data based on timeframe
-async function loadMockData() {
+// Load MACD data from API
+async function loadMACDData() {
   try {
-    // Use timeframe from store
-    const timeframe = indicatorsStore.selectedTimeframe;
+    console.log(`Loading MACD data for: ${props.symbol}`);
+    const data = await fetchIndicators(props.symbol, "macd");
 
-    if (import.meta.env.VITE_USE_MOCK === "true") {
-      console.log(`Loading MACD mock data for timeframe: ${timeframe}`);
-
-      // Import unified data (same as TradingChart)
-      const { default: unifiedData } = await import(
-        "@/services/mocks/candles_unified.json"
-      );
-
-      let candleData = [];
-
-      // Select data based on timeframe (same logic as TradingChart)
-      switch (timeframe) {
-        case "1h":
-          const oneDayData = unifiedData["1d"] || [];
-          candleData = transformOldCandlesArray(oneDayData.slice(-60));
-          break;
-        case "1d":
-          const twentyFourHourData = unifiedData["1d"] || [];
-          candleData = transformOldCandlesArray(
-            twentyFourHourData.slice(-1440)
-          );
-          break;
-        case "7d":
-          candleData = transformOldCandlesArray(unifiedData["7d"] || []);
-          break;
-        case "1M":
-          candleData = transformOldCandlesArray(unifiedData["1M"] || []);
-          break;
-        case "1y":
-          candleData = transformOldCandlesArray(unifiedData["1y"] || []);
-          break;
-        case "all":
-          candleData = transformOldCandlesArray(unifiedData["all"] || []);
-          break;
-        default:
-          const fallbackData = unifiedData["1d"] || [];
-          candleData = transformOldCandlesArray(fallbackData.slice(-60));
-      }
-
-      // Calculate realistic MACD values based on closing prices
-      macdData.value = calculateMACDFromCandles(candleData);
-
-      console.log(
-        `Loaded ${macdData.value.length} MACD data points for ${timeframe}`
-      );
+    if (data && data.length > 0) {
+      macdData.value = data;
+      console.log(`Loaded ${macdData.value.length} MACD data points`);
     } else {
-      // For real API, adapt based on timeframe
-      console.error("API MACD data loading not implemented yet");
-      // Fallback with some default data
-      macdData.value = [
-        {
-          timestamp: Date.now() - 120000,
-          macd: 0.5,
-          signal: 0.4,
-          histogram: 0.1,
-        },
-        {
-          timestamp: Date.now() - 60000,
-          macd: 0.8,
-          signal: 0.6,
-          histogram: 0.2,
-        },
-        { timestamp: Date.now(), macd: 0.7, signal: 0.65, histogram: 0.05 },
-      ];
+      console.warn("No MACD data received from API");
+      macdData.value = [];
     }
   } catch (error) {
-    console.error("Error loading MACD mock data:", error);
-    // Fallback with some default data
-    macdData.value = [
-      {
-        timestamp: Date.now() - 120000,
-        macd: 0.5,
-        signal: 0.4,
-        histogram: 0.1,
-      },
-      { timestamp: Date.now() - 60000, macd: 0.8, signal: 0.6, histogram: 0.2 },
-      { timestamp: Date.now(), macd: 0.7, signal: 0.65, histogram: 0.05 },
-    ];
+    console.error("Error loading MACD data:", error);
+    macdData.value = [];
   }
 }
 
 // Calculate MACD from candle data
-function calculateMACDFromCandles(candles: any[]): Array<{
-  timestamp: number;
-  macd: number;
-  signal: number;
-  histogram: number;
-}> {
-  if (candles.length < 26) {
-    // Not enough data to calculate MACD, return default values
-    return candles.map((candle, i) => ({
-      timestamp: candle.time,
-      macd: Math.sin(i * 0.1) * 2,
-      signal: Math.sin(i * 0.1 - 0.3) * 1.5,
-      histogram: Math.sin(i * 0.1) * 0.5,
-    }));
-  }
-
-  const fastPeriod = indicatorsStore.macdFast;
-  const slowPeriod = indicatorsStore.macdSlow;
-  const signalPeriod = indicatorsStore.macdSignal;
-
-  const result: Array<{
-    timestamp: number;
-    macd: number;
-    signal: number;
-    histogram: number;
-  }> = [];
-
-  // Calculate EMAs for MACD
-  const prices = candles.map((c) => c.close);
-  const fastEMA = calculateEMA(prices, fastPeriod);
-  const slowEMA = calculateEMA(prices, slowPeriod);
-
-  // Calculate MACD line
-  const macdLine = [];
-  for (let i = slowPeriod - 1; i < candles.length; i++) {
-    macdLine.push(fastEMA[i] - slowEMA[i]);
-  }
-
-  // Calculate signal line (EMA of MACD)
-  const signalLine = calculateEMA(macdLine, signalPeriod);
-
-  // Build final result
-  for (let i = 0; i < candles.length; i++) {
-    let macd = 0;
-    let signal = 0;
-    let histogram = 0;
-
-    if (i >= slowPeriod - 1) {
-      const macdIndex = i - (slowPeriod - 1);
-      macd = macdLine[macdIndex] || 0;
-
-      if (macdIndex >= signalPeriod - 1) {
-        const signalIndex = macdIndex - (signalPeriod - 1);
-        signal = signalLine[signalIndex] || 0;
-        histogram = macd - signal;
-      }
-    }
-
-    result.push({
-      timestamp: new Date(candles[i].time).getTime(),
-      macd: macd,
-      signal: signal,
-      histogram: histogram,
-    });
-  }
-
-  return result;
-}
-
-// Utility function to calculate EMA
-function calculateEMA(prices: number[], period: number): number[] {
-  const ema = [];
-  const multiplier = 2 / (period + 1);
-
-  // First point = SMA
-  let sum = 0;
-  for (let i = 0; i < period && i < prices.length; i++) {
-    sum += prices[i];
-  }
-  ema.push(sum / Math.min(period, prices.length));
-
-  // Following points = EMA
-  for (let i = period; i < prices.length; i++) {
-    const currentEMA: number =
-      prices[i] * multiplier + ema[ema.length - 1] * (1 - multiplier);
-    ema.push(currentEMA);
-  }
-
-  return ema;
-}
-
 // Data for Chart.js
 const chartData = computed(() => {
   const timestamps = macdData.value.map((d) => d.timestamp);
@@ -277,6 +120,7 @@ const options: ChartOptions = {
   scales: {
     x: {
       type: "time",
+      position: "bottom",
       grid: {
         color: "rgba(255,255,255,0.08)",
       },
@@ -289,6 +133,27 @@ const options: ChartOptions = {
         displayFormats: {
           minute: "HH:mm",
           hour: "HH:mm",
+          day: "dd/MM",
+        },
+      },
+    },
+    x2: {
+      type: "time",
+      position: "bottom",
+      offset: true,
+      grid: {
+        display: false,
+      },
+      ticks: {
+        color: "rgba(255,255,255,0.5)",
+        font: { size: 9 },
+        maxTicksLimit: 5,
+      },
+      time: {
+        displayFormats: {
+          minute: "dd/MM",
+          hour: "dd/MM",
+          day: "dd/MM/yyyy",
         },
       },
     },
@@ -334,6 +199,24 @@ const options: ChartOptions = {
         },
       },
     },
+    zoom: {
+      pan: {
+        enabled: true,
+        mode: "x",
+        modifierKey: undefined,
+      },
+      zoom: {
+        wheel: {
+          enabled: true,
+          modifierKey: "ctrl",
+          speed: 0.05,
+        },
+        pinch: {
+          enabled: true,
+        },
+        mode: "x",
+      },
+    },
   },
 };
 
@@ -349,7 +232,7 @@ function buildChart() {
 }
 
 onMounted(async () => {
-  await loadMockData();
+  await loadMACDData();
   buildChart();
 });
 
@@ -368,7 +251,7 @@ watch(
       "MACD Chart: Timeframe changed to",
       indicatorsStore.selectedTimeframe
     );
-    await loadMockData();
+    await loadMACDData();
     buildChart();
   }
 );

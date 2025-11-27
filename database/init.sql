@@ -134,6 +134,34 @@ SELECT create_hypertable('news', 'time',
 );
 
 -- =============================================================================
+-- COMPRESSION / COLUMNSTORE (requise avant les politiques)
+-- =============================================================================
+
+ALTER TABLE trades SET (
+    timescaledb.compress = TRUE,
+    timescaledb.compress_orderby = 'event_ts',
+    timescaledb.compress_segmentby = 'exchange'
+);
+
+ALTER TABLE candles SET (
+    timescaledb.compress = TRUE,
+    timescaledb.compress_orderby = 'window_start',
+    timescaledb.compress_segmentby = 'symbol'
+);
+
+ALTER TABLE indicators SET (
+    timescaledb.compress = TRUE,
+    timescaledb.compress_orderby = 'time',
+    timescaledb.compress_segmentby = 'symbol'
+);
+
+ALTER TABLE news SET (
+    timescaledb.compress = TRUE,
+    timescaledb.compress_orderby = 'time',
+    timescaledb.compress_segmentby = 'source'
+);
+
+-- =============================================================================
 -- INDEX OPTIMISÉS
 -- =============================================================================
 
@@ -380,7 +408,16 @@ $$ LANGUAGE plpgsql;
 -- refresh automatically via their built-in policies. No manual refresh needed!
 
 -- Job pour nettoyer les anciennes données toutes les heures
-SELECT add_job('cleanup_old_data', '1 hour', if_not_exists => TRUE);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM timescaledb_information.jobs
+        WHERE proc_name = 'cleanup_old_data'
+    ) THEN
+        PERFORM add_job('cleanup_old_data', INTERVAL '1 hour');
+    END IF;
+END
+$$;
 
 -- =============================================================================
 -- DONNÉES DE TEST (OPTIONNEL)
@@ -464,3 +501,16 @@ BEGIN
     RAISE NOTICE '=============================================================================';
 END
 $$;
+
+-- =============================================================================
+-- SETUP DATA TIERING (executed from external file)
+-- =============================================================================
+-- Creates cold storage schema, tiering functions, and unified views (all_candles, all_indicators, all_news)
+
+\i /docker-entrypoint-initdb.d/02-setup-tiering.sql
+
+-- =============================================================================
+-- SETUP INDICATORS (executed from external file)
+-- =============================================================================
+
+\i /docker-entrypoint-initdb.d/03-setup-indicators.sql

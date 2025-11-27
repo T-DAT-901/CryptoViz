@@ -44,11 +44,15 @@ graceful_stop() {
 
     # Arrêter les microservices
     info "Arrêt des microservices..."
-    docker-compose stop data-collector news-scraper indicators-calculator 2>/dev/null || true
+    docker-compose stop data-collector news-scraper 2>/dev/null || true
+
+    # Arrêter les services de monitoring
+    info "Arrêt des services de monitoring..."
+    docker-compose stop kafka-ui prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter gatus 2>/dev/null || true
 
     # Arrêter l'infrastructure
     info "Arrêt de l'infrastructure..."
-    docker-compose stop kafka zookeeper redis timescaledb 2>/dev/null || true
+    docker-compose stop kafka zookeeper redis timescaledb minio 2>/dev/null || true
 
     log "Arrêt gracieux terminé"
 }

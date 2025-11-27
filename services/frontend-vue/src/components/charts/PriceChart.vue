@@ -1,1 +1,0 @@
-<!-- Graph principal des prix -->

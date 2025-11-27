@@ -12,6 +12,7 @@ import {
   type ChartData,
   type ChartOptions,
 } from "chart.js";
+import zoomPlugin from "chartjs-plugin-zoom";
 import "chartjs-adapter-date-fns";
 
 Chart.register(
@@ -21,13 +22,20 @@ Chart.register(
   LinearScale,
   TimeScale,
   Tooltip,
-  Filler
+  Filler,
+  zoomPlugin
 );
 
 type InPt = { x: number | string | Date; y: number };
 const props = defineProps<{
   points: InPt[];
   timeframe?: string;
+  buildingCandlePoint?: InPt | null;
+}>();
+
+const emit = defineEmits<{
+  (e: "pan-complete", payload: { minVisible: number; maxVisible: number }): void;
+  (e: "zoom-complete", payload: { minVisible: number; maxVisible: number }): void;
 }>();
 
 const canvasEl = ref<HTMLCanvasElement | null>(null);
@@ -52,10 +60,11 @@ function toNumericPoints(src: InPt[]) {
 }
 
 function getTimeDisplayFormat(timeframe: string) {
+  // Return only displayFormats, let Chart.js auto-detect unit based on visible range
+  // This prevents "too far apart" errors when data spans large time ranges
   switch (timeframe) {
     case "1h":
       return {
-        unit: "minute",
         displayFormats: {
           minute: "HH:mm",
           hour: "HH:mm",
@@ -64,16 +73,14 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     case "1d":
       return {
-        unit: "hour",
         displayFormats: {
-          hour: "HH:mm",
-          minute: "HH:mm",
+          hour: "dd/MM",
+          minute: "dd/MM",
         },
         maxTicksLimit: 12,
       };
     case "7d":
       return {
-        unit: "day",
         displayFormats: {
           day: "dd/MM",
           hour: "dd/MM HH:mm",
@@ -82,7 +89,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     case "1M":
       return {
-        unit: "week",
         displayFormats: {
           week: "dd/MM",
           day: "dd/MM",
@@ -91,7 +97,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     case "1y":
       return {
-        unit: "month",
         displayFormats: {
           month: "MMM yyyy",
           week: "dd/MM",
@@ -100,7 +105,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     case "all":
       return {
-        unit: "year",
         displayFormats: {
           year: "yyyy",
           month: "MMM yyyy",
@@ -109,7 +113,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     default:
       return {
-        unit: "minute",
         displayFormats: {
           minute: "HH:mm",
           hour: "HH:mm",
@@ -130,19 +133,62 @@ function fitChartToTimeframe() {
   const timeRange = maxTime - minTime;
   const margin = timeRange * 0.02;
 
+  // Fixer l'échelle Y pour qu'elle ne change pas pendant le pan
+  const prices = numericPoints.map((p) => p.y);
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const priceRange = maxPrice - minPrice;
+  const priceMargin = priceRange * 0.1; // 10% de marge
+
   const timeConfig = getTimeDisplayFormat(props.timeframe || "7d");
   if (chart.options.scales?.x) {
     const xScale = chart.options.scales.x as any;
     xScale.time = {
       ...xScale.time,
-      unit: timeConfig.unit,
+      // Let Chart.js auto-detect unit based on visible range
       displayFormats: timeConfig.displayFormats,
     };
     xScale.ticks.maxTicksLimit = timeConfig.maxTicksLimit;
     xScale.min = minTime - margin;
     xScale.max = maxTime + margin;
-    chart.update("none");
   }
+
+  if (chart.options.scales?.y) {
+    const yScale = chart.options.scales.y as any;
+    yScale.min = minPrice - priceMargin;
+    yScale.max = maxPrice + priceMargin;
+  }
+
+  // Configurer la deuxième échelle X (x2) pour afficher les jours
+  if (chart.options.scales?.x2) {
+    const x2Scale = chart.options.scales.x2 as any;
+
+    // Pour les timeframes court (< 1 jour), montrer les jours
+    if (["1m", "5m", "15m", "1h"].includes(props.timeframe || "")) {
+      x2Scale.time = {
+        ...x2Scale.time,
+        // Let Chart.js auto-detect unit
+        displayFormats: {
+          day: "dd/MM",
+        },
+      };
+      x2Scale.ticks.maxTicksLimit = 7;
+    }
+    // Pour 1d et plus, montrer les semaines/mois
+    else {
+      x2Scale.time = {
+        ...x2Scale.time,
+        // Let Chart.js auto-detect unit
+        displayFormats: {
+          week: "dd/MM",
+          day: "dd/MM",
+        },
+      };
+      x2Scale.ticks.maxTicksLimit = 4;
+    }
+  }
+
+  chart.update("none");
 }
 
 function hideTooltip() {
@@ -159,30 +205,54 @@ function build() {
 
   const numericPoints = toNumericPoints(props.points);
 
+  // Create datasets array with main line and optional building candle
+  const datasets: any[] = [
+    {
+      label: "Prix",
+      data: numericPoints,
+      parsing: false,
+      borderColor: "#10b981",
+      backgroundColor: grad,
+      borderWidth: 2,
+      fill: true,
+      tension: 0.1,
+      pointRadius: 0,
+      pointHoverRadius: 6,
+      pointBackgroundColor: "#10b981",
+      pointBorderColor: "#ffffff",
+      pointBorderWidth: 2,
+    },
+  ];
+
+  // Add building candle point if available (semi-transparent style)
+  if (props.buildingCandlePoint) {
+    const buildingPoint = toNumericPoints([props.buildingCandlePoint]);
+    datasets.push({
+      label: "Candle en construction",
+      data: buildingPoint,
+      parsing: false,
+      borderColor: "rgba(16,185,129,0.5)",
+      backgroundColor: "rgba(16,185,129,0.1)",
+      borderWidth: 2,
+      borderDash: [5, 5], // Dotted line
+      fill: false,
+      tension: 0.1,
+      pointRadius: 4,
+      pointHoverRadius: 8,
+      pointBackgroundColor: "rgba(16,185,129,0.6)",
+      pointBorderColor: "#ffffff",
+      pointBorderWidth: 2,
+    });
+  }
+
   const data: ChartData<"line"> = {
-    datasets: [
-      {
-        label: "Prix",
-        data: numericPoints,
-        parsing: false,
-        borderColor: "#10b981",
-        backgroundColor: grad,
-        borderWidth: 2,
-        fill: true,
-        tension: 0.1,
-        pointRadius: 0,
-        pointHoverRadius: 6,
-        pointBackgroundColor: "#10b981",
-        pointBorderColor: "#ffffff",
-        pointBorderWidth: 2,
-      },
-    ],
+    datasets,
   };
 
   const options: ChartOptions<"line"> = {
     responsive: true,
     maintainAspectRatio: false,
-    interaction: { intersect: false, mode: "index" },
+    interaction: { intersect: false, mode: "nearest" },
     onHover: (event, activeElements) => {
       if (activeElements.length > 0) {
         const dataIndex = activeElements[0].index;
@@ -238,16 +308,55 @@ function build() {
         tooltipVisible.value = false;
       }
     },
+    plugins: {
+      tooltip: { enabled: false },
+      legend: { display: false },
+      zoom: {
+        pan: {
+          enabled: true,
+          mode: "x",
+          modifierKey: undefined,
+          onPanComplete: ({ chart }: any) => {
+            if (chart.scales.x) {
+              emit("pan-complete", {
+                minVisible: chart.scales.x.min,
+                maxVisible: chart.scales.x.max,
+              });
+            }
+          },
+        },
+        zoom: {
+          wheel: {
+            enabled: true,
+            modifierKey: "ctrl",
+            speed: 0.05,
+          },
+          pinch: {
+            enabled: true,
+          },
+          mode: "x",
+          onZoomComplete: ({ chart }: any) => {
+            if (chart.scales.x) {
+              emit("zoom-complete", {
+                minVisible: chart.scales.x.min,
+                maxVisible: chart.scales.x.max,
+              });
+            }
+          },
+        },
+      },
+    },
     scales: {
       x: {
         type: "time",
+        position: "bottom",
         grid: {
           color: "rgba(255,255,255,0.08)",
         },
         ticks: {
           color: "rgba(255,255,255,0.7)",
           font: { size: 11 },
-          maxTicksLimit: 8, // Limite le nombre de ticks
+          maxTicksLimit: 8,
         },
         time: {
           displayFormats: {
@@ -255,6 +364,30 @@ function build() {
             hour: "HH:mm",
             day: "dd/MM",
             week: "dd/MM",
+            month: "MMM yyyy",
+            quarter: "MMM yyyy",
+            year: "yyyy",
+          },
+        },
+      },
+      x2: {
+        type: "time",
+        position: "bottom",
+        offset: true,
+        grid: {
+          display: false,
+        },
+        ticks: {
+          color: "rgba(255,255,255,0.5)",
+          font: { size: 10 },
+          maxTicksLimit: 5,
+        },
+        time: {
+          displayFormats: {
+            minute: "dd/MM",
+            hour: "dd/MM",
+            day: "dd/MM/yyyy",
+            week: "dd/MM/yyyy",
             month: "MMM yyyy",
             quarter: "MMM yyyy",
             year: "yyyy",
@@ -273,12 +406,6 @@ function build() {
             return Number(value).toLocaleString("fr-FR") + " €";
           },
         },
-      },
-    },
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        enabled: false,
       },
     },
     elements: {
@@ -300,6 +427,7 @@ function build() {
 
 onMounted(build);
 watch(() => props.points, build, { deep: true });
+watch(() => props.buildingCandlePoint, build, { deep: true });
 watch(
   () => props.timeframe,
   () => {
@@ -311,14 +439,28 @@ watch(
 );
 onBeforeUnmount(() => chart?.destroy());
 
+function resetZoom() {
+  if (chart) {
+    chart.resetZoom();
+  }
+}
+
 defineExpose({
   chart,
   fitChartToTimeframe,
+  resetZoom,
 });
 </script>
 
 <template>
   <div class="line-chart" @mouseleave="hideTooltip">
+    <button
+      class="line-chart-reset-btn"
+      @click="resetZoom"
+      title="Reset zoom (Ctrl+scroll to zoom, Shift+drag to pan)"
+    >
+      🔍 Reset
+    </button>
     <canvas ref="canvasEl"></canvas>
 
     <div
@@ -344,3 +486,68 @@ defineExpose({
     </div>
   </div>
 </template>
+
+<style scoped>
+.line-chart {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.line-chart-reset-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+  padding: 6px 12px;
+  background-color: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.5);
+  color: #10b981;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.line-chart-reset-btn:hover {
+  background-color: rgba(16, 185, 129, 0.3);
+  border-color: rgba(16, 185, 129, 0.8);
+}
+
+.line-chart-reset-btn:active {
+  transform: scale(0.95);
+}
+
+.line-chart-tooltip {
+  position: fixed;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 20;
+  font-size: 12px;
+}
+
+.line-chart-tooltip-date {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.line-chart-tooltip-price {
+  margin-bottom: 4px;
+}
+
+.line-chart-tooltip-change {
+  font-weight: 500;
+}
+
+.line-chart-tooltip-change--positive {
+  color: #10b981;
+}
+
+.line-chart-tooltip-change--negative {
+  color: #ef4444;
+}
+</style>

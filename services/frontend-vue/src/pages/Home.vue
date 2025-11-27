@@ -44,6 +44,21 @@ const navigateToChart = (symbol: string) => {
 const cryptoList = computed(() => cryptoStore.sortedCryptos);
 const loading = computed(() => cryptoStore.loading);
 
+// Calculer le volume total 24h et market cap total à partir des données
+const totalVolume24h = computed(() => {
+  return cryptoStore.sortedCryptos.reduce(
+    (sum, crypto) => sum + crypto.volume24h,
+    0
+  );
+});
+
+const totalMarketCap = computed(() => {
+  return cryptoStore.sortedCryptos.reduce(
+    (sum, crypto) => sum + crypto.marketCap,
+    0
+  );
+});
+
 onMounted(() => {
   console.log("Home.vue mounted - initializing crypto store from WebSocket");
   cryptoStore.initializeFromWebSocket();
@@ -68,11 +83,19 @@ onUnmounted(() => {
           <div class="market-stats">
             <div class="stat-item">
               <span class="stat-label">24h Volume</span>
-              <span class="stat-value">€2.1T</span>
+              <span class="stat-value">{{
+                totalVolume24h > 0
+                  ? "€" + formatLargeNumber(totalVolume24h)
+                  : "-"
+              }}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">Market Cap</span>
-              <span class="stat-value">€3.2T</span>
+              <span class="stat-value">{{
+                totalMarketCap > 0
+                  ? "€" + formatLargeNumber(totalMarketCap)
+                  : "-"
+              }}</span>
             </div>
           </div>
         </div>
@@ -117,7 +140,7 @@ onUnmounted(() => {
               <div class="name-cell">
                 <div class="crypto-icon">
                   <img
-                    :src="`https://cryptoicons.org/api/icon/${crypto.symbol.toLowerCase()}/32`"
+                    :src="`https://cryptoicons.org/api/icon/${crypto.name.toLowerCase()}/32`"
                     :alt="crypto.name"
                     @error="
                       (e) =>
@@ -183,26 +206,33 @@ onUnmounted(() => {
 
             <!-- Market Cap -->
             <td class="col-market-cap">
-              <span class="market-cap"
-                >€{{ formatLargeNumber(crypto.marketCap) }}</span
-              >
+              <span class="market-cap">{{
+                crypto.marketCap > 0
+                  ? "€" + formatLargeNumber(crypto.marketCap)
+                  : "-"
+              }}</span>
             </td>
 
             <!-- Volume 24h -->
             <td class="col-volume">
               <div class="volume-cell">
-                <span class="volume"
-                  >€{{ formatLargeNumber(crypto.volume24h) }}</span
-                >
+                <span class="volume">{{
+                  crypto.volume24h > 0
+                    ? "€" + formatLargeNumber(crypto.volume24h)
+                    : "-"
+                }}</span>
               </div>
             </td>
 
             <!-- Circulating Supply -->
             <td class="col-supply">
-              <span class="supply"
-                >{{ formatLargeNumber(crypto.circulatingSupply) }}
-                {{ crypto.symbol }}</span
-              >
+              <span class="supply">{{
+                crypto.circulatingSupply > 0
+                  ? formatLargeNumber(crypto.circulatingSupply) +
+                    " " +
+                    crypto.name
+                  : "-"
+              }}</span>
             </td>
 
             <!-- Mini Chart (Sparkline) -->

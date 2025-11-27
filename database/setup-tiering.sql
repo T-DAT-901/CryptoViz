@@ -10,13 +10,24 @@
 
 -- Configure the tiering data node to use MinIO
 -- This tells TimescaleDB where to send cold data
-SELECT add_data_node(
-    'minio_tiering',
-    host => 'minio',
-    port => 9000,
-    database => 'cryptoviz',
-    if_not_exists => TRUE
-);
+-- NOTE: add_data_node() is Enterprise-only - wrapped in exception handler for Community Edition
+DO $$
+BEGIN
+    -- Try to add data node (only works in Enterprise Edition)
+    PERFORM add_data_node(
+        'minio_tiering',
+        host => 'minio',
+        port => 9000,
+        database => 'cryptoviz',
+        if_not_exists => TRUE
+    );
+    RAISE NOTICE 'Data node configured (Enterprise Edition detected)';
+EXCEPTION
+    WHEN undefined_function THEN
+        RAISE NOTICE 'Skipping add_data_node (Community Edition - function not available)';
+    WHEN OTHERS THEN
+        RAISE WARNING 'Could not configure data node: %', SQLERRM;
+END $$;
 
 -- Alternative approach: Use object storage directly via S3 API
 -- Configure S3 settings for MinIO
@@ -55,55 +66,119 @@ CREATE TABLE IF NOT EXISTS cold_storage.news (
 -- Retention configured in .env:
 --   HOT_RETENTION_1M=7, HOT_RETENTION_5M=14, HOT_RETENTION_15M=30
 --   HOT_RETENTION_1H=90, HOT_RETENTION_1D=36500
+-- NOTE: Uses batching to prevent memory exhaustion on large datasets
 CREATE OR REPLACE FUNCTION tier_old_candles()
 RETURNS void AS $$
 DECLARE
     rows_moved_total INTEGER := 0;
-    rows_moved INTEGER;
+    rows_moved_batch INTEGER;
+    rows_moved_interval INTEGER;
+    batch_size INTEGER := 10000;  -- Process 10k rows at a time to limit memory usage
 BEGIN
     -- Tier 1m candles older than 7 days (HOT_RETENTION_1M)
-    WITH moved AS (
-        DELETE FROM candles
-        WHERE timeframe = '1m' AND window_start < NOW() - INTERVAL '7 days'
-        RETURNING *
-    )
-    INSERT INTO cold_storage.candles SELECT * FROM moved;
-    GET DIAGNOSTICS rows_moved = ROW_COUNT;
-    rows_moved_total := rows_moved_total + rows_moved;
-    RAISE NOTICE 'Tiered % rows (1m) to cold storage', rows_moved;
+    RAISE NOTICE 'Starting tiering for 1m candles (batch size: %)', batch_size;
+    rows_moved_interval := 0;
+    LOOP
+        WITH moved AS (
+            DELETE FROM candles
+            WHERE ctid IN (
+                SELECT ctid FROM candles
+                WHERE timeframe = '1m' AND window_start < NOW() - INTERVAL '7 days'
+                LIMIT batch_size
+            )
+            RETURNING *
+        )
+        INSERT INTO cold_storage.candles SELECT * FROM moved;
+
+        GET DIAGNOSTICS rows_moved_batch = ROW_COUNT;
+        EXIT WHEN rows_moved_batch = 0;
+
+        rows_moved_interval := rows_moved_interval + rows_moved_batch;
+        rows_moved_total := rows_moved_total + rows_moved_batch;
+        RAISE NOTICE '  Tiered % rows (1m batch) - interval total: %', rows_moved_batch, rows_moved_interval;
+
+        -- Small delay to allow WAL to flush and prevent memory buildup
+        PERFORM pg_sleep(0.1);
+    END LOOP;
+    RAISE NOTICE 'Completed 1m: % rows to cold storage', rows_moved_interval;
 
     -- Tier 5m candles older than 14 days (HOT_RETENTION_5M)
-    WITH moved AS (
-        DELETE FROM candles
-        WHERE timeframe = '5m' AND window_start < NOW() - INTERVAL '14 days'
-        RETURNING *
-    )
-    INSERT INTO cold_storage.candles SELECT * FROM moved;
-    GET DIAGNOSTICS rows_moved = ROW_COUNT;
-    rows_moved_total := rows_moved_total + rows_moved;
-    RAISE NOTICE 'Tiered % rows (5m) to cold storage', rows_moved;
+    RAISE NOTICE 'Starting tiering for 5m candles (batch size: %)', batch_size;
+    rows_moved_interval := 0;
+    LOOP
+        WITH moved AS (
+            DELETE FROM candles
+            WHERE ctid IN (
+                SELECT ctid FROM candles
+                WHERE timeframe = '5m' AND window_start < NOW() - INTERVAL '14 days'
+                LIMIT batch_size
+            )
+            RETURNING *
+        )
+        INSERT INTO cold_storage.candles SELECT * FROM moved;
+
+        GET DIAGNOSTICS rows_moved_batch = ROW_COUNT;
+        EXIT WHEN rows_moved_batch = 0;
+
+        rows_moved_interval := rows_moved_interval + rows_moved_batch;
+        rows_moved_total := rows_moved_total + rows_moved_batch;
+        RAISE NOTICE '  Tiered % rows (5m batch) - interval total: %', rows_moved_batch, rows_moved_interval;
+
+        PERFORM pg_sleep(0.1);
+    END LOOP;
+    RAISE NOTICE 'Completed 5m: % rows to cold storage', rows_moved_interval;
 
     -- Tier 15m candles older than 30 days (HOT_RETENTION_15M)
-    WITH moved AS (
-        DELETE FROM candles
-        WHERE timeframe = '15m' AND window_start < NOW() - INTERVAL '30 days'
-        RETURNING *
-    )
-    INSERT INTO cold_storage.candles SELECT * FROM moved;
-    GET DIAGNOSTICS rows_moved = ROW_COUNT;
-    rows_moved_total := rows_moved_total + rows_moved;
-    RAISE NOTICE 'Tiered % rows (15m) to cold storage', rows_moved;
+    RAISE NOTICE 'Starting tiering for 15m candles (batch size: %)', batch_size;
+    rows_moved_interval := 0;
+    LOOP
+        WITH moved AS (
+            DELETE FROM candles
+            WHERE ctid IN (
+                SELECT ctid FROM candles
+                WHERE timeframe = '15m' AND window_start < NOW() - INTERVAL '30 days'
+                LIMIT batch_size
+            )
+            RETURNING *
+        )
+        INSERT INTO cold_storage.candles SELECT * FROM moved;
+
+        GET DIAGNOSTICS rows_moved_batch = ROW_COUNT;
+        EXIT WHEN rows_moved_batch = 0;
+
+        rows_moved_interval := rows_moved_interval + rows_moved_batch;
+        rows_moved_total := rows_moved_total + rows_moved_batch;
+        RAISE NOTICE '  Tiered % rows (15m batch) - interval total: %', rows_moved_batch, rows_moved_interval;
+
+        PERFORM pg_sleep(0.1);
+    END LOOP;
+    RAISE NOTICE 'Completed 15m: % rows to cold storage', rows_moved_interval;
 
     -- Tier 1h candles older than 90 days (HOT_RETENTION_1H)
-    WITH moved AS (
-        DELETE FROM candles
-        WHERE timeframe = '1h' AND window_start < NOW() - INTERVAL '90 days'
-        RETURNING *
-    )
-    INSERT INTO cold_storage.candles SELECT * FROM moved;
-    GET DIAGNOSTICS rows_moved = ROW_COUNT;
-    rows_moved_total := rows_moved_total + rows_moved;
-    RAISE NOTICE 'Tiered % rows (1h) to cold storage', rows_moved;
+    RAISE NOTICE 'Starting tiering for 1h candles (batch size: %)', batch_size;
+    rows_moved_interval := 0;
+    LOOP
+        WITH moved AS (
+            DELETE FROM candles
+            WHERE ctid IN (
+                SELECT ctid FROM candles
+                WHERE timeframe = '1h' AND window_start < NOW() - INTERVAL '90 days'
+                LIMIT batch_size
+            )
+            RETURNING *
+        )
+        INSERT INTO cold_storage.candles SELECT * FROM moved;
+
+        GET DIAGNOSTICS rows_moved_batch = ROW_COUNT;
+        EXIT WHEN rows_moved_batch = 0;
+
+        rows_moved_interval := rows_moved_interval + rows_moved_batch;
+        rows_moved_total := rows_moved_total + rows_moved_batch;
+        RAISE NOTICE '  Tiered % rows (1h batch) - interval total: %', rows_moved_batch, rows_moved_interval;
+
+        PERFORM pg_sleep(0.1);
+    END LOOP;
+    RAISE NOTICE 'Completed 1h: % rows to cold storage', rows_moved_interval;
 
     -- 1d candles stay in hot storage (HOT_RETENTION_1D=36500 days = 100 years)
     -- No tiering for 1d interval
@@ -111,45 +186,81 @@ BEGIN
     -- Remove obsolete intervals (1s, 5s, 4h) from cold storage if they exist
     DELETE FROM cold_storage.candles WHERE timeframe IN ('1s', '5s', '4h');
 
-    RAISE NOTICE 'Total tiered % candle rows to cold storage', rows_moved_total;
+    RAISE NOTICE 'TOTAL: Tiered % candle rows to cold storage', rows_moved_total;
 END;
 $$ LANGUAGE plpgsql;
 
 -- Function to manually tier indicators to cold storage
+-- NOTE: Uses batching to prevent memory exhaustion on large datasets
 CREATE OR REPLACE FUNCTION tier_old_indicators()
 RETURNS void AS $$
 DECLARE
-    rows_moved INTEGER;
+    rows_moved_total INTEGER := 0;
+    rows_moved_batch INTEGER;
+    batch_size INTEGER := 10000;  -- Process 10k rows at a time to limit memory usage
 BEGIN
-    -- Move indicators older than 30 days to cold storage
-    WITH moved AS (
-        DELETE FROM indicators
-        WHERE time < NOW() - INTERVAL '30 days'
-        RETURNING *
-    )
-    INSERT INTO cold_storage.indicators SELECT * FROM moved;
+    RAISE NOTICE 'Starting tiering for indicators (batch size: %)', batch_size;
 
-    GET DIAGNOSTICS rows_moved = ROW_COUNT;
-    RAISE NOTICE 'Tiered % indicator rows to cold storage', rows_moved;
+    -- Move indicators older than 30 days to cold storage
+    LOOP
+        WITH moved AS (
+            DELETE FROM indicators
+            WHERE ctid IN (
+                SELECT ctid FROM indicators
+                WHERE time < NOW() - INTERVAL '30 days'
+                LIMIT batch_size
+            )
+            RETURNING *
+        )
+        INSERT INTO cold_storage.indicators SELECT * FROM moved;
+
+        GET DIAGNOSTICS rows_moved_batch = ROW_COUNT;
+        EXIT WHEN rows_moved_batch = 0;
+
+        rows_moved_total := rows_moved_total + rows_moved_batch;
+        RAISE NOTICE '  Tiered % indicator rows (batch) - total: %', rows_moved_batch, rows_moved_total;
+
+        PERFORM pg_sleep(0.1);
+    END LOOP;
+
+    RAISE NOTICE 'Completed indicators: % rows to cold storage', rows_moved_total;
 END;
 $$ LANGUAGE plpgsql;
 
 -- Function to manually tier news to cold storage
+-- NOTE: Uses batching to prevent memory exhaustion on large datasets
 CREATE OR REPLACE FUNCTION tier_old_news()
 RETURNS void AS $$
 DECLARE
-    rows_moved INTEGER;
+    rows_moved_total INTEGER := 0;
+    rows_moved_batch INTEGER;
+    batch_size INTEGER := 10000;  -- Process 10k rows at a time to limit memory usage
 BEGIN
-    -- Move news older than 30 days to cold storage
-    WITH moved AS (
-        DELETE FROM news
-        WHERE time < NOW() - INTERVAL '30 days'
-        RETURNING *
-    )
-    INSERT INTO cold_storage.news SELECT * FROM moved;
+    RAISE NOTICE 'Starting tiering for news (batch size: %)', batch_size;
 
-    GET DIAGNOSTICS rows_moved = ROW_COUNT;
-    RAISE NOTICE 'Tiered % news rows to cold storage', rows_moved;
+    -- Move news older than 30 days to cold storage
+    LOOP
+        WITH moved AS (
+            DELETE FROM news
+            WHERE ctid IN (
+                SELECT ctid FROM news
+                WHERE time < NOW() - INTERVAL '30 days'
+                LIMIT batch_size
+            )
+            RETURNING *
+        )
+        INSERT INTO cold_storage.news SELECT * FROM moved;
+
+        GET DIAGNOSTICS rows_moved_batch = ROW_COUNT;
+        EXIT WHEN rows_moved_batch = 0;
+
+        rows_moved_total := rows_moved_total + rows_moved_batch;
+        RAISE NOTICE '  Tiered % news rows (batch) - total: %', rows_moved_batch, rows_moved_total;
+
+        PERFORM pg_sleep(0.1);
+    END LOOP;
+
+    RAISE NOTICE 'Completed news: % rows to cold storage', rows_moved_total;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -180,10 +291,44 @@ SELECT * FROM cold_storage.news;
 -- =============================================================================
 
 -- Schedule tiering to run daily at 3 AM
--- This simulates automatic tiering
-SELECT add_job('tier_old_candles', '1 day', initial_start => '2025-01-01 03:00:00', if_not_exists => TRUE);
-SELECT add_job('tier_old_indicators', '1 day', initial_start => '2025-01-01 03:00:00', if_not_exists => TRUE);
-SELECT add_job('tier_old_news', '1 day', initial_start => '2025-01-01 03:00:00', if_not_exists => TRUE);
+-- NOTE: TimescaleDB add_job() is Enterprise-only
+-- Using pg_cron extension instead (Community Edition compatible)
+
+-- Ensure pg_cron extension is available
+DO $$
+BEGIN
+    -- Try to create pg_cron extension if not exists
+    CREATE EXTENSION IF NOT EXISTS pg_cron;
+    RAISE NOTICE 'pg_cron extension enabled for job scheduling';
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE WARNING 'pg_cron extension not available - tiering jobs must be scheduled manually';
+        RAISE WARNING 'To schedule manually: SELECT tier_old_candles(); (run daily via cron/scheduler)';
+END $$;
+
+-- Schedule tiering jobs using pg_cron (Community Edition compatible)
+-- Runs daily at 3 AM
+DO $$
+BEGIN
+    -- Schedule candles tiering
+    PERFORM cron.schedule('tier-candles-job', '0 3 * * *', 'SELECT tier_old_candles()');
+    RAISE NOTICE 'Scheduled tier_old_candles() to run daily at 3 AM';
+
+    -- Schedule indicators tiering
+    PERFORM cron.schedule('tier-indicators-job', '0 3 * * *', 'SELECT tier_old_indicators()');
+    RAISE NOTICE 'Scheduled tier_old_indicators() to run daily at 3 AM';
+
+    -- Schedule news tiering
+    PERFORM cron.schedule('tier-news-job', '0 3 * * *', 'SELECT tier_old_news()');
+    RAISE NOTICE 'Scheduled tier_old_news() to run daily at 3 AM';
+EXCEPTION
+    WHEN undefined_function THEN
+        RAISE WARNING 'pg_cron not available - jobs not scheduled';
+        RAISE NOTICE 'Manual scheduling required: Call tier_old_candles(), tier_old_indicators(), tier_old_news() daily';
+    WHEN OTHERS THEN
+        RAISE WARNING 'Could not schedule tiering jobs: %', SQLERRM;
+        RAISE NOTICE 'You can manually run: SELECT tier_old_candles(); SELECT tier_old_indicators(); SELECT tier_old_news();';
+END $$;
 
 -- =============================================================================
 -- EXPORT TO MINIO (via Foreign Data Wrapper - Optional Advanced Setup)

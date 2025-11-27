@@ -110,9 +110,22 @@
 .crypto-price-panel-price-change {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 12px;
   font-size: 14px;
   font-weight: 600;
+}
+
+.crypto-price-panel-change-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.crypto-price-panel-change-text-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .crypto-price-panel-price-change--positive {
@@ -151,6 +164,78 @@
   color: #e8f0f0;
   padding: 4px 8px;
   font-size: 12px;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+/* Variation Dropdown (à côté du prix) */
+.crypto-price-panel-variation-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.crypto-price-panel-variation-button {
+  background: #1d2626;
+  border: 1px solid #2d3e3e;
+  border-radius: 6px;
+  color: #e8f0f0;
+  padding: 4px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  transition: background-color 0.2s ease;
+}
+
+.crypto-price-panel-variation-button:hover {
+  background-color: #2d3e3e;
+}
+
+.crypto-price-panel-variation-icon {
+  transition: transform 0.2s ease;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.crypto-price-panel-variation-icon--open {
+  transform: rotate(180deg);
+}
+
+.crypto-price-panel-variation-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: #1d2626;
+  border: 1px solid #2d3e3e;
+  border-radius: 6px;
+  margin-top: 4px;
+  min-width: 100px;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.crypto-price-panel-variation-option {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #e8f0f0;
+  padding: 8px 12px;
+  text-align: left;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s ease;
+}
+
+.crypto-price-panel-variation-option:hover {
+  background-color: #2d3e3e;
+}
+
+.crypto-price-panel-variation-option--active {
+  background-color: #3b5353;
+  color: #10b981;
 }
 
 /* Converter */

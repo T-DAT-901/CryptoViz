@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch, onBeforeUnmount } from "vue";
+import { onMounted, ref, watch, onBeforeUnmount, computed } from "vue";
 import { useMarketStore } from "@/stores/market";
 import { Chart, Tooltip, Legend, TimeScale, LinearScale } from "chart.js";
 import zoomPlugin from "chartjs-plugin-zoom";
@@ -25,6 +25,18 @@ Chart.register(
 const props = defineProps<{
   candles: CandleDTO[];
   timeframe?: string;
+  buildingCandle?: {
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+  } | null;
+}>();
+
+const emit = defineEmits<{
+  (e: "pan-complete", payload: { minVisible: number; maxVisible: number }): void;
+  (e: "zoom-complete", payload: { minVisible: number; maxVisible: number }): void;
 }>();
 
 const canvasEl = ref<HTMLCanvasElement | null>(null);
@@ -32,8 +44,6 @@ let chart: Chart<"candlestick"> | null = null;
 
 const tooltipVisible = ref(false);
 const tooltipData = ref({
-  x: 0,
-  y: 0,
   date: "",
   open: "",
   high: "",
@@ -43,6 +53,7 @@ const tooltipData = ref({
   changePercent: "",
   volume: "",
   isPositive: true,
+  candleIndex: 0,
 });
 
 const crosshairVisible = ref(false);
@@ -54,6 +65,40 @@ const crosshairLabels = ref({
   price: "",
   date: "",
   candleX: 0,
+});
+
+const tooltipPositionStyle = computed(() => {
+  if (!chart || !canvasEl.value) return {};
+  const element = chart.getDatasetMeta(0).data[
+    tooltipData.value.candleIndex
+  ] as any;
+  if (!element) return {};
+
+  const rect = canvasEl.value.getBoundingClientRect();
+  const candleX = element.x;
+  const candleY = element.y || 0;
+
+  // Estimé de la taille de la tooltip (en pixels)
+  const tooltipWidth = 220;
+  const tooltipHeight = 150;
+
+  let left = candleX + 15;
+  let top = Math.max(10, candleY - 80);
+
+  // Vérifier si la tooltip sort par la droite
+  if (left + tooltipWidth > rect.width) {
+    left = Math.max(5, candleX - tooltipWidth - 15);
+  }
+
+  // Vérifier si la tooltip sort par le bas
+  if (top + tooltipHeight > rect.height) {
+    top = Math.max(5, candleY - tooltipHeight - 10);
+  }
+
+  return {
+    left: left + "px",
+    top: top + "px",
+  };
 });
 
 const options: ChartOptions<"candlestick"> = {
@@ -68,7 +113,15 @@ const options: ChartOptions<"candlestick"> = {
       pan: {
         enabled: true,
         mode: "x",
-        modifierKey: "shift",
+        modifierKey: undefined,
+        onPanComplete: ({ chart }: any) => {
+          if (chart.scales.x) {
+            emit("pan-complete", {
+              minVisible: chart.scales.x.min,
+              maxVisible: chart.scales.x.max,
+            });
+          }
+        },
       },
       zoom: {
         wheel: {
@@ -80,12 +133,21 @@ const options: ChartOptions<"candlestick"> = {
           enabled: true,
         },
         mode: "x",
+        onZoomComplete: ({ chart }: any) => {
+          if (chart.scales.x) {
+            emit("zoom-complete", {
+              minVisible: chart.scales.x.min,
+              maxVisible: chart.scales.x.max,
+            });
+          }
+        },
       },
     },
   },
   scales: {
     x: {
       type: "time",
+      position: "bottom",
       grid: {
         color: "rgba(255,255,255,0.08)",
       },
@@ -100,6 +162,30 @@ const options: ChartOptions<"candlestick"> = {
           hour: "HH:mm",
           day: "dd/MM",
           week: "dd/MM",
+          month: "MMM yyyy",
+          quarter: "MMM yyyy",
+          year: "yyyy",
+        },
+      },
+    },
+    x2: {
+      type: "time",
+      position: "bottom",
+      offset: true,
+      grid: {
+        display: false,
+      },
+      ticks: {
+        color: "rgba(255,255,255,0.5)",
+        font: { size: 10 },
+        maxTicksLimit: 5,
+      },
+      time: {
+        displayFormats: {
+          minute: "dd/MM",
+          hour: "dd/MM",
+          day: "dd/MM/yyyy",
+          week: "dd/MM/yyyy",
           month: "MMM yyyy",
           quarter: "MMM yyyy",
           year: "yyyy",
@@ -123,10 +209,11 @@ const options: ChartOptions<"candlestick"> = {
 };
 
 function getTimeDisplayFormat(timeframe: string) {
+  // Return only displayFormats, let Chart.js auto-detect unit based on visible range
+  // This prevents "too far apart" errors when data spans large time ranges
   switch (timeframe) {
     case "1h":
       return {
-        unit: "minute",
         displayFormats: {
           minute: "HH:mm",
           hour: "HH:mm",
@@ -135,16 +222,14 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     case "1d":
       return {
-        unit: "hour",
         displayFormats: {
-          hour: "HH:mm",
-          minute: "HH:mm",
+          hour: "dd/MM",
+          minute: "dd/MM",
         },
         maxTicksLimit: 12,
       };
     case "7d":
       return {
-        unit: "day",
         displayFormats: {
           day: "dd/MM",
           hour: "dd/MM HH:mm",
@@ -153,7 +238,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     case "1M":
       return {
-        unit: "week",
         displayFormats: {
           week: "dd/MM",
           day: "dd/MM",
@@ -162,7 +246,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     case "1y":
       return {
-        unit: "month",
         displayFormats: {
           month: "MMM yyyy",
           week: "dd/MM",
@@ -171,7 +254,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     case "all":
       return {
-        unit: "year",
         displayFormats: {
           year: "yyyy",
           month: "MMM yyyy",
@@ -180,7 +262,6 @@ function getTimeDisplayFormat(timeframe: string) {
       };
     default:
       return {
-        unit: "minute",
         displayFormats: {
           minute: "HH:mm",
           hour: "HH:mm",
@@ -190,38 +271,89 @@ function getTimeDisplayFormat(timeframe: string) {
   }
 }
 
+function getCandleLimit(timeframe?: string): number {
+  switch (timeframe) {
+    case "1m":
+      return 60;
+    case "5m":
+      return 100;
+    case "15m":
+      return 80;
+    case "1h":
+      return 72;
+    case "1d":
+      return 50;
+    case "7d":
+    case "1w":
+      return 52;
+    case "1M":
+      return 26;
+    case "1y":
+      return 52;
+    default:
+      return 120;
+  }
+}
+
 function fitChartToTimeframe() {
   if (!chart || !props.candles?.length) return;
 
   chart.resetZoom();
 
-  const timestamps = props.candles.map((c) => new Date(c.time).getTime());
-  const minTime = Math.min(...timestamps);
-  const maxTime = Math.max(...timestamps);
+  // Fixer l'échelle Y pour qu'elle ne change pas pendant le pan
+  const prices = props.candles.map((c) => [c.high, c.low]).flat();
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const priceRange = maxPrice - minPrice;
+  const priceMargin = priceRange * 0.1; // 10% de marge
 
-  const timeRange = maxTime - minTime;
-  const margin = timeRange * 0.02;
-
-  chart.zoomScale(
-    "x",
-    {
-      min: minTime - margin,
-      max: maxTime + margin,
-    },
-    "default"
-  );
+  if (chart.options.scales?.y) {
+    const yScale = chart.options.scales.y as any;
+    yScale.min = minPrice - priceMargin;
+    yScale.max = maxPrice + priceMargin;
+  }
 
   const timeConfig = getTimeDisplayFormat(props.timeframe || "7d");
   if (chart.options.scales?.x) {
     const xScale = chart.options.scales.x as any;
     xScale.time = {
       ...xScale.time,
-      unit: timeConfig.unit,
+      // Let Chart.js auto-detect unit based on visible range
       displayFormats: timeConfig.displayFormats,
     };
     xScale.ticks.maxTicksLimit = timeConfig.maxTicksLimit;
-    chart.update("none");
   }
+
+  // Configurer la deuxième échelle X (x2) pour afficher les jours
+  if (chart.options.scales?.x2) {
+    const x2Scale = chart.options.scales.x2 as any;
+
+    // Pour les timeframes court (< 1 jour), montrer les jours
+    if (["1m", "5m", "15m", "1h"].includes(props.timeframe || "")) {
+      x2Scale.time = {
+        ...x2Scale.time,
+        // Let Chart.js auto-detect unit
+        displayFormats: {
+          day: "dd/MM",
+        },
+      };
+      x2Scale.ticks.maxTicksLimit = 7;
+    }
+    // Pour 1d et plus, montrer les semaines/mois
+    else {
+      x2Scale.time = {
+        ...x2Scale.time,
+        // Let Chart.js auto-detect unit
+        displayFormats: {
+          week: "dd/MM",
+          day: "dd/MM",
+        },
+      };
+      x2Scale.ticks.maxTicksLimit = 4;
+    }
+  }
+
+  chart.update("none");
 }
 
 function buildChart() {
@@ -232,25 +364,49 @@ function buildChart() {
     chart = null;
   }
 
+  const datasets: any[] = [
+    {
+      label: "BTC/USDT",
+      data: props.candles.map((candle) => ({
+        x: new Date(candle.time).getTime(),
+        o: candle.open,
+        h: candle.high,
+        l: candle.low,
+        c: candle.close,
+      })),
+      upColor: "#10b981",
+      downColor: "#ef4444",
+      borderUpColor: "#10b981",
+      borderDownColor: "#ef4444",
+      wickUpColor: "#10b981",
+      wickDownColor: "#ef4444",
+    } as any,
+  ];
+
+  // Ajouter la candle en construction si elle existe
+  if (props.buildingCandle) {
+    datasets.push({
+      label: "Candle en construction",
+      data: [
+        {
+          x: Date.now(),
+          o: props.buildingCandle.open,
+          h: props.buildingCandle.high,
+          l: props.buildingCandle.low,
+          c: props.buildingCandle.close,
+        },
+      ],
+      upColor: "rgba(16,185,129,0.4)",
+      downColor: "rgba(239,68,68,0.4)",
+      borderUpColor: "rgba(16,185,129,0.6)",
+      borderDownColor: "rgba(239,68,68,0.6)",
+      wickUpColor: "rgba(16,185,129,0.6)",
+      wickDownColor: "rgba(239,68,68,0.6)",
+    } as any);
+  }
+
   const chartData: ChartData<"candlestick"> = {
-    datasets: [
-      {
-        label: "BTC/USDT",
-        data: props.candles.map((candle) => ({
-          x: new Date(candle.time).getTime(),
-          o: candle.open,
-          h: candle.high,
-          l: candle.low,
-          c: candle.close,
-        })),
-        upColor: "#10b981",
-        downColor: "#ef4444",
-        borderUpColor: "#10b981",
-        borderDownColor: "#ef4444",
-        wickUpColor: "#10b981",
-        wickDownColor: "#ef4444",
-      } as any,
-    ],
+    datasets,
   };
 
   chart = new Chart(canvasEl.value, {
@@ -318,8 +474,6 @@ function handleMouseMove(event: MouseEvent) {
       const changePercent = (change / candle.open) * 100;
 
       tooltipData.value = {
-        x: event.clientX,
-        y: event.clientY - 120,
         date: new Date(candle.time).toLocaleDateString("fr-FR", {
           day: "2-digit",
           month: "2-digit",
@@ -351,6 +505,7 @@ function handleMouseMove(event: MouseEvent) {
         changePercent: `${change > 0 ? "+" : ""}${changePercent.toFixed(2)}%`,
         volume: "Volume: N/A",
         isPositive: change >= 0,
+        candleIndex: dataIndex,
       };
 
       tooltipVisible.value = true;
@@ -370,8 +525,24 @@ function handleMouseMove(event: MouseEvent) {
   }
 }
 
-onMounted(buildChart);
+onMounted(() => {
+  console.log("✅ CandleChart mounted");
+  buildChart();
+});
+
 watch(() => props.candles, buildChart, { deep: true });
+
+watch(
+  () => props.buildingCandle,
+  (newBuilding) => {
+    console.log("🔄 CandleChart: buildingCandle changed", newBuilding);
+    if (newBuilding) {
+      console.log("  → Rebuilding chart with building candle");
+      buildChart();
+    }
+  },
+  { deep: true }
+);
 watch(
   () => props.timeframe,
   () => {
@@ -411,7 +582,9 @@ defineExpose({
       🔍 Reset
     </button>
 
-    <canvas ref="canvasEl"></canvas>
+    <div class="candle-chart-canvas-wrapper">
+      <canvas ref="canvasEl"></canvas>
+    </div>
 
     <div v-if="crosshairVisible" class="candle-chart-crosshair-container">
       <div
@@ -436,32 +609,43 @@ defineExpose({
     <div
       v-if="tooltipVisible"
       class="candle-chart-tooltip"
-      :style="{
-        left: tooltipData.x + 'px',
-        top: tooltipData.y + 'px',
-      }"
+      :style="tooltipPositionStyle"
     >
       <div class="candle-chart-tooltip-date">{{ tooltipData.date }}</div>
       <div class="candle-chart-tooltip-ohlc">
-        <div class="candle-chart-ohlc-row">
-          <span class="candle-chart-ohlc-label">O:</span>
-          <span class="candle-chart-ohlc-value">{{ tooltipData.open }}</span>
-        </div>
-        <div class="candle-chart-ohlc-row">
-          <span class="candle-chart-ohlc-label">H:</span>
-          <span class="candle-chart-ohlc-value candle-chart-ohlc-value--high">{{
-            tooltipData.high
-          }}</span>
-        </div>
-        <div class="candle-chart-ohlc-row">
-          <span class="candle-chart-ohlc-label">L:</span>
-          <span class="candle-chart-ohlc-value candle-chart-ohlc-value--low">{{
-            tooltipData.low
-          }}</span>
-        </div>
-        <div class="candle-chart-ohlc-row">
-          <span class="candle-chart-ohlc-label">C:</span>
-          <span class="candle-chart-ohlc-value">{{ tooltipData.close }}</span>
+        <div class="candle-chart-ohlc-columns">
+          <!-- Colonne gauche: Open et Close -->
+          <div class="candle-chart-ohlc-column">
+            <div class="candle-chart-ohlc-row">
+              <span class="candle-chart-ohlc-label">Open:</span>
+              <span class="candle-chart-ohlc-value">{{
+                tooltipData.open
+              }}</span>
+            </div>
+            <div class="candle-chart-ohlc-row">
+              <span class="candle-chart-ohlc-label">Close:</span>
+              <span class="candle-chart-ohlc-value">{{
+                tooltipData.close
+              }}</span>
+            </div>
+          </div>
+          <!-- Colonne droite: Low et High -->
+          <div class="candle-chart-ohlc-column">
+            <div class="candle-chart-ohlc-row">
+              <span class="candle-chart-ohlc-label">Low:</span>
+              <span
+                class="candle-chart-ohlc-value candle-chart-ohlc-value--low"
+                >{{ tooltipData.low }}</span
+              >
+            </div>
+            <div class="candle-chart-ohlc-row">
+              <span class="candle-chart-ohlc-label">High:</span>
+              <span
+                class="candle-chart-ohlc-value candle-chart-ohlc-value--high"
+                >{{ tooltipData.high }}</span
+              >
+            </div>
+          </div>
         </div>
       </div>
       <div class="candle-chart-tooltip-change">
@@ -477,3 +661,180 @@ defineExpose({
     </div>
   </div>
 </template>
+
+<style scoped>
+.candle-chart {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.candle-chart-canvas-wrapper {
+  width: 100%;
+  height: 100%;
+}
+
+.candle-chart-reset-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+  padding: 6px 12px;
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.5);
+  color: #10b981;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.candle-chart-reset-btn:hover {
+  background: rgba(16, 185, 129, 0.4);
+  border-color: #10b981;
+}
+
+.candle-chart-crosshair-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.candle-chart-crosshair-line {
+  position: absolute;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.candle-chart-crosshair-line--vertical {
+  top: 0;
+  width: 1px;
+  height: 100%;
+  border-left: 1px dashed rgba(255, 255, 255, 0.3);
+}
+
+.candle-chart-crosshair-line--horizontal {
+  left: 0;
+  width: 100%;
+  height: 1px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.3);
+}
+
+.candle-chart-crosshair-label {
+  position: absolute;
+  background: rgba(31, 41, 55, 0.9);
+  color: rgba(255, 255, 255, 0.8);
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 3px;
+  white-space: nowrap;
+  z-index: 20;
+}
+
+.candle-chart-date-label {
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: -24px;
+}
+
+.candle-chart-price-label {
+  right: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-right: -60px;
+}
+
+.candle-chart-tooltip {
+  position: absolute;
+  background: rgba(7, 14, 16, 0.95);
+  border: 1px solid rgba(232, 240, 240, 0.15);
+  border-radius: 4px;
+  padding: 7px 9px;
+  z-index: 1000;
+  color: rgba(232, 240, 240, 0.9);
+  font-size: 9px;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  max-width: 200px;
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+}
+
+.candle-chart-tooltip-date {
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: rgba(232, 240, 240, 0.95);
+  border-bottom: 1px solid rgba(232, 240, 240, 0.1);
+  padding-bottom: 4px;
+  font-size: 9px;
+  text-align: center;
+}
+
+.candle-chart-tooltip-ohlc {
+  margin-bottom: 6px;
+}
+
+.candle-chart-ohlc-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.candle-chart-ohlc-column {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.candle-chart-ohlc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 9px;
+  gap: 4px;
+}
+
+.candle-chart-ohlc-label {
+  color: rgba(232, 240, 240, 0.6);
+  font-weight: 500;
+  min-width: 40px;
+  text-align: left;
+  flex-shrink: 0;
+}
+
+.candle-chart-ohlc-value {
+  color: rgba(232, 240, 240, 0.9);
+  font-family: "Monaco", "Courier New", monospace;
+  text-align: right;
+  font-size: 9px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.candle-chart-ohlc-value--high {
+  color: #10b981;
+}
+
+.candle-chart-ohlc-value--low {
+  color: #ef4444;
+}
+
+.candle-chart-tooltip-change {
+  text-align: center;
+  font-weight: 600;
+  font-size: 9px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(232, 240, 240, 0.1);
+}
+
+.candle-chart-change--positive {
+  color: #10b981;
+}
+
+.candle-chart-change--negative {
+  color: #ef4444;
+}
+</style>

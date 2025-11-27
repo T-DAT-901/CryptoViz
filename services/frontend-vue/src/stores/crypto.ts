@@ -13,12 +13,8 @@ export const useCryptoStore = defineStore("crypto", {
   getters: {
     sortedCryptos(): CryptoData[] {
       return Array.from(this.cryptoMap.values()).sort((a, b) => {
-        // Trier par volume 24h décroissant (plus gros volume en premier)
-        if (b.volume24h !== a.volume24h) {
-          return b.volume24h - a.volume24h;
-        }
-        // Si même volume, trier par prix décroissant
-        return b.price - a.price;
+        // Trier par rank croissant (1, 2, 3, 4...)
+        return a.rank - b.rank;
       });
     },
   },
@@ -41,11 +37,11 @@ export const useCryptoStore = defineStore("crypto", {
 
         this.rtConnected = true;
 
-        // S'abonner aux trades
+        // S'abonner aux trades pour tous les symboles
         console.log("📡 Subscribing to trades (*) ...");
-        rt.subscribe("trade", "*");
+        rt.subscribe("trade", "*", "");
 
-        // Collecter les trades pendant 5 secondes
+        // Handler pour les trades (prix en temps réel)
         const onTrade = (message: any) => {
           if (message.data && message.data.symbol && message.data.price) {
             const symbol = message.data.symbol;
@@ -77,18 +73,89 @@ export const useCryptoStore = defineStore("crypto", {
           }
         };
 
-        // Écouter les trades EN CONTINU pour mettre à jour les prix
+        // Handler pour les candles (statistiques mises à jour)
+        const onCandle = (message: any) => {
+          if (
+            message.data &&
+            message.data.symbol &&
+            message.data.timeframe === "1m"
+          ) {
+            const symbol = message.data.symbol;
+            const crypto = this.cryptoMap.get(symbol);
+
+            if (crypto && message.data.close) {
+              // Mettre à jour le prix avec la candle
+              crypto.price = message.data.close;
+
+              // Mettre à jour le volume si disponible
+              if (message.data.volume) {
+                crypto.volume24h = message.data.volume;
+              }
+            }
+          }
+        };
+
+        // Écouter les trades et candles EN CONTINU
         rt.on("trade", onTrade);
+        rt.on("candle", onCandle);
 
-        // Attendre 5 secondes pour découvrir les cryptos
-        console.log("⏳ Discovering cryptos for 5 seconds...");
-        await new Promise((resolve) => setTimeout(resolve, 5000));
-
+        // Découverte immédiate des cryptos, plus d'attente
         console.log(
           "✅ Discovered",
           this.cryptoMap.size,
           "cryptos from WebSocket"
         );
+
+        // FALLBACK: Si aucun crypto découvert via WebSocket, charger depuis l'API
+        if (this.cryptoMap.size === 0) {
+          console.log(
+            "🔄 No cryptos discovered via WebSocket, fetching from API..."
+          );
+          try {
+            const response = await http.get<{
+              success: boolean;
+              data: { symbols: string[] };
+            }>("/api/v1/crypto/symbols");
+
+            if (
+              response.data.success &&
+              response.data.data?.symbols &&
+              response.data.data.symbols.length > 0
+            ) {
+              console.log(
+                `📥 Loaded ${response.data.data.symbols.length} symbols from API`
+              );
+
+              // Initialiser cryptoMap avec les symboles de la base de données
+              for (const symbol of response.data.data.symbols) {
+                if (!this.cryptoMap.has(symbol)) {
+                  this.cryptoMap.set(symbol, {
+                    id: symbol,
+                    rank: this.cryptoMap.size + 1,
+                    name: symbol.split("/")[0], // BTC de BTC/USDT
+                    symbol,
+                    price: 0,
+                    change1h: 0,
+                    change24h: 0,
+                    change7d: 0,
+                    marketCap: 0,
+                    volume24h: 0,
+                    circulatingSupply: 0,
+                    sparklineData: [],
+                  });
+                }
+              }
+
+              console.log(
+                `✅ Initialized ${this.cryptoMap.size} cryptos from database`
+              );
+            } else {
+              console.warn("⚠️ No symbols returned from API");
+            }
+          } catch (error) {
+            console.error("❌ Failed to load symbols from API:", error);
+          }
+        }
 
         // Maintenant charger les stats pour chaque crypto
         if (this.cryptoMap.size > 0) {
@@ -96,30 +163,69 @@ export const useCryptoStore = defineStore("crypto", {
 
           const symbols = Array.from(this.cryptoMap.keys());
 
-          // Charger les stats en parallèle
-          await Promise.all(
-            symbols.map(async (symbol) => {
-              try {
-                const response = await http.get(`/api/v1/stats/${symbol}`);
-                const stats = response.data?.data || {};
+          // Charger les stats en parallèle (avec throttling pour éviter de surcharger le serveur)
+          const batchSize = 10;
+          for (let i = 0; i < symbols.length; i += batchSize) {
+            const batch = symbols.slice(i, i + batchSize);
+            await Promise.all(
+              batch.map(async (symbol) => {
+                try {
+                  const crypto = this.cryptoMap.get(symbol)!;
 
-                const crypto = this.cryptoMap.get(symbol)!;
-                if (stats) {
-                  crypto.change1h = stats.change1h || 0;
-                  crypto.change24h = stats.change24h || 0;
-                  crypto.change7d = stats.change7d || 0;
-                  crypto.marketCap = stats.marketCap || 0;
-                  crypto.volume24h = stats.volume24h || 0;
-                  crypto.circulatingSupply = stats.circulatingSupply || 0;
+                  // Charger les données candles (dernières 24h avec interval 1h)
+                  const candlesResponse = await http.get(
+                    `/api/v1/crypto/data`,
+                    {
+                      params: {
+                        symbol: symbol,
+                        interval: "1h",
+                        limit: 24,
+                      },
+                    }
+                  );
+
+                  const candles = candlesResponse.data?.data || [];
+                  if (candles && candles.length > 0) {
+                    // Calculer les stats à partir des candles
+                    const latest = candles[0]; // Le plus récent
+                    const oldest = candles[candles.length - 1];
+
+                    // Mettre à jour le prix actuel
+                    if (crypto.price === 0 && latest.close) {
+                      crypto.price = latest.close;
+                    }
+
+                    // Calculer le changement 24h
+                    if (oldest.close && latest.close) {
+                      const priceChange =
+                        ((latest.close - oldest.close) / oldest.close) * 100;
+                      crypto.change24h = priceChange;
+                      crypto.change1h = priceChange; // Approximation
+                    }
+
+                    // Calculer le volume 24h (somme des volumes)
+                    crypto.volume24h = candles.reduce(
+                      (sum: number, candle: any) => sum + (candle.volume || 0),
+                      0
+                    );
+
+                    // Extraire les prix de clôture pour le sparkline (inverser pour avoir chronologique)
+                    crypto.sparklineData = candles
+                      .reverse()
+                      .map((candle: any) => candle.close);
+                  }
+
+                  console.log("📈 Data loaded for", symbol);
+                } catch (error) {
+                  console.warn(
+                    `⚠️ Could not load data for ${symbol}:`,
+                    error
+                  );
+                  // Les stats restent à 0, ce n'est pas grave
                 }
-
-                console.log("📈 Stats loaded for", symbol);
-              } catch (error) {
-                console.warn(`⚠️ Could not load stats for ${symbol}:`, error);
-                // Les stats restent à 0, ce n'est pas grave
-              }
-            })
-          );
+              })
+            );
+          }
 
           console.log("✅ All stats loaded!");
         }

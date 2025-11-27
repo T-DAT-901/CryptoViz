@@ -344,3 +344,102 @@ export function disconnectRT(): void {
   rtClient?.disconnect();
   rtClient = null;
 }
+
+// Real-time Candle Builder for 1m timeframe
+export class RealtimeCandleBuilder {
+  private currentMinute: number = 0;
+  private candle = {
+    open: 0,
+    high: 0,
+    low: Infinity,
+    close: 0,
+    volume: 0,
+  };
+  private trades: Array<{ price: number; volume: number; timestamp: number }> =
+    [];
+  private onCandleComplete:
+    | ((candle: typeof this.candle, timestamp: number) => void)
+    | null = null;
+  private onCandleUpdate: ((candle: typeof this.candle) => void) | null = null;
+
+  constructor() {
+    this.initializeNewMinute();
+  }
+
+  private initializeNewMinute() {
+    const now = new Date();
+    this.currentMinute = Math.floor(now.getTime() / 60000) * 60000;
+    this.candle = {
+      open: 0,
+      high: 0,
+      low: Infinity,
+      close: 0,
+      volume: 0,
+    };
+    this.trades = [];
+  }
+
+  addTrade(price: number, volume: number, timestamp: number) {
+    const tradeMinute = Math.floor(timestamp / 60000) * 60000;
+
+    // Si le trade est d'une minute différente, finaliser la candle actuelle
+    if (tradeMinute > this.currentMinute) {
+      if (this.trades.length > 0 && this.onCandleComplete) {
+        this.finalizCandle();
+      }
+      this.initializeNewMinute();
+    }
+
+    // Si c'est le premier trade de la minute, set l'open
+    if (this.trades.length === 0) {
+      this.candle.open = price;
+    }
+
+    // Update OHLCV
+    this.candle.high = Math.max(this.candle.high, price);
+    this.candle.low = Math.min(this.candle.low, price);
+    this.candle.close = price;
+    this.candle.volume += volume;
+
+    this.trades.push({ price, volume, timestamp });
+
+    // Notifier les updates
+    if (this.onCandleUpdate) {
+      this.onCandleUpdate({ ...this.candle });
+    }
+  }
+
+  private finalizCandle() {
+    if (this.onCandleComplete) {
+      this.onCandleComplete(
+        {
+          ...this.candle,
+          low:
+            this.candle.low === Infinity ? this.candle.open : this.candle.low,
+        },
+        this.currentMinute
+      );
+    }
+  }
+
+  getCurrentCandle() {
+    return {
+      ...this.candle,
+      low: this.candle.low === Infinity ? this.candle.open : this.candle.low,
+    };
+  }
+
+  onCandleCompleted(
+    callback: (candle: typeof this.candle, timestamp: number) => void
+  ) {
+    this.onCandleComplete = callback;
+  }
+
+  onCandleUpdated(callback: (candle: typeof this.candle) => void) {
+    this.onCandleUpdate = callback;
+  }
+
+  reset() {
+    this.initializeNewMinute();
+  }
+}

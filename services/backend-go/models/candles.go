@@ -83,6 +83,7 @@ type CandleRepository interface {
 	GetLatest(symbol string, exchange string) (*Candle, error)
 	GetByTimeRange(symbol string, timeframe string, start, end time.Time) ([]Candle, error)
 	GetStats(symbol string, timeframe string) (*CandleStats, error)
+	GetDistinctSymbols() ([]string, error)
 
 	// Queries on unified view (hot + cold storage)
 	GetAllBySymbol(symbol string, timeframe string, limit int) ([]AllCandle, error)
@@ -182,4 +183,24 @@ func (r *candleRepository) GetStats(symbol string, timeframe string) (*CandleSta
 	}
 
 	return &stats, nil
+}
+
+// GetDistinctSymbols récupère la liste des symboles disponibles (actifs dans la dernière heure)
+func (r *candleRepository) GetDistinctSymbols() ([]string, error) {
+	var symbols []string
+
+	// Get symbols that have data in the last hour (active symbols)
+	query := `
+		SELECT DISTINCT symbol
+		FROM candles
+		WHERE window_start > NOW() - INTERVAL '1 hour'
+		ORDER BY symbol
+	`
+
+	err := r.db.Raw(query).Scan(&symbols).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return symbols, nil
 }

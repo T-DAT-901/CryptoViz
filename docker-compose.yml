@@ -8,20 +8,38 @@ services:
       POSTGRES_USER: ${TIMESCALE_USER:-postgres}
       POSTGRES_PASSWORD: ${TIMESCALE_PASSWORD:-password}
       POSTGRES_HOST_AUTH_METHOD: trust
+    # Memory limits to prevent unbounded growth during tiering operations
+    mem_limit: 6g              # Hard memory limit (comfortable for 28GB total available)
+    memswap_limit: 6g          # Prevent swap usage (matches mem_limit)
+    shm_size: 512m             # Shared memory for PostgreSQL internal operations
     ports:
       - "7432:5432"
     volumes:
       - timescaledb_data:/var/lib/postgresql/data
+      # Database initialization scripts (executed ONLY on first startup when volume is empty)
+      # NOTE: If the database already exists, these scripts will NOT re-run
+      # To force re-initialization: use 'make db-reset' or 'make clean && make start'
       - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./database/setup-tiering.sql:/docker-entrypoint-initdb.d/02-setup-tiering.sql
+      - ./database/setup-indicators.sql:/docker-entrypoint-initdb.d/03-setup-indicators.sql
     networks:
       - cryptoviz-network
     restart: unless-stopped
+    # PostgreSQL Memory Tuning (optimized for 6GB memory limit)
+    # shared_buffers: 25% of mem_limit (1536MB of 6GB)
+    # work_mem: per-operation memory for sorts/hashes (32MB allows ~20 concurrent ops)
+    # maintenance_work_mem: for DELETE/VACUUM/INDEX operations (512MB for large tiering ops)
+    command: >
+      postgres
+      -c shared_buffers=1536MB
+      -c work_mem=32MB
+      -c maintenance_work_mem=512MB
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${TIMESCALE_USER:-postgres} -d ${TIMESCALE_DB:-cryptoviz}"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 90s  # Grace period for database initialization scripts (init.sql, setup-tiering.sql)
 
   # Zookeeper pour Kafka
   zookeeper:
@@ -83,7 +101,8 @@ services:
       test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 45s  # Grace period for Kafka broker initialization
 
   # Redis (optionnel pour cache)
   redis:
@@ -186,6 +205,12 @@ services:
     networks:
       - cryptoviz-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'python.*main.py' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s  # Grace period for Kafka connection + Binance API fetching
     volumes:
       - ./services/data-collector:/app
     logging:
@@ -209,43 +234,14 @@ services:
     networks:
       - cryptoviz-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'python.*app.py' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s  # Grace period for Kafka connection and initial scraping setup
     volumes:
       - ./services/news-scraper:/app
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # Indicators Calculator Service
-  indicators-calculator:
-    build:
-      context: ./services/indicators-calculator
-      dockerfile: Dockerfile
-    container_name: cryptoviz-indicators-calculator
-    depends_on:
-      kafka:
-        condition: service_healthy
-      timescaledb:
-        condition: service_healthy
-    environment:
-      KAFKA_BROKERS: kafka:29092
-      TIMESCALE_HOST: timescaledb
-      TIMESCALE_PORT: 5432
-      TIMESCALE_DB: ${TIMESCALE_DB:-cryptoviz}
-      TIMESCALE_USER: ${TIMESCALE_USER:-postgres}
-      TIMESCALE_PASSWORD: ${TIMESCALE_PASSWORD:-password}
-      RSI_PERIOD: ${RSI_PERIOD:-14}
-      MACD_FAST: ${MACD_FAST:-12}
-      MACD_SLOW: ${MACD_SLOW:-26}
-      MACD_SIGNAL: ${MACD_SIGNAL:-9}
-      BOLLINGER_PERIOD: ${BOLLINGER_PERIOD:-20}
-      BOLLINGER_STD: ${BOLLINGER_STD:-2}
-    networks:
-      - cryptoviz-network
-    restart: unless-stopped
-    volumes:
-      - ./services/indicators-calculator:/app
     logging:
       driver: "json-file"
       options:
@@ -281,6 +277,12 @@ services:
     networks:
       - cryptoviz-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f './main' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s  # Grace period for database/Kafka/Redis connections and WebSocket hub initialization
     volumes:
       - ./services/backend-go:/app
     logging:
@@ -302,10 +304,6 @@ services:
     container_name: cryptoviz-frontend-vue
     depends_on:
       - backend-go
-    environment:
-      - VITE_API_URL=${VITE_API_URL:-http://localhost:8080}
-      - VITE_WS_URL=${VITE_WS_URL:-ws://localhost:8080/ws/crypto}
-      - VITE_USE_MOCK=${VITE_USE_MOCK:-false}
     ports:
       - "${FRONTEND_PORT:-3000}:80"
     networks:
@@ -357,6 +355,192 @@ services:
     networks:
       - cryptoviz-network
 
+  # ========== MONITORING STACK ==========
+
+  # Prometheus - Metrics Collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cryptoviz-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--storage.tsdb.retention.time=30d'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Grafana - Visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cryptoviz-grafana
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3001}
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource,grafana-piechart-panel
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Node Exporter - System Metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: cryptoviz-node-exporter
+    command:
+      - '--path.rootfs=/host'
+    ports:
+      - "9100:9100"
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+
+  # cAdvisor - Container Metrics
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cryptoviz-cadvisor
+    ports:
+      - "8083:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+
+  # PostgreSQL Exporter - TimescaleDB Metrics
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: cryptoviz-postgres-exporter
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${TIMESCALE_USER:-postgres}:${TIMESCALE_PASSWORD:-password}@timescaledb:5432/${TIMESCALE_DB:-cryptoviz}?sslmode=disable"
+    ports:
+      - "9187:9187"
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+
+  # Redis Exporter - Redis Metrics
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: cryptoviz-redis-exporter
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_ADDR: redis:6379
+    ports:
+      - "9121:9121"
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+
+  # Kafka Exporter - Kafka Metrics
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:latest
+    container_name: cryptoviz-kafka-exporter
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - '--kafka.server=kafka:29092'
+    ports:
+      - "9308:9308"
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+
+  # Gatus - Health Check & Status Page
+  gatus:
+    image: twinproduction/gatus:latest
+    container_name: cryptoviz-gatus
+    depends_on:
+      - timescaledb
+      - kafka
+      - redis
+      - backend-go
+    ports:
+      - "8084:8080"
+    volumes:
+      - ./monitoring/gatus/config.yaml:/config/config.yaml
+      - gatus_data:/data
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Indicators Scheduler Service
+  # Remplace les TimescaleDB jobs (bug "cache lookup failed")
+  indicators-scheduler:
+    build:
+      context: ./services/indicators-scheduler
+      dockerfile: Dockerfile
+    container_name: cryptoviz-indicators-scheduler
+    environment:
+      PGHOST: timescaledb
+      PGPORT: 5432
+      PGDATABASE: cryptoviz
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    networks:
+      - cryptoviz-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'python.*scheduler.py' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s  # Grace period for database connection and scheduler initialization
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   timescaledb_data:
     driver: local
@@ -369,6 +553,12 @@ volumes:
   redis_data:
     driver: local
   minio_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  gatus_data:
     driver: local
 
 networks:
