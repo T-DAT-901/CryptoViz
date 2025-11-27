@@ -119,6 +119,10 @@ start_services() {
     info "Attente de la disponibilité des services..."
     sleep 30
 
+    # Run database migrations (idempotent - safe to run on every start)
+    info "Running database migrations..."
+    ./scripts/run-migrations.sh
+
     # Note: minio-init and kafka-init run automatically via depends_on when their
     # dependent services start. With restart: "no", they only run once and skip on subsequent starts.
 
