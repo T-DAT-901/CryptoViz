@@ -113,7 +113,7 @@ const goBack = () => {
 
       <aside class="dashboard-column dashboard-column--right">
         <div class="dashboard-stack">
-          <CommunitySentiment symbol="BTCUSDT" />
+          <!-- <CommunitySentiment symbol="BTCUSDT" /> -->
           <NewsFeed />
         </div>
       </aside>
