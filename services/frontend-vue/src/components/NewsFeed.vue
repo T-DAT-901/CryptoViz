@@ -58,7 +58,7 @@ function formatTime(isoString: string): string {
       >
         <div class="news-feed-content">
           <a
-            :href="item.link"
+            :href="item.url"
             target="_blank"
             rel="noopener noreferrer"
             class="news-feed-title"
