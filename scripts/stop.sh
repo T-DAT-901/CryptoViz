@@ -48,11 +48,15 @@ graceful_stop() {
 
     # Arrêter les services de monitoring
     info "Arrêt des services de monitoring..."
-    docker-compose stop kafka-ui prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter gatus 2>/dev/null || true
+    docker-compose stop kafka-ui prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter kafka-exporter gatus 2>/dev/null || true
 
     # Arrêter l'infrastructure
     info "Arrêt de l'infrastructure..."
     docker-compose stop kafka zookeeper redis timescaledb minio 2>/dev/null || true
+
+    # Remove stopped containers to prevent docker-compose 1.29.x ContainerConfig bug
+    info "Removing stopped containers..."
+    docker-compose rm -f 2>/dev/null || true
 
     log "Arrêt gracieux terminé"
 }
