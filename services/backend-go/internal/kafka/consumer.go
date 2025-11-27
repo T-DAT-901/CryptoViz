@@ -13,11 +13,12 @@ import (
 
 // Consumer représente un consommateur Kafka générique
 type Consumer struct {
-	consumer *kafka.Consumer
-	handler  MessageHandler
-	logger   *logrus.Logger
-	ctx      context.Context
-	cancel   context.CancelFunc
+	consumer     *kafka.Consumer
+	handler      MessageHandler
+	logger       *logrus.Logger
+	ctx          context.Context
+	cancel       context.CancelFunc
+	commitTicker *time.Ticker // For batch commits
 }
 
 // NewConsumer crée un nouveau consommateur Kafka avec confluent-kafka-go
@@ -51,11 +52,12 @@ func NewConsumer(cfg *KafkaConfig, handler MessageHandler, logger *logrus.Logger
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Consumer{
-		consumer: consumer,
-		handler:  handler,
-		logger:   logger,
-		ctx:      ctx,
-		cancel:   cancel,
+		consumer:     consumer,
+		handler:      handler,
+		logger:       logger,
+		ctx:          ctx,
+		cancel:       cancel,
+		commitTicker: time.NewTicker(5 * time.Second), // Batch commits every 5 seconds
 	}, nil
 }
 
@@ -65,14 +67,36 @@ func (c *Consumer) Start() error {
 	c.logger.Infof("[%s] Consumer started, polling for messages...", c.handler.GetName())
 
 	messageCount := 0
+	pendingCommit := false
+
 	for {
 		select {
 		case <-c.ctx.Done():
+			// Commit any pending offsets before shutdown
+			if pendingCommit {
+				if _, err := c.consumer.Commit(); err != nil {
+					c.logger.Errorf("[%s] Failed to commit on shutdown: %v", c.handler.GetName(), err)
+				} else {
+					c.logger.Infof("[%s] Final commit successful", c.handler.GetName())
+				}
+			}
 			c.logger.Infof("[%s] Context canceled, stopping consumer", c.handler.GetName())
 			return nil
+
+		case <-c.commitTicker.C:
+			// Periodic batch commit
+			if pendingCommit {
+				if _, err := c.consumer.Commit(); err != nil {
+					c.logger.Errorf("[%s] Failed to batch commit: %v", c.handler.GetName(), err)
+				} else {
+					c.logger.Debugf("[%s] Batch commit successful (%d messages processed)", c.handler.GetName(), messageCount)
+					pendingCommit = false
+				}
+			}
+
 		default:
-			// Poll for messages with 1 second timeout
-			ev := c.consumer.Poll(1000)
+			// Poll for messages with reduced timeout for responsiveness
+			ev := c.consumer.Poll(100)
 			if ev == nil {
 				continue
 			}
@@ -80,11 +104,11 @@ func (c *Consumer) Start() error {
 			switch e := ev.(type) {
 			case *kafka.Message:
 				messageCount++
-				if messageCount%100 == 1 {
+				if messageCount%1000 == 1 {
 					c.logger.Infof("[%s] Processed %d messages so far", c.handler.GetName(), messageCount)
 				}
 
-				c.logger.Infof("[%s] Received message from topic %s[%d]@%d",
+				c.logger.Debugf("[%s] Received message from topic %s[%d]@%d",
 					c.handler.GetName(), *e.TopicPartition.Topic, e.TopicPartition.Partition, e.TopicPartition.Offset)
 
 				// Convert confluent-kafka-go message to our format
@@ -101,11 +125,8 @@ func (c *Consumer) Start() error {
 					continue
 				}
 
-				// Commit offset after successful processing
-				_, err := c.consumer.CommitMessage(e)
-				if err != nil {
-					c.logger.Errorf("[%s] Failed to commit message: %v", c.handler.GetName(), err)
-				}
+				// Mark that we have pending commits (will be committed by ticker)
+				pendingCommit = true
 
 			case kafka.Error:
 				c.logger.Errorf("[%s] Kafka error: %v", c.handler.GetName(), e)
@@ -213,6 +234,7 @@ func (c *Consumer) processMessage(msg Message) error {
 func (c *Consumer) Stop() error {
 	c.logger.Infof("[%s] Stopping consumer...", c.handler.GetName())
 	c.cancel() // Cancel context
+	c.commitTicker.Stop()
 
 	if err := c.consumer.Close(); err != nil {
 		return fmt.Errorf("failed to close consumer: %w", err)

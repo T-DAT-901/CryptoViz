@@ -79,6 +79,7 @@ type CandleStats struct {
 // CandleRepository interface pour les opérations sur Candle
 type CandleRepository interface {
 	Create(candle *Candle) error
+	CreateBatch(candles []*Candle) error
 	GetBySymbol(symbol string, timeframe string, limit int) ([]Candle, error)
 	GetLatest(symbol string, exchange string) (*Candle, error)
 	GetByTimeRange(symbol string, timeframe string, start, end time.Time) ([]Candle, error)
@@ -150,6 +151,62 @@ func (r *candleRepository) Create(candle *Candle) error {
 		candle.TradeCount, candle.Closed, candle.FirstTradeTs, candle.LastTradeTs,
 		candle.DurationMs, candle.Source, candle.CreatedAt,
 	).Error
+}
+
+// CreateBatch insère plusieurs candles en une seule transaction
+func (r *candleRepository) CreateBatch(candles []*Candle) error {
+	if len(candles) == 0 {
+		return nil
+	}
+
+	// Use transaction for batch insert
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		for _, candle := range candles {
+			query := `
+				INSERT INTO candles (
+					window_start, window_end, exchange, symbol, timeframe,
+					open, high, low, close, volume,
+					trade_count, closed, first_trade_ts, last_trade_ts, duration_ms, source, created_at
+				) VALUES (
+					?, ?, ?, ?, ?,
+					?, ?, ?, ?, ?,
+					?, ?, ?, ?, ?, ?, ?
+				)
+				ON CONFLICT (window_start, exchange, symbol, timeframe) DO UPDATE SET
+					high = CASE
+						WHEN NOT candles.closed THEN GREATEST(candles.high, EXCLUDED.high)
+						ELSE EXCLUDED.high
+					END,
+					low = CASE
+						WHEN NOT candles.closed THEN LEAST(candles.low, EXCLUDED.low)
+						ELSE EXCLUDED.low
+					END,
+					close = EXCLUDED.close,
+					volume = CASE
+						WHEN NOT candles.closed THEN candles.volume + EXCLUDED.volume
+						ELSE EXCLUDED.volume
+					END,
+					trade_count = CASE
+						WHEN NOT candles.closed THEN COALESCE(candles.trade_count, 0) + COALESCE(EXCLUDED.trade_count, 0)
+						ELSE EXCLUDED.trade_count
+					END,
+					closed = EXCLUDED.closed,
+					last_trade_ts = EXCLUDED.last_trade_ts,
+					window_end = EXCLUDED.window_end,
+					duration_ms = EXCLUDED.duration_ms
+				WHERE NOT candles.closed OR EXCLUDED.closed
+			`
+			if err := tx.Exec(query,
+				candle.WindowStart, candle.WindowEnd, candle.Exchange, candle.Symbol, candle.Timeframe,
+				candle.Open, candle.High, candle.Low, candle.Close, candle.Volume,
+				candle.TradeCount, candle.Closed, candle.FirstTradeTs, candle.LastTradeTs,
+				candle.DurationMs, candle.Source, candle.CreatedAt,
+			).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // GetBySymbol récupère les candles par symbole et timeframe (hot storage only)

@@ -87,9 +87,10 @@ func Connect() error {
 	}
 
 	// Configuration des paramètres de connexion
-	sqlDB.SetMaxIdleConns(10)
-	sqlDB.SetMaxOpenConns(100)
-	sqlDB.SetConnMaxLifetime(time.Hour)
+	sqlDB.SetMaxIdleConns(25)                        // Increased for batch processing
+	sqlDB.SetMaxOpenConns(100)                       // Keep same
+	sqlDB.SetConnMaxLifetime(30 * time.Minute)       // Recycle connections more frequently
+	sqlDB.SetConnMaxIdleTime(5 * time.Minute)        // Don't keep stale idle connections
 
 	// Test de la connexion
 	if err := sqlDB.Ping(); err != nil {

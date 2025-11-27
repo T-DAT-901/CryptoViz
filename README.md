@@ -1,542 +1,767 @@
 # CryptoViz - Terminal de Trading Crypto en Temps Réel
 
-## 🏗️ Architecture
+![Version](https://img.shields.io/badge/version-0.7.4-blue)
+![Go](https://img.shields.io/badge/Go-1.23-00ADD8?logo=go&logoColor=white)
+![Vue.js](https://img.shields.io/badge/Vue.js-3.3-4FC08D?logo=vue.js&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)
+![TimescaleDB](https://img.shields.io/badge/TimescaleDB-PostgreSQL%2015-FDB515?logo=postgresql&logoColor=white)
+![Kafka](https://img.shields.io/badge/Kafka-7.4.0-231F20?logo=apachekafka&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-CryptoViz est une plateforme de visualisation de données crypto en temps réel, conçue comme un terminal de trading professionnel. L'architecture microservices permet une scalabilité et une maintenance optimales.
+---
 
-### Stack Technique
+## Table des Matières
 
-- **Frontend**: Vue.js 3 + Chart.js/D3.js
-- **Backend**: Go (Gin framework)
-- **Base de données**: TimescaleDB (PostgreSQL optimisé time-series)
-- **Message Broker**: Apache Kafka
-- **Microservices**: Python 3.11+
-- **Containerisation**: Docker + Docker Compose
-- **Cache**: Redis
-- **Object Storage**: MinIO (S3-compatible pour data tiering)
+- [Présentation](#présentation)
+- [Captures d'écran](#captures-décran)
+- [Architecture](#architecture)
+- [Points Forts](#points-forts)
+- [Stack Technique](#stack-technique)
+- [Prérequis](#prérequis)
+- [Installation Rapide](#installation-rapide)
+- [Structure du Projet](#structure-du-projet)
+- [Services et Ports](#services-et-ports)
+- [Pipeline de Données](#pipeline-de-données)
+- [Data Tiering (Hot/Cold Storage)](#data-tiering-hotcold-storage)
+- [Indicateurs Techniques](#indicateurs-techniques)
+- [Analyse de Sentiment](#analyse-de-sentiment)
+- [API REST](#api-rest)
+- [WebSocket Streaming](#websocket-streaming)
+- [Commandes Makefile](#commandes-makefile)
+- [Monitoring](#monitoring)
+- [Configuration](#configuration)
+- [Documentation](#documentation)
+- [Équipe et Licence](#équipe-et-licence)
 
-## 📊 Flux de Données
+---
 
+## Présentation
+
+**CryptoViz** est une plateforme de visualisation de données crypto en temps réel, conçue comme un terminal de trading professionnel. L'architecture microservices permet une scalabilité massive et une maintenance optimale.
+
+Le système ingère des données depuis l'API Binance via WebSocket, les stocke dans TimescaleDB avec un système de tiering intelligent (hot/cold storage), et les expose via une API REST et WebSocket pour une interface Vue.js interactive.
+
+### Fonctionnalités Clés
+
+- **Streaming temps réel** : Throughput optimisé avec batch commits (30k+/min théorique)
+- **Historique complet** : Backfill automatique jusqu'à 365 jours (extensible à 10+ ans)
+- **Indicateurs techniques** : RSI, MACD, Bollinger Bands, Momentum
+- **Analyse de sentiment** : Score VADER sur les actualités crypto
+- **Data tiering** : 85% d'économies de stockage avec hot/cold storage
+- **Cloud-ready** : Architecture prête pour Kubernetes
+
+---
+
+## Captures d'écran
+
+### Interface Principale
+<!-- SCREENSHOT: crypto-overview -->
+*Vue d'ensemble des cryptomonnaies avec prix en temps réel*
+
+### Charts de Trading
+<!-- SCREENSHOT: trading-chart -->
+*Graphiques candlestick interactifs avec sélection d'intervalles*
+
+### News Feed
+<!-- SCREENSHOT: news-sentiment -->
+*Actualités crypto avec score de sentiment (-1 à +1)*
+
+### Indicateurs Techniques
+<!-- SCREENSHOT: indicators-panel -->
+*Panneau RSI, MACD, Momentum et Bollinger Bands*
+
+### Monitoring - Grafana
+<!-- SCREENSHOT: grafana -->
+*Dashboard de métriques système et applicatives*
+
+### Monitoring - Kafka UI
+<!-- SCREENSHOT: kafka-ui -->
+*Visualisation des topics et messages Kafka*
+
+### Health Checks - Gatus
+<!-- SCREENSHOT: gatus -->
+*Page de statut des services*
+
+### Object Storage - MinIO
+<!-- SCREENSHOT: minio -->
+*Console MinIO pour le cold storage S3*
+
+---
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Sources["📡 Sources de Données"]
+        Binance[Binance WebSocket]
+        RSS[RSS Feeds<br/>CoinDesk, CoinTelegraph]
+    end
+
+    subgraph Collectors["🔄 Collecteurs Python"]
+        DC[Data Collector<br/>Trades + OHLCV]
+        NS[News Scraper<br/>+ Sentiment VADER]
+    end
+
+    subgraph MessageQueue["📨 Apache Kafka"]
+        K1[crypto.raw.trades]
+        K2[crypto.aggregated.*]
+        K4[crypto.news]
+    end
+
+    subgraph Backend["⚙️ Backend Go"]
+        API[REST API<br/>Gin Framework]
+        WS[WebSocket Hub<br/>Real-time Streaming]
+        Consumers[Kafka Consumers<br/>confluent-kafka-go]
+        DB_IO[Database I/O<br/>GORM]
+    end
+
+    subgraph Compute["🧮 Calcul"]
+        IS[Indicators Scheduler<br/>Trigger SQL]
+        DB_CALC[Calculs en DB<br/>RSI, MACD, Bollinger, Momentum]
+    end
+
+    subgraph Storage["💾 Stockage"]
+        TS[(TimescaleDB<br/>Hot Storage)]
+        CS[(Cold Storage<br/>Schema PostgreSQL)]
+        Redis[(Redis<br/>Cache)]
+        MinIO[(MinIO<br/>S3-compatible)]
+    end
+
+    subgraph Frontend["🖥️ Interface"]
+        Vue[Vue.js 3 + TypeScript<br/>Chart.js + D3.js]
+    end
+
+    Binance --> DC
+    RSS --> NS
+    DC --> K1 & K2
+    NS --> K4
+    K1 & K2 & K4 --> Consumers
+    Consumers --> WS
+    Consumers --> DB_IO
+    DB_IO --> TS
+    IS --> DB_CALC
+    DB_CALC --> TS
+    API --> TS
+    API --> Redis
+    TS -->|tier_old_*| CS
+    CS -.->|export futur| MinIO
+    WS <--> Vue
+    API <--> Vue
 ```
-Binance API (WebSocket) → Data Collector → Kafka → TimescaleDB (HOT)
-                                           ↓              ↓
-Yahoo Finance → News Scraper → Kafka → Backend Go    MinIO (COLD)
-                                           ↓              ↑
-Kafka → Indicators Calculator → TimescaleDB ←──────────┘
-                                           ↑
-                                    Frontend Vue.js
+
+### Flux de Données
+
+- Le **Data Collector** publie vers Kafka (trades et candles agrégées)
+- Le **News Scraper** publie vers Kafka (architecture scalable pour ajouter d'autres sources)
+- Le **Backend Go** consomme Kafka, écrit en DB et streame vers les WebSockets
+- Les **indicateurs** sont calculés côté base de données (SQL) sans passer par Kafka
+
+Cette architecture permet :
+
+- **Découplage** : Chaque service est indépendant et scalable
+- **Résilience** : Kafka comme buffer si le backend est temporairement down
+- **Performance** : Calculs SQL natifs, streaming WebSocket optimisé
+- **Extensibilité** : Ajout de nouvelles sources de news sans modification du backend
+
+> **Note** : Une refactorisation future séparera la partie REST API de la partie I/O DB dans le backend Go.
+
+---
+
+## Points Forts
+
+### 🚀 Scalabilité Massive
+- Architecture conçue pour **des centaines de cryptomonnaies**
+- Historique supporté : **10+ années de données**
+- Seule limitation : quotas API Binance (tier gratuit = 20 symboles)
+- Hypertables partitionnées (50 chunks) pour requêtes optimisées
+
+### ⚡ Performance
+- **30k+ messages/minute** capacité théorique avec batch commits
+- **Latence 3-4ms** du trade à l'affichage
+- **0 consumer lag** grâce à confluent-kafka-go + batch commits
+- **Requêtes hot < 50ms** sur données récentes
+
+### 💰 Optimisation des Coûts
+- **85% d'économies** de stockage avec tiering hot/cold
+- Rétention adaptée par timeframe (1m: 37j total, 1h: 2+ ans)
+- MinIO remplaçable par AWS S3 sans changement de code
+
+### 🔄 Résilience
+- **Gap detection** automatique (seuil 2 minutes)
+- **Backfill intelligent** qui reprend exactement où il s'est arrêté
+- **Aucune perte de données** après maintenance ou crash
+
+### ☁️ Cloud-Ready
+- Full Docker Compose (17+ services)
+- Configuration 100% via variables d'environnement
+- Prêt pour Kubernetes (manque juste Helm Charts)
+
+---
+
+## Stack Technique
+
+| Couche | Technologie | Version | Description |
+|--------|-------------|---------|-------------|
+| **Frontend** | Vue.js 3 | 3.3.8 | Interface utilisateur réactive |
+| | TypeScript | 5.2 | Typage statique |
+| | Chart.js | 4.5.0 | Graphiques candlestick |
+| | D3.js | 7.8.5 | Visualisations avancées |
+| | Pinia | 2.3.1 | State management |
+| **Backend** | Go | 1.23 | API REST haute performance |
+| | Gin | 1.9.1 | Framework HTTP |
+| | GORM | 1.25.5 | ORM PostgreSQL |
+| | Gorilla WebSocket | 1.5.1 | Streaming temps réel |
+| | confluent-kafka-go | 2.3.0 | Consumer Kafka |
+| **Data Pipeline** | Python | 3.11+ | Collecte et traitement |
+| | Binance SDK | - | API WebSocket |
+| | VADER Sentiment | - | Analyse de sentiment |
+| **Infrastructure** | Apache Kafka | 7.4.0 | Message broker |
+| | TimescaleDB | PG15 | Base time-series |
+| | Redis | 7 | Cache |
+| | MinIO | Latest | Object storage S3 |
+| **Monitoring** | Prometheus | Latest | Métriques |
+| | Grafana | Latest | Dashboards |
+| | Gatus | Latest | Health checks |
+
+---
+
+## Prérequis
+
+- **Docker** 20.10+
+- **Docker Compose** 2.0+
+- **RAM** : 8GB minimum (16GB recommandé)
+- **Disque** : 20GB minimum
+- **Ports disponibles** : 3000, 8080, 7432, 9092, etc.
+
+---
+
+## Installation Rapide
+
+```bash
+# 1. Cloner le repository
+git clone https://github.com/T-DAT-901/CryptoViz.git
+cd CryptoViz
+
+# 2. Configuration initiale
+make setup
+# Éditer .env si nécessaire (clés API Binance optionnelles pour données publiques)
+
+# 3. Compiler
+make build
+
+# 4. Démarrer tous les services
+make start
+
+# 5. Vérifier l'état
+make status
+make health
+
+# 6. Accéder à l'interface
+# Frontend : http://localhost:3000
+# API : http://localhost:8080
+# Grafana : http://localhost:3001 (admin/admin)
 ```
 
-### Data Tiering Architecture
-- **Hot Storage (SSD)**: Recent 7 days - Fast queries (<50ms)
-- **Cold Storage (S3/MinIO)**: Historical data - Cost-effective (85% savings)
+### Commandes de Démarrage Alternatives
 
-## 🏢 Architecture des Services
+```bash
+make start-infra       # Infrastructure seule (DB, Kafka, Redis)
+make start-services    # Microservices Python
+make start-app         # Backend Go + Frontend Vue
+make start-monitoring  # Stack Prometheus/Grafana
+```
 
-### 1. Data Collector (Python)
-- **Rôle**: Collecte des données crypto depuis Binance API
-- **Technologies**: Python, WebSocket, Kafka Producer
-- **Données**: Prix temps réel, volumes, orderbook
-- **Intervalles**: 1s, 5s, 1min, 15min, 1h
+---
 
-### 2. News Scraper (Python)
-- **Rôle**: Scraping des actualités crypto depuis Yahoo Finance
-- **Technologies**: Python, BeautifulSoup/Scrapy, Kafka Producer
-- **Fréquence**: Toutes les 5 minutes
-- **Données**: Titre, contenu, sentiment, timestamp
-
-### 3. Indicators Calculator (Python)
-- **Rôle**: Calcul des indicateurs techniques
-- **Technologies**: Python, TA-Lib, pandas, Kafka Consumer/Producer
-- **Indicateurs**: RSI, MACD, Bollinger Bands, Momentum
-- **Traitement**: Temps réel + historique
-
-### 4. Backend Go
-- **Rôle**: API REST et WebSocket pour le frontend
-- **Technologies**: Go, Gin, WebSocket, TimescaleDB
-- **Endpoints**:
-  - `/api/v1/crypto/{symbol}/data` - Données historiques
-  - `/ws/crypto` - Stream temps réel
-  - `/api/v1/indicators/{symbol}` - Indicateurs techniques
-  - `/api/v1/news` - Actualités
-
-### 5. Frontend Vue.js
-- **Rôle**: Interface utilisateur interactive
-- **Technologies**: Vue.js 3, Chart.js, WebSocket
-- **Composants**:
-  - Dashboard principal avec graphiques temps réel
-  - Sélecteur d'intervalles (1s, 5s, 1min, 15min, 1h)
-  - Panneau d'indicateurs techniques
-  - Feed d'actualités
-  - Interface responsive
-
-### 6. TimescaleDB
-- **Rôle**: Stockage optimisé des données time-series
-- **Partitioning**: Par symbole et intervalle de temps
-- **Rétention**: Compression automatique après 7 jours
-- **Indexation**: Optimisée pour les requêtes temporelles
-- **Data Tiering**: Déplacement automatique vers cold storage après 7 jours
-- **Continuous Aggregates**: Agrégations temps réel incrémentales (hourly OHLCV, latest indicators)
-
-### 7. MinIO (Data Tiering)
-- **Rôle**: Object storage S3-compatible pour cold storage
-- **Utilisation**: Stockage des données historiques (>7 jours)
-- **Console**: Interface web sur port 9001
-- **Production**: Remplaçable par AWS S3 sans changement de code
-- **Économies**: 85% de réduction des coûts de stockage
-
-### 8. Apache Kafka
-- **Rôle**: Message broker pour streaming temps réel
-- **Topics**:
-  - `crypto.raw.trades` - Trades individuels
-  - `crypto.aggregated.{interval}` - Données agrégées (candles)
-  - `crypto.indicators.{type}` - Indicateurs calculés
-  - `crypto.news` - Actualités
-
-## 🗂️ Structure du Projet
+## Structure du Projet
 
 ```
 CryptoViz/
-├── README.md
-├── docker-compose.yml
-├── .env.example
-├── docs/
-│   ├── api.md
-│   └── deployment.md
 ├── services/
-│   ├── backend-go/
-│   │   ├── Dockerfile
-│   │   ├── main.go
-│   │   ├── handlers/
-│   │   ├── models/
-│   │   └── config/
-│   ├── frontend-vue/
-│   │   ├── Dockerfile
-│   │   ├── package.json
-│   │   ├── src/
-│   │   └── public/
-│   ├── data-collector/
-│   │   ├── Dockerfile
-│   │   ├── requirements.txt
-│   │   ├── main.py
-│   │   └── collectors/
-│   ├── indicators-calculator/
-│   │   ├── Dockerfile
-│   │   ├── requirements.txt
-│   │   ├── main.py
-│   │   └── calculators/
-│   └── news-scraper/
-│       ├── Dockerfile
-│       ├── requirements.txt
-│       ├── main.py
-│       └── scrapers/
+│   ├── backend-go/           # API REST + WebSocket (Go 1.23)
+│   │   ├── cmd/server/       # Point d'entrée
+│   │   ├── internal/         # Code applicatif (Clean Architecture)
+│   │   │   ├── controllers/  # Handlers HTTP
+│   │   │   ├── kafka/        # Consumers Kafka
+│   │   │   ├── middleware/   # CORS, logging
+│   │   │   └── websocket/    # Hub + Clients
+│   │   └── models/           # Entités GORM
+│   │
+│   ├── frontend-vue/         # Interface utilisateur (Vue.js 3)
+│   │   ├── src/components/   # Composants réutilisables
+│   │   ├── src/services/     # Clients API et WebSocket
+│   │   ├── src/stores/       # State Pinia
+│   │   └── src/views/        # Pages
+│   │
+│   ├── data-collector/       # Collecte Binance (Python)
+│   │   ├── binance_client.py # WebSocket connection
+│   │   ├── aggregator.py     # OHLCV aggregation
+│   │   └── historical_collector.py  # Backfill
+│   │
+│   ├── news-scraper/         # Actualités + Sentiment (Python)
+│   │   ├── sources/          # Adaptateurs (RSS, Twitter, Reddit...)
+│   │   ├── core/             # Kafka producer, sentiment analysis
+│   │   └── models/           # Article dataclass
+│   │
+│   └── indicators-scheduler/ # Déclencheur indicateurs (Python)
+│       └── scheduler.py      # Trigger des calculs SQL en DB
+│
 ├── database/
-│   ├── init.sql
-│   └── migrations/
-└── kafka/
-    └── topics.sh
+│   ├── init.sql              # Schéma initial + hypertables
+│   ├── setup-tiering.sql     # Fonctions hot/cold storage
+│   ├── setup-indicators.sql  # Continuous aggregates
+│   └── 04-backfill-tracking.sql  # Gap detection
+│
+├── monitoring/
+│   ├── prometheus/           # Configuration scraping
+│   ├── grafana/              # Dashboards préconfigurés
+│   │   └── dashboards/       # 5 dashboards JSON
+│   └── gatus/                # Health checks
+│
+├── scripts/
+│   ├── start.sh              # Démarrage orchestré
+│   ├── stop.sh               # Arrêt propre
+│   └── demo-tiering.sh       # Démo interactive tiering
+│
+├── docs/                     # Documentation technique
+├── docker-compose.yml        # Orchestration 17+ services
+├── docker-compose.mac.yml    # Override Mac/WSL2
+├── Makefile                  # 80+ commandes
+└── .env.example              # Template configuration
 ```
 
-## 🚀 Démarrage Rapide
+---
 
-### Prérequis
-- Docker 20.10+
-- Docker Compose 2.0+
-- 8GB RAM minimum
-- 20GB espace disque
+## Services et Ports
 
-### Installation
+| Service | Port | Description |
+|---------|------|-------------|
+| **frontend-vue** | 3000 | Interface utilisateur Vue.js |
+| **backend-go** | 8080 | API REST + WebSocket |
+| **timescaledb** | 7432 | Base de données TimescaleDB |
+| **kafka** | 9092 | Message broker |
+| **kafka-ui** | 8082 | Interface de gestion Kafka |
+| **redis** | 7379 | Cache |
+| **minio** | 9000/9001 | API S3 / Console Web |
+| **grafana** | 3001 | Dashboards monitoring |
+| **prometheus** | 9090 | Collecte métriques |
+| **gatus** | 8084 | Page de statut |
 
-1. **Cloner le repository**
-```bash
-git clone https://github.com/T-DAT-901/CryptoViz.git
-cd CryptoViz
+> **Note** : Les ports non-standards (7432 au lieu de 5432) évitent les conflits avec des installations locales.
+
+---
+
+## Pipeline de Données
+
+```mermaid
+sequenceDiagram
+    participant B as Binance API
+    participant DC as Data Collector
+    participant K as Kafka
+    participant BG as Backend Go
+    participant TS as TimescaleDB
+    participant WS as WebSocket
+    participant FE as Frontend
+
+    Note over B,FE: Flux d'ingestion temps réel
+
+    B->>DC: WebSocket Stream (trades)
+    DC->>K: Produce crypto.aggregated.*
+
+    Note over K,FE: Flux de streaming + persistance
+
+    K->>BG: Consume messages
+    BG->>TS: INSERT candles
+    BG->>WS: Broadcast to subscribers
+    WS->>FE: Push temps réel
+
+    Note over FE,TS: Flux de requête historique
+
+    FE->>BG: GET /api/v1/crypto/data
+    BG->>TS: SELECT FROM all_candles
+    TS->>BG: Résultats (hot + cold)
+    BG->>FE: JSON response
 ```
 
-2. **Configuration initiale**
-```bash
-make setup
-# Éditer .env avec vos clés API
+### Topics Kafka
+
+| Topic | Rétention | Description |
+|-------|-----------|-------------|
+| `crypto.raw.trades` | 48h | Trades individuels |
+| `crypto.aggregated.1m` | 30j | Candles 1 minute |
+| `crypto.aggregated.5m` | 60j | Candles 5 minutes |
+| `crypto.aggregated.15m` | 90j | Candles 15 minutes |
+| `crypto.aggregated.1h` | 180j | Candles 1 heure |
+| `crypto.aggregated.1d` | 2 ans | Candles journalières |
+| `crypto.news` | 7j | Articles avec sentiment |
+
+---
+
+## Data Tiering (Hot/Cold Storage)
+
+CryptoViz implémente un système de **tiering adaptatif** qui optimise les coûts de stockage tout en maintenant les performances.
+
+```mermaid
+flowchart LR
+    subgraph Hot["🔥 Hot Storage (SSD)"]
+        direction TB
+        H1[Données récentes]
+        H2[Requêtes < 50ms]
+        H3[Index optimisés]
+    end
+
+    subgraph Cold["❄️ Cold Storage"]
+        direction TB
+        C1[Données historiques]
+        C2[85% économies]
+        C3[Schema PostgreSQL]
+    end
+
+    subgraph Views["👁️ Vues Unifiées"]
+        direction TB
+        V1[all_candles]
+        V2[all_indicators]
+        V3[all_news]
+    end
+
+    Hot -->|"tier_old_*()"| Cold
+    Hot --> Views
+    Cold --> Views
+    Views --> API[Backend API]
+
+    style Hot fill:#ff6b6b,color:#fff
+    style Cold fill:#4dabf7,color:#fff
+    style Views fill:#51cf66,color:#fff
 ```
 
-3. **Démarrage des services**
+### Rétention par Timeframe
+
+| Timeframe | Hot Storage | Cold Storage | Total |
+|-----------|-------------|--------------|-------|
+| **1m** | 7 jours | 30 jours | 37 jours |
+| **5m** | 14 jours | 90 jours | 104 jours |
+| **15m** | 30 jours | 180 jours | 210 jours |
+| **1h** | 90 jours | 730 jours | ~2 ans |
+| **1d** | Permanent | - | ∞ |
+
+### Commandes Tiering
+
 ```bash
-make start
+# Voir les statistiques hot/cold
+make tiering-stats
+
+# Déclencher le tiering manuellement
+make tiering
+
+# Vérifier la configuration
+make db-verify-tiering
 ```
 
-4. **Vérification**
-```bash
-make status
-make health
+### Architecture Technique
 
-# Accéder à l'interface
-open http://localhost:3000
+Le tiering utilise **dblink** pour des transactions autonomes, évitant les problèmes de mémoire (OOM) lors du déplacement de grandes quantités de données :
+
+```sql
+-- Chaque batch de 5000 lignes est commité indépendamment
+SELECT tier_old_candles();  -- Déplace les candles expirées
+SELECT tier_old_indicators();  -- Déplace les indicateurs expirés
+SELECT tier_old_news();  -- Déplace les news expirées
 ```
 
-### 🎯 Demo Data Tiering (POC)
+> **Documentation complète** : [docs/COLDSTORAGE.md](docs/COLDSTORAGE.md)
 
-CryptoViz implémente un système de data tiering pour réduire les coûts de stockage de 85%.
+---
 
-```bash
-# Lancer la démo interactive de tiering
-./scripts/demo-tiering.sh
+## Indicateurs Techniques
 
-# Accéder à MinIO Console
-open http://localhost:9001  # minioadmin / minioadmin
-```
+| Indicateur | Description | Paramètres | Formule |
+|------------|-------------|------------|---------|
+| **RSI** | Relative Strength Index | Période: 14 | RSI = 100 - (100 / (1 + RS)) |
+| **MACD** | Moving Average Convergence Divergence | 12, 26, 9 | MACD = EMA(12) - EMA(26) |
+| **Bollinger Bands** | Bandes de volatilité | Période: 20, Écart: 2σ | Upper/Lower = SMA ± 2×StdDev |
+| **Momentum** | Indicateur de momentum | Période: 10 | MOM = Close - Close[n] |
 
-**Voir la documentation complète:**
-- [Guide Rapide](docs/TIERING-QUICK-START.md) - Démarrage en 3 commandes
-- [Démo Complète](docs/DATA-TIERING-DEMO.md) - Documentation technique
-- [Cheat Sheet](docs/DEMO-CHEAT-SHEET.md) - Points clés pour présentations
+### Calcul et Stockage
 
-## 🛠️ Commandes Make
+Les indicateurs sont **calculés directement en SQL** dans TimescaleDB pour des performances optimales. L'**Indicators Scheduler** (Python) déclenche périodiquement les fonctions SQL de calcul.
 
-CryptoViz utilise un Makefile complet pour simplifier la gestion du projet. Toutes les commandes sont organisées par catégorie pour une utilisation optimale.
-
-### Aide et Information
-```bash
-make help          # Afficher toutes les commandes disponibles
-make info          # Informations détaillées du projet
-```
-
-### 🚀 Gestion des Services
-
-#### Démarrage
-```bash
-make start          # Démarrer tous les services
-make start-infra    # Démarrer uniquement l'infrastructure (DB, Kafka, Redis)
-make start-services # Démarrer uniquement les microservices
-make start-app      # Démarrer uniquement l'application (backend + frontend)
-```
-
-#### Arrêt et Redémarrage
-```bash
-make stop           # Arrêter tous les services
-make stop-force     # Arrêt forcé de tous les services
-make restart        # Redémarrer tous les services
-make restart-service SERVICE=backend-go  # Redémarrer un service spécifique
-```
-
-### 🔧 Construction et Nettoyage
+**Avantages du calcul côté DB** :
+- Performance native sur les données time-series
+- Pas de transfert de données entre services
+- Utilisation des Continuous Aggregates TimescaleDB
+- Pas de surcharge Kafka pour les indicateurs
 
 ```bash
-make build          # Construire toutes les images Docker
-make build-service SERVICE=backend-go    # Construire une image spécifique
-make clean          # Nettoyer les conteneurs, images et volumes
-make clean-images   # Supprimer toutes les images Docker du projet
-```
-
-### 📊 Monitoring et Logs
-
-```bash
-make logs           # Voir les logs de tous les services en temps réel
-make logs-service SERVICE=backend-go     # Logs d'un service spécifique
-make status         # Afficher l'état de tous les services
-make health         # Vérifier la santé des services
-make monitor        # Ouvrir les interfaces de monitoring
-```
-
-### 🗄️ Base de Données TimescaleDB
-
-```bash
-make db-connect     # Se connecter à la base de données
-make db-backup      # Créer une sauvegarde
-make db-restore BACKUP=fichier.sql      # Restaurer depuis une sauvegarde
-```
-
-### 📡 Gestion Kafka
-
-```bash
-make kafka-topics   # Lister tous les topics Kafka
-make kafka-create-topic TOPIC=nom_topic # Créer un nouveau topic
-make kafka-console-consumer TOPIC=crypto.raw.1s  # Écouter un topic
-```
-
-### 🧪 Développement
-
-#### Mode Développement
-```bash
-make dev-backend    # Démarrer le backend en mode développement
-make dev-frontend   # Démarrer le frontend en mode développement
-```
-
-#### Tests
-```bash
-make test           # Exécuter tous les tests
-make test-backend   # Tester le backend Go
-make test-python    # Tester les services Python
-make test-frontend  # Tester le frontend
-```
-
-#### Linting et Formatage
-```bash
-make lint           # Vérifier le code avec les linters
-make lint-backend   # Linter le code Go
-make lint-python    # Linter le code Python
-make lint-frontend  # Linter le code frontend
-
-make format         # Formater tout le code
-make format-backend # Formater le code Go
-make format-python  # Formater le code Python
-make format-frontend # Formater le code frontend
-```
-
-### 🔧 Utilitaires
-
-```bash
-make shell-service SERVICE=backend-go   # Ouvrir un shell dans un service
-make ps             # Afficher les processus Docker
-make top            # Afficher l'utilisation des ressources
-make update         # Mettre à jour les dépendances
-```
-
-### 🧪 Tests API
-
-```bash
-make api-test       # Tester l'API backend
-make api-crypto SYMBOL=BTCUSDT         # Tester l'endpoint crypto
-```
-
-### 🚀 Production
-
-```bash
-make prod-build     # Construire pour la production
-make prod-deploy    # Déployer en production
-```
-
-### 🧹 Maintenance
-
-```bash
-make prune          # Nettoyer Docker (images, conteneurs, volumes orphelins)
-make reset          # Reset complet du projet (⚠️ supprime toutes les données)
-```
-
-### Exemples d'Utilisation
-
-#### Démarrage complet du projet
-```bash
-# Configuration initiale (première fois)
-make setup
-# Éditer le fichier .env avec vos clés API
-
-# Démarrage
-make start
-make status
-```
-
-#### Développement d'un service spécifique
-```bash
-# Démarrer l'infrastructure
-make start-infra
-
-# Développer le backend
-make dev-backend
-
-# Dans un autre terminal, voir les logs
-make logs-service SERVICE=timescaledb
-```
-
-#### Debug et monitoring
-```bash
-# Voir les logs en temps réel
-make logs
-
-# Vérifier la santé des services
-make health
-
-# Se connecter à la base de données
+# Voir les indicateurs calculés
 make db-connect
-
-# Écouter les messages Kafka
-make kafka-console-consumer TOPIC=crypto.raw.1s
+SELECT * FROM indicators WHERE symbol = 'BTC/USDT' ORDER BY timestamp DESC LIMIT 10;
 ```
 
-#### Tests et qualité de code
-```bash
-# Tests complets
-make test
+---
 
-# Vérification du code
-make lint
+## Analyse de Sentiment
 
-# Formatage du code
-make format
+Le **News Scraper** intègre une analyse de sentiment via VADER (Valence Aware Dictionary and sEntiment Reasoner).
+
+### Fonctionnalités
+
+- **Sources actuelles** : CoinDesk, CoinTelegraph (RSS)
+- **Architecture extensible** : Stubs prêts pour Twitter, Reddit et autres sources
+- **Score** : -1 (très négatif) à +1 (très positif)
+- **Détection** : Identification automatique des cryptos mentionnées (BTC, ETH, etc.)
+- **Scalabilité Kafka** : Conçu pour gérer un grand volume de messages lors de l'ajout de nouvelles sources
+
+### Exemple de Résultat
+
+```json
+{
+  "title": "Bitcoin Surges Past $50,000",
+  "sentiment_score": 0.85,
+  "symbols": ["BTC", "BTCUSDT"],
+  "source": "coindesk",
+  "published_at": "2025-01-15T10:30:00Z"
+}
 ```
 
-## 📈 Gestion des Données
+---
 
-### Schéma de Base de Données
+## API REST
 
-**Tables Hypertables (Time-Series):**
-- `trades` - Trades individuels haute fréquence
-- `candles` - Données OHLCV agrégées
-- `indicators` - Indicateurs techniques calculés
-- `news` - Actualités crypto avec sentiment
+Base URL : `http://localhost:8080/api/v1`
 
-**Tables Régulières:**
-- `users` - Comptes utilisateurs
-- `currencies` - Métadonnées crypto et fiat
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| GET | `/health` | Health check |
+| GET | `/crypto/data?symbol=BTC/USDT&interval=1m` | Données historiques OHLCV |
+| GET | `/crypto/latest?symbol=BTC/USDT` | Dernier prix |
+| GET | `/stats?symbol=BTC/USDT` | Statistiques 24h |
+| GET | `/indicators/:type?symbol=BTC/USDT` | Indicateur spécifique (rsi, macd, bollinger, momentum) |
+| GET | `/indicators?symbol=BTC/USDT` | Tous les indicateurs |
+| GET | `/news` | Actualités récentes |
+| GET | `/news/:symbol` | Actualités par crypto |
 
-**Vues Unifiées (Hot + Cold):**
-- `all_candles` - Combine données hot et cold transparamment
-- `all_indicators` - Vue unifiée des indicateurs
-- `all_news` - Vue unifiée des actualités
-
-### Intervalles de Temps
-- **1s**: Trades bruts temps réel (rétention 24h)
-- **5s**: Candles agrégées (rétention 7 jours hot + tiering)
-- **1min**: Candles agrégées (rétention 30 jours hot + tiering)
-- **15min**: Candles agrégées (rétention 6 mois hot + tiering)
-- **1h**: Candles agrégées (rétention 2 ans hot + tiering)
-
-### Data Tiering (Hot/Cold Storage)
-
-```sql
--- Configuration automatique du tiering
--- Hot storage: 7 derniers jours sur SSD (rapide)
--- Cold storage: Données anciennes sur MinIO/S3 (économique)
-
--- Vérifier la distribution des données
-SELECT * FROM get_tiering_stats();
-
--- Déclencher le tiering manuellement
-SELECT tier_old_candles();
-SELECT tier_old_indicators();
-SELECT tier_old_news();
-
--- Requêtes transparentes (hot + cold)
-SELECT * FROM all_candles WHERE symbol = 'BTC/USDT';
-```
-
-### Partitioning TimescaleDB
-```sql
--- Hypertable trades (haute fréquence)
-SELECT create_hypertable('trades', 'event_ts',
-    partitioning_column => 'exchange',
-    number_partitions => 10);
-
--- Hypertable candles (OHLCV)
-SELECT create_hypertable('candles', 'window_start',
-    partitioning_column => 'symbol',
-    number_partitions => 50);
-
--- Compression automatique après 7 jours
-SELECT add_compression_policy('candles', INTERVAL '7 days');
-
--- Rétention des données
-SELECT add_retention_policy('trades', INTERVAL '24 hours');
-SELECT add_retention_policy('candles', INTERVAL '2 years');
-```
-
-### Économies de Coûts avec Tiering
-
-| Configuration | Stockage | Coût/mois | Économies |
-|---------------|----------|-----------|-----------|
-| **Sans Tiering** | 2TB SSD | $400 | - |
-| **Avec Tiering** | 100GB SSD + 1.9TB S3 | $58 | **85%** |
-
-**Performance:**
-- Hot queries (7 derniers jours): <50ms
-- Cold queries (données historiques): 200-500ms
-- Requêtes unifiées: Transparentes pour l'application
-
-### Indicateurs Techniques Supportés
-
-| Indicateur | Description | Paramètres |
-|------------|-------------|------------|
-| RSI | Relative Strength Index | Période: 14 |
-| MACD | Moving Average Convergence Divergence | 12, 26, 9 |
-| Bollinger Bands | Bandes de Bollinger | Période: 20, Écart: 2 |
-| Momentum | Momentum | Période: 10 |
-
-## 🔧 Configuration
-
-### Variables d'Environnement
+### Exemple de Requête
 
 ```bash
-# API Keys
-BINANCE_API_KEY=your_binance_api_key
-BINANCE_SECRET_KEY=your_binance_secret_key
+# Récupérer les candles 5m de BTC/USDT
+curl "http://localhost:8080/api/v1/crypto/data?symbol=BTC/USDT&interval=5m&limit=100"
 
-# Database
+# Récupérer le RSI
+curl "http://localhost:8080/api/v1/indicators/rsi?symbol=BTC/USDT"
+```
+
+> **Documentation complète** : [docs/api.md](docs/api.md)
+
+---
+
+## WebSocket Streaming
+
+Endpoint : `ws://localhost:8080/ws/crypto`
+
+### Messages Supportés
+
+```json
+// Souscrire aux trades BTC
+{"action": "subscribe", "type": "trade", "symbol": "BTC/USDT"}
+
+// Souscrire à toutes les candles 5m
+{"action": "subscribe", "type": "candle", "symbol": "*", "timeframe": "5m"}
+
+// Se désabonner
+{"action": "unsubscribe", "type": "trade", "symbol": "BTC/USDT"}
+
+// Lister les souscriptions
+{"action": "list_subscriptions"}
+```
+
+### Formats de Réponse
+
+```json
+// Trade
+{
+  "type": "trade",
+  "data": {
+    "symbol": "BTC/USDT",
+    "price": 42150.50,
+    "quantity": 0.5,
+    "timestamp": "2025-01-15T10:30:00Z"
+  }
+}
+
+// Candle
+{
+  "type": "candle",
+  "data": {
+    "symbol": "BTC/USDT",
+    "timeframe": "5m",
+    "open": 42100,
+    "high": 42200,
+    "low": 42050,
+    "close": 42150,
+    "volume": 125.5
+  }
+}
+```
+
+---
+
+## Commandes Makefile
+
+### Gestion des Services
+
+```bash
+make start              # Démarrer tous les services
+make stop               # Arrêter proprement
+make stop-force         # Arrêt forcé
+make restart            # Redémarrer tout
+make restart-service SERVICE=backend-go  # Redémarrer un service
+make status             # État des conteneurs
+make health             # Vérifier la santé
+make logs               # Logs en temps réel
+make logs-service SERVICE=data-collector  # Logs d'un service
+```
+
+### Base de Données
+
+```bash
+make db-connect         # Shell psql
+make db-backup          # Sauvegarde
+make db-restore BACKUP=file.sql  # Restauration
+make db-reset           # Reset complet (⚠️ perte de données)
+make tiering            # Lancer le tiering hot→cold
+make tiering-stats      # Distribution hot/cold
+```
+
+### Kafka
+
+```bash
+make kafka-topics       # Lister les topics
+make kafka-console-consumer TOPIC=crypto.raw.trades  # Écouter un topic
+make kafka-create-topic TOPIC=nouveau.topic  # Créer un topic
+```
+
+### Développement
+
+```bash
+make dev-backend        # Backend Go en mode dev
+make dev-frontend       # Frontend Vue en mode dev
+make build              # Construire toutes les images
+make build-service SERVICE=backend-go  # Construire un service
+make test               # Exécuter les tests
+make lint               # Vérifier le code
+make format             # Formater le code
+```
+
+### Monitoring
+
+```bash
+make monitor            # Afficher toutes les URLs
+make grafana-console    # Info connexion Grafana
+make prometheus-ui      # Info Prometheus
+make minio-console      # Info MinIO
+```
+
+---
+
+## Monitoring
+
+### Stack Complète
+
+| Outil | URL | Credentials | Description |
+|-------|-----|-------------|-------------|
+| **Grafana** | http://localhost:3001 | admin / admin | Dashboards |
+| **Prometheus** | http://localhost:9090 | - | Métriques |
+| **Kafka UI** | http://localhost:8082 | - | Topics Kafka |
+| **Gatus** | http://localhost:8084 | - | Health checks |
+| **MinIO** | http://localhost:9001 | minioadmin / minioadmin | Object storage |
+
+### Dashboards Grafana Préconfigurés
+
+1. **CryptoViz Overview** - Métriques applicatives
+2. **PostgreSQL Database** - Métriques TimescaleDB
+3. **Kafka Exporter** - Lag consumers, throughput
+4. **Node Exporter** - Métriques système
+5. **cAdvisor** - Métriques conteneurs
+
+### Exporters Déployés
+
+- **Node Exporter** (9100) - CPU, RAM, Disk
+- **PostgreSQL Exporter** (9187) - Connexions, requêtes, locks
+- **Redis Exporter** (9121) - Hits/misses, mémoire
+- **Kafka Exporter** (9308) - Lag, messages/sec
+- **cAdvisor** (8083) - Conteneurs Docker
+
+---
+
+## Configuration
+
+### Variables d'Environnement Principales
+
+Copier `.env.example` vers `.env` et adapter :
+
+```bash
+# API Binance (optionnel pour données publiques)
+BINANCE_API_KEY=
+BINANCE_SECRET_KEY=
+
+# Base de données
 TIMESCALE_HOST=timescaledb
-TIMESCALE_PORT=7432
+TIMESCALE_PORT=5432
 TIMESCALE_DB=cryptoviz
 TIMESCALE_USER=postgres
 TIMESCALE_PASSWORD=password
 
 # Kafka
-KAFKA_BROKERS=kafka:9092
-KAFKA_TOPICS=crypto.raw.1s,crypto.aggregated.5s,crypto.aggregated.1m
+KAFKA_BROKERS=kafka:29092
 
-# Services
-BACKEND_PORT=8080
-FRONTEND_PORT=3000
+# Data Collector
+QUOTE_CURRENCIES=USDT,BUSD,FDUSD
+MIN_VOLUME=5000000
+MAX_SYMBOLS=20
+ENABLE_BACKFILL=true
+BACKFILL_LOOKBACK_DAYS=365
+BACKFILL_TIMEFRAMES=1m,5m,15m,1h,1d
+
+# Frontend (build-time)
+VITE_API_URL=http://localhost:8080
+VITE_WS_URL=ws://localhost:8080/ws/crypto
+VITE_USE_MOCK=false
 ```
 
-## 📊 Monitoring
+### Configuration Avancée
 
-### Métriques Disponibles
-- Latence des WebSockets
-- Throughput Kafka
-- Utilisation CPU/RAM par service
-- Taille de la base de données
-- Nombre de connexions actives
+- **Rétention tiering** : Configurable par timeframe dans `.env`
+- **Mémoire TimescaleDB** : Ajustable dans `docker-compose.yml` (6GB par défaut)
+- **Partitions Kafka** : 3 par topic par défaut
 
-### Logs
-```bash
-# Logs en temps réel
-docker-compose logs -f
+---
 
-# Logs d'un service spécifique
-docker-compose logs -f backend-go
-```
+## Documentation
 
-## 🔒 Sécurité
+| Document | Description |
+|----------|-------------|
+| [DEV.md](DEV.md) | Guide développeur, workflows, troubleshooting |
+| [docs/api.md](docs/api.md) | Documentation API REST complète |
+| [docs/COLDSTORAGE.md](docs/COLDSTORAGE.md) | Architecture Data Tiering |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture Backend Go |
+| [docs/ports-configuration.md](docs/ports-configuration.md) | Configuration des ports |
 
-- Clés API stockées dans variables d'environnement
-- Communication inter-services via réseau Docker privé
-- Rate limiting sur les APIs externes
-- Validation des données d'entrée
+---
 
-## 🚀 Déploiement Production
+## Équipe et Licence
 
-### Optimisations Recommandées
-- Utiliser des volumes Docker persistants
-- Configurer la réplication TimescaleDB
-- Mettre en place un load balancer
-- Activer la compression Kafka
-- Configurer les alertes de monitoring
+### Projet Epitech T-DAT-901
 
-## 📝 Développement
+CryptoViz a été développé dans le cadre du projet **T-DAT-901** à Epitech.
 
-### Ajout d'un Nouvel Indicateur
-1. Créer le calculateur dans `services/indicators-calculator/calculators/`
-2. Ajouter la configuration Kafka
-3. Mettre à jour l'API backend
-4. Ajouter le composant frontend
+### Licence
 
-### Tests
-```bash
-# Tests unitaires
-docker-compose -f docker-compose.test.yml up
+MIT License - voir le fichier [LICENSE](LICENSE) pour plus de détails.
 
-# Tests d'intégration
-./scripts/integration-tests.sh
-```
+---
 
-## 📚 Documentation
-
-- **[Guide de Développement](DEV.md)** - Workflows optimisés pour les développeurs
-- **[API Reference](docs/api.md)** - Documentation des endpoints
-- **[Wiki](https://github.com/T-DAT-901/CryptoViz/wiki)** - Documentation complète
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/T-DAT-901/CryptoViz/issues)
-- **Guide Développeur**: [DEV.md](DEV.md) - Troubleshooting et bonnes pratiques
-
-## 📄 Licence
-
-MIT License - voir le fichier LICENSE pour plus de détails.
+<p align="center">
+  <b>CryptoViz</b> - Terminal de Trading Crypto en Temps Réel<br/>
+  <sub>Epitech T-DAT-901 | 2025</sub>
+</p>

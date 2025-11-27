@@ -4,13 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"cryptoviz-backend/internal/kafka"
-	"cryptoviz-backend/internal/kafka/utils"
 	"cryptoviz-backend/models"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/sirupsen/logrus"
 )
 
@@ -32,24 +31,72 @@ type IndicatorMessage struct {
 // IndicatorHandler gère les messages d'indicateurs depuis Kafka
 type IndicatorHandler struct {
 	kafka.BaseHandler
-	repo   models.IndicatorRepository
-	redis  *redis.Client
-	logger *logrus.Logger
+	repo        models.IndicatorRepository
+	logger      *logrus.Logger
+	batchBuffer []*models.Indicator
+	batchMutex  sync.Mutex
+	batchSize   int
+	flushTicker *time.Ticker
+	stopChan    chan struct{}
 }
 
 // NewIndicatorHandler crée un nouveau handler pour les indicateurs
-func NewIndicatorHandler(cfg *kafka.KafkaConfig, repo models.IndicatorRepository, redisClient *redis.Client, logger *logrus.Logger) *IndicatorHandler {
+func NewIndicatorHandler(cfg *kafka.KafkaConfig, repo models.IndicatorRepository, logger *logrus.Logger) *IndicatorHandler {
 	topics := cfg.GetIndicatorsTopics()
 
-	return &IndicatorHandler{
+	h := &IndicatorHandler{
 		BaseHandler: kafka.BaseHandler{
 			Name:   "IndicatorHandler",
 			Topics: topics,
 		},
-		repo:   repo,
-		redis:  redisClient,
-		logger: logger,
+		repo:        repo,
+		logger:      logger,
+		batchBuffer: make([]*models.Indicator, 0, 50),
+		batchSize:   50,
+		flushTicker: time.NewTicker(500 * time.Millisecond),
+		stopChan:    make(chan struct{}),
 	}
+
+	go h.flushLoop()
+	return h
+}
+
+// flushLoop periodically flushes the batch buffer
+func (h *IndicatorHandler) flushLoop() {
+	for {
+		select {
+		case <-h.stopChan:
+			h.flushBatch()
+			return
+		case <-h.flushTicker.C:
+			h.flushBatch()
+		}
+	}
+}
+
+// flushBatch writes all buffered indicators to the database
+func (h *IndicatorHandler) flushBatch() {
+	h.batchMutex.Lock()
+	if len(h.batchBuffer) == 0 {
+		h.batchMutex.Unlock()
+		return
+	}
+	batch := h.batchBuffer
+	h.batchBuffer = make([]*models.Indicator, 0, h.batchSize)
+	h.batchMutex.Unlock()
+
+	if err := h.repo.CreateBatch(batch); err != nil {
+		h.logger.Errorf("Failed to flush indicator batch (%d items): %v", len(batch), err)
+		return
+	}
+
+	h.logger.Debugf("Flushed %d indicators to database", len(batch))
+}
+
+// Stop stops the flush goroutine
+func (h *IndicatorHandler) Stop() {
+	h.flushTicker.Stop()
+	close(h.stopChan)
 }
 
 // Handle traite un message d'indicateur
@@ -76,41 +123,21 @@ func (h *IndicatorHandler) Handle(ctx context.Context, msg interface{}) error {
 		return fmt.Errorf("unexpected message type: %s (expected 'indicator')", indicatorMsg.Type)
 	}
 
-	// Vérifier les duplicates (clé: symbol:indicator_type:timeframe:time)
-	dedupKey := utils.GenerateCustomDedupKey(
-		"indicator",
-		indicatorMsg.Symbol,
-		indicatorMsg.IndicatorType,
-		indicatorMsg.Timeframe,
-		fmt.Sprintf("%d", indicatorMsg.Time),
-	)
-
-	isDuplicate, err := utils.CheckAndMark(ctx, h.redis, dedupKey, 24*time.Hour)
-	if err != nil {
-		h.logger.Warnf("Failed to check duplicate: %v", err)
-	} else if isDuplicate {
-		h.logger.WithFields(logrus.Fields{
-			"symbol":         indicatorMsg.Symbol,
-			"indicator_type": indicatorMsg.IndicatorType,
-			"timeframe":      indicatorMsg.Timeframe,
-		}).Debug("Duplicate indicator message, skipping")
-		return nil // Pas une erreur, juste un skip
-	}
+	// Note: Redis deduplication removed - DB UPSERT with ON CONFLICT handles duplicates
 
 	// Convertir en modèle Indicator
 	indicator := h.toIndicator(&indicatorMsg)
 
-	// Insérer dans la base de données
-	if err := h.repo.Create(indicator); err != nil {
-		return fmt.Errorf("failed to insert indicator: %w", err)
-	}
+	// Add to batch buffer
+	h.batchMutex.Lock()
+	h.batchBuffer = append(h.batchBuffer, indicator)
+	shouldFlush := len(h.batchBuffer) >= h.batchSize
+	h.batchMutex.Unlock()
 
-	h.logger.WithFields(logrus.Fields{
-		"symbol":         indicator.Symbol,
-		"indicator_type": indicator.IndicatorType,
-		"timeframe":      indicator.Timeframe,
-		"time":           indicator.Time.Format(time.RFC3339),
-	}).Debug("Indicator inserted successfully")
+	// Flush if batch is full
+	if shouldFlush {
+		h.flushBatch()
+	}
 
 	return nil
 }

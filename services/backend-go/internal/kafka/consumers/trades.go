@@ -4,13 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"cryptoviz-backend/internal/kafka"
-	"cryptoviz-backend/internal/kafka/utils"
 	"cryptoviz-backend/models"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/sirupsen/logrus"
 )
 
@@ -32,28 +31,93 @@ type BroadcastFunc func(msgType, symbol, timeframe string, data interface{})
 // TradeHandler gère les messages de trades depuis Kafka
 type TradeHandler struct {
 	kafka.BaseHandler
-	repo      models.TradeRepository
-	redis     *redis.Client
-	logger    *logrus.Logger
-	broadcast BroadcastFunc
+	repo        models.TradeRepository
+	logger      *logrus.Logger
+	broadcast   BroadcastFunc
+	batchBuffer []*models.Trade
+	batchMutex  sync.Mutex
+	batchSize   int
+	flushTicker *time.Ticker
+	stopChan    chan struct{}
 }
 
 // NewTradeHandler crée un nouveau handler pour les trades
-func NewTradeHandler(cfg *kafka.KafkaConfig, repo models.TradeRepository, redisClient *redis.Client, logger *logrus.Logger) *TradeHandler {
-	return &TradeHandler{
+func NewTradeHandler(cfg *kafka.KafkaConfig, repo models.TradeRepository, logger *logrus.Logger) *TradeHandler {
+	h := &TradeHandler{
 		BaseHandler: kafka.BaseHandler{
 			Name:   "TradeHandler",
 			Topics: []string{cfg.TopicRawTrades},
 		},
-		repo:   repo,
-		redis:  redisClient,
-		logger: logger,
+		repo:        repo,
+		logger:      logger,
+		batchBuffer: make([]*models.Trade, 0, 500),
+		batchSize:   500, // Higher batch size for high-frequency trades
+		flushTicker: time.NewTicker(100 * time.Millisecond),
+		stopChan:    make(chan struct{}),
 	}
+
+	go h.flushLoop()
+	return h
 }
 
 // SetBroadcast sets the broadcast callback for WebSocket streaming
 func (h *TradeHandler) SetBroadcast(fn BroadcastFunc) {
 	h.broadcast = fn
+}
+
+// flushLoop periodically flushes the batch buffer
+func (h *TradeHandler) flushLoop() {
+	for {
+		select {
+		case <-h.stopChan:
+			h.flushBatch()
+			return
+		case <-h.flushTicker.C:
+			h.flushBatch()
+		}
+	}
+}
+
+// flushBatch writes all buffered trades to the database
+func (h *TradeHandler) flushBatch() {
+	h.batchMutex.Lock()
+	if len(h.batchBuffer) == 0 {
+		h.batchMutex.Unlock()
+		return
+	}
+	batch := h.batchBuffer
+	h.batchBuffer = make([]*models.Trade, 0, h.batchSize)
+	h.batchMutex.Unlock()
+
+	if err := h.repo.CreateBatch(batch); err != nil {
+		h.logger.Errorf("Failed to flush trade batch (%d items): %v", len(batch), err)
+		return
+	}
+
+	h.logger.Debugf("Flushed %d trades to database", len(batch))
+
+	// Broadcast trades (sample to avoid flooding)
+	for i, trade := range batch {
+		if h.broadcast != nil && i%10 == 0 { // Only broadcast every 10th trade
+			wsData := map[string]interface{}{
+				"type":      "trade",
+				"exchange":  trade.Exchange,
+				"symbol":    trade.Symbol,
+				"trade_id":  trade.TradeID,
+				"price":     trade.Price,
+				"amount":    trade.Amount,
+				"side":      trade.Side,
+				"timestamp": trade.EventTs.UnixMilli(),
+			}
+			go h.broadcast("trade", trade.Symbol, "", wsData)
+		}
+	}
+}
+
+// Stop stops the flush goroutine
+func (h *TradeHandler) Stop() {
+	h.flushTicker.Stop()
+	close(h.stopChan)
 }
 
 // Handle traite un message de trade
@@ -80,56 +144,21 @@ func (h *TradeHandler) Handle(ctx context.Context, msg interface{}) error {
 		return fmt.Errorf("unexpected message type: %s (expected 'trade')", tradeMsg.Type)
 	}
 
-	// Vérifier les duplicates (clé: exchange:symbol:trade_id)
-	dedupKey := utils.GenerateCustomDedupKey(
-		"trade",
-		tradeMsg.Exchange,
-		tradeMsg.Symbol,
-		tradeMsg.TradeID,
-	)
-
-	isDuplicate, err := utils.CheckAndMark(ctx, h.redis, dedupKey, 1*time.Hour)
-	if err != nil {
-		h.logger.Warnf("Failed to check duplicate: %v", err)
-	} else if isDuplicate {
-		h.logger.WithFields(logrus.Fields{
-			"exchange": tradeMsg.Exchange,
-			"symbol":   tradeMsg.Symbol,
-			"trade_id": tradeMsg.TradeID,
-		}).Debug("Duplicate trade message, skipping")
-		return nil // Pas une erreur, juste un skip
-	}
+	// Note: Redis deduplication removed - DB INSERT with ON CONFLICT DO NOTHING handles duplicates
 
 	// Convertir en modèle Trade
 	trade := h.toTrade(&tradeMsg)
 
-	// Insérer dans la base de données
-	if err := h.repo.Create(trade); err != nil {
-		return fmt.Errorf("failed to insert trade: %w", err)
-	}
+	// Add to batch buffer
+	h.batchMutex.Lock()
+	h.batchBuffer = append(h.batchBuffer, trade)
+	shouldFlush := len(h.batchBuffer) >= h.batchSize
+	h.batchMutex.Unlock()
 
-	// Broadcast to WebSocket clients
-	if h.broadcast != nil {
-		wsData := map[string]interface{}{
-			"type":      "trade",
-			"exchange":  trade.Exchange,
-			"symbol":    trade.Symbol,
-			"trade_id":  trade.TradeID,
-			"price":     trade.Price,
-			"amount":    trade.Amount,
-			"side":      trade.Side,
-			"timestamp": trade.EventTs.UnixMilli(),
-		}
-		h.broadcast("trade", trade.Symbol, "", wsData)
+	// Flush if batch is full
+	if shouldFlush {
+		h.flushBatch()
 	}
-
-	h.logger.WithFields(logrus.Fields{
-		"exchange": trade.Exchange,
-		"symbol":   trade.Symbol,
-		"trade_id": trade.TradeID,
-		"price":    trade.Price,
-		"side":     trade.Side,
-	}).Debug("Trade inserted successfully")
 
 	return nil
 }

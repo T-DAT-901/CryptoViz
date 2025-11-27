@@ -69,6 +69,7 @@ func (IndicatorLatest) TableName() string {
 // IndicatorRepository interface pour les opérations sur Indicator
 type IndicatorRepository interface {
 	Create(indicator *Indicator) error
+	CreateBatch(indicators []*Indicator) error
 	GetBySymbolAndType(symbol, indicatorType, timeframe string, limit int) ([]Indicator, error)
 	GetAllBySymbol(symbol, timeframe string) ([]Indicator, error)
 	GetLatestByType(symbol, indicatorType, timeframe string) (*Indicator, error)
@@ -135,6 +136,57 @@ func (r *indicatorRepository) Create(indicator *Indicator) error {
 		indicator.SupportStrength, indicator.ResistanceStrength,
 		indicator.CreatedAt,
 	).Error
+}
+
+// CreateBatch insère plusieurs indicateurs en une seule transaction
+func (r *indicatorRepository) CreateBatch(indicators []*Indicator) error {
+	if len(indicators) == 0 {
+		return nil
+	}
+
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		for _, indicator := range indicators {
+			query := `
+				INSERT INTO indicators (
+					time, symbol, timeframe, indicator_type,
+					value, value_signal, value_histogram,
+					upper_band, lower_band, middle_band,
+					support_level, resistance_level,
+					support_strength, resistance_strength,
+					created_at
+				) VALUES (
+					?, ?, ?, ?,
+					?, ?, ?,
+					?, ?, ?,
+					?, ?,
+					?, ?,
+					?
+				)
+				ON CONFLICT (time, symbol, timeframe, indicator_type) DO UPDATE SET
+					value = EXCLUDED.value,
+					value_signal = EXCLUDED.value_signal,
+					value_histogram = EXCLUDED.value_histogram,
+					upper_band = EXCLUDED.upper_band,
+					lower_band = EXCLUDED.lower_band,
+					middle_band = EXCLUDED.middle_band,
+					support_level = EXCLUDED.support_level,
+					resistance_level = EXCLUDED.resistance_level,
+					support_strength = EXCLUDED.support_strength,
+					resistance_strength = EXCLUDED.resistance_strength
+			`
+			if err := tx.Exec(query,
+				indicator.Time, indicator.Symbol, indicator.Timeframe, indicator.IndicatorType,
+				indicator.Value, indicator.ValueSignal, indicator.ValueHistogram,
+				indicator.UpperBand, indicator.LowerBand, indicator.MiddleBand,
+				indicator.SupportLevel, indicator.ResistanceLevel,
+				indicator.SupportStrength, indicator.ResistanceStrength,
+				indicator.CreatedAt,
+			).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // GetBySymbolAndType récupère les indicateurs par symbole et type (hot storage only)
