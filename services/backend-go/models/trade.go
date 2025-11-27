@@ -43,9 +43,27 @@ func NewTradeRepository(db *gorm.DB) TradeRepository {
 	return &tradeRepository{db: db}
 }
 
-// Create insère un nouveau trade
+// Create insère un nouveau trade avec UPSERT (idempotent)
+// Utilise ON CONFLICT DO NOTHING pour ignorer les duplications
 func (r *tradeRepository) Create(trade *Trade) error {
-	return r.db.Create(trade).Error
+	// UPSERT avec ON CONFLICT DO NOTHING
+	// Unique constraint: (trade_id, exchange, symbol, event_ts)
+	// Si le trade existe déjà (même trade_id), on l'ignore
+	query := `
+		INSERT INTO trades (
+			event_ts, exchange, symbol, trade_id,
+			price, amount, side, created_at
+		) VALUES (
+			?, ?, ?, ?,
+			?, ?, ?, ?
+		)
+		ON CONFLICT (trade_id, exchange, symbol, event_ts) DO NOTHING
+	`
+
+	return r.db.Exec(query,
+		trade.EventTs, trade.Exchange, trade.Symbol, trade.TradeID,
+		trade.Price, trade.Amount, trade.Side, trade.CreatedAt,
+	).Error
 }
 
 // GetBySymbol récupère les trades par symbole

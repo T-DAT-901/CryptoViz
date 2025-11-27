@@ -103,9 +103,53 @@ func NewCandleRepository(db *gorm.DB) CandleRepository {
 	return &candleRepository{db: db}
 }
 
-// Create insère une nouvelle candle
+// Create insère une nouvelle candle avec UPSERT (idempotent)
+// Utilise ON CONFLICT pour prévenir les duplications
 func (r *candleRepository) Create(candle *Candle) error {
-	return r.db.Create(candle).Error
+	// UPSERT avec ON CONFLICT pour gérer les duplications
+	// Unique constraint: (window_start, exchange, symbol, timeframe)
+	query := `
+		INSERT INTO candles (
+			window_start, window_end, exchange, symbol, timeframe,
+			open, high, low, close, volume,
+			trade_count, closed, first_trade_ts, last_trade_ts, duration_ms, source, created_at
+		) VALUES (
+			?, ?, ?, ?, ?,
+			?, ?, ?, ?, ?,
+			?, ?, ?, ?, ?, ?, ?
+		)
+		ON CONFLICT (window_start, exchange, symbol, timeframe) DO UPDATE SET
+			-- For open candles, merge data (take best values)
+			high = CASE
+				WHEN NOT candles.closed THEN GREATEST(candles.high, EXCLUDED.high)
+				ELSE EXCLUDED.high
+			END,
+			low = CASE
+				WHEN NOT candles.closed THEN LEAST(candles.low, EXCLUDED.low)
+				ELSE EXCLUDED.low
+			END,
+			close = EXCLUDED.close,
+			volume = CASE
+				WHEN NOT candles.closed THEN candles.volume + EXCLUDED.volume
+				ELSE EXCLUDED.volume
+			END,
+			trade_count = CASE
+				WHEN NOT candles.closed THEN COALESCE(candles.trade_count, 0) + COALESCE(EXCLUDED.trade_count, 0)
+				ELSE EXCLUDED.trade_count
+			END,
+			closed = EXCLUDED.closed,
+			last_trade_ts = EXCLUDED.last_trade_ts,
+			window_end = EXCLUDED.window_end,
+			duration_ms = EXCLUDED.duration_ms
+		WHERE NOT candles.closed OR EXCLUDED.closed
+	`
+
+	return r.db.Exec(query,
+		candle.WindowStart, candle.WindowEnd, candle.Exchange, candle.Symbol, candle.Timeframe,
+		candle.Open, candle.High, candle.Low, candle.Close, candle.Volume,
+		candle.TradeCount, candle.Closed, candle.FirstTradeTs, candle.LastTradeTs,
+		candle.DurationMs, candle.Source, candle.CreatedAt,
+	).Error
 }
 
 // GetBySymbol récupère les candles par symbole et timeframe (hot storage only)
