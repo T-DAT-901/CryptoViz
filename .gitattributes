@@ -1,0 +1,9 @@
+# Force LF line endings for shell scripts (prevents Windows CRLF issues)
+*.sh text eol=lf
+
+# Keep Dockerfiles with LF
+Dockerfile* text eol=lf
+
+# Keep YAML files consistent
+*.yml text eol=lf
+*.yaml text eol=lf

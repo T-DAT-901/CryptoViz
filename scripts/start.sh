@@ -146,7 +146,7 @@ start_monitoring() {
     log "Démarrage de la stack de monitoring..."
 
     info "Démarrage des services de monitoring (Grafana, Prometheus, Kafka UI, etc.)..."
-    docker-compose -f docker-compose.yml $OVERRIDE_FILE up -d kafka-ui prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter gatus
+    docker-compose -f docker-compose.yml $OVERRIDE_FILE up -d kafka-ui prometheus grafana node-exporter cadvisor postgres-exporter redis-exporter kafka-exporter gatus
 
     log "Stack de monitoring démarrée"
 }
