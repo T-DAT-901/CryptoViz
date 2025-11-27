@@ -166,6 +166,10 @@ health: ## Vérifier la santé des services
 	@docker-compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
 
 # Base de données
+db-migrate: ## Exécuter les migrations de base de données (idempotent)
+	@echo "$(GREEN)Running database migrations...$(NC)"
+	@./scripts/run-migrations.sh
+
 db-connect: ## Se connecter à la base de données TimescaleDB
 	@docker-compose exec timescaledb psql -U postgres -d cryptoviz
 
