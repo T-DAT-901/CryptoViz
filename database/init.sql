@@ -554,3 +554,11 @@ $$;
 -- Features: Idempotent progress tracking, gap detection (2-minute threshold), config change detection
 
 \i /docker-entrypoint-initdb.d/04-backfill-tracking.sql
+
+-- =============================================================================
+-- NEWS DEDUPLICATION (executed from external file)
+-- =============================================================================
+-- Adds unique constraint on URL to prevent duplicate news articles
+-- Same URL from any source = 1 row (first insertion wins)
+
+\i /docker-entrypoint-initdb.d/05-news-dedup.sql
