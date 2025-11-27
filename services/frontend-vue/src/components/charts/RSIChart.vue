@@ -15,7 +15,7 @@ import {
 import zoomPlugin from "chartjs-plugin-zoom";
 import "chartjs-adapter-date-fns";
 import { useIndicatorsStore } from "@/stores/indicators";
-import { fetchIndicators } from "@/services/markets.api";
+import { fetchRSI } from "@/services/indicators.api";
 
 Chart.register(
   LineController,
@@ -40,11 +40,21 @@ const rsiData = ref<Array<{ timestamp: number; value: number }>>([]);
 // Load RSI data from API
 async function loadRSIData() {
   try {
-    console.log(`Loading RSI data for: ${props.symbol}`);
-    const data = await fetchIndicators(props.symbol, "rsi");
+    const timeframe = indicatorsStore.selectedTimeframe;
+    console.log(`Loading RSI data for: ${props.symbol} (${timeframe})`);
+    const rawData = await fetchRSI(
+      props.symbol,
+      timeframe,
+      indicatorsStore.rsiPeriod,
+      10000
+    );
 
-    if (data && data.length > 0) {
-      rsiData.value = data;
+    if (rawData && rawData.length > 0) {
+      // Transform backend format to chart format
+      rsiData.value = rawData.map((item: any) => ({
+        timestamp: new Date(item.time).getTime(),
+        value: item.value || 0,
+      }));
       console.log(`Loaded ${rsiData.value.length} RSI data points`);
     } else {
       console.warn("No RSI data received from API");

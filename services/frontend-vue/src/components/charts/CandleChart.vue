@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch, onBeforeUnmount, computed } from "vue";
 import { useMarketStore } from "@/stores/market";
-import { Chart, Tooltip, Legend, TimeScale, LinearScale } from "chart.js";
+import { Chart, Tooltip, Legend, TimeScale, LinearScale, BarController, BarElement } from "chart.js";
 import zoomPlugin from "chartjs-plugin-zoom";
 import {
   CandlestickController,
@@ -15,6 +15,8 @@ import type { CandleDTO } from "@/types/market";
 Chart.register(
   CandlestickController,
   CandlestickElement,
+  BarController,
+  BarElement,
   TimeScale,
   LinearScale,
   Tooltip,
@@ -211,6 +213,17 @@ const options: ChartOptions<"candlestick"> = {
         },
       },
     },
+    volume: {
+      type: "linear",
+      position: "right",
+      grid: {
+        display: false,
+      },
+      max: undefined as any, // Will be set dynamically
+      ticks: {
+        display: false,
+      },
+    },
   },
 };
 
@@ -370,8 +383,33 @@ function buildChart() {
     chart = null;
   }
 
+  // Calculate max volume for scaling
+  const maxVolume = Math.max(...props.candles.map((c) => c.volume));
+
   const datasets: any[] = [
     {
+      type: "bar",
+      label: "Volume",
+      data: props.candles.map((candle) => ({
+        x: new Date(candle.time).getTime(),
+        y: candle.volume,
+      })),
+      backgroundColor: props.candles.map((candle) =>
+        candle.close >= candle.open
+          ? "rgba(16, 185, 129, 0.3)"
+          : "rgba(239, 68, 68, 0.3)"
+      ),
+      borderColor: props.candles.map((candle) =>
+        candle.close >= candle.open
+          ? "rgba(16, 185, 129, 0.6)"
+          : "rgba(239, 68, 68, 0.6)"
+      ),
+      borderWidth: 1,
+      yAxisID: "volume",
+      order: 2,
+    },
+    {
+      type: "candlestick",
       label: "BTC/USDT",
       data: props.candles.map((candle) => ({
         x: new Date(candle.time).getTime(),
@@ -386,6 +424,8 @@ function buildChart() {
       borderDownColor: "#ef4444",
       wickUpColor: "#10b981",
       wickDownColor: "#ef4444",
+      yAxisID: "y",
+      order: 1,
     } as any,
   ];
 
@@ -415,10 +455,16 @@ function buildChart() {
     datasets,
   };
 
+  // Configure volume scale to use 25% of chart height
+  const chartOptions = { ...options };
+  if (chartOptions.scales?.volume) {
+    (chartOptions.scales.volume as any).max = maxVolume * 4; // 4x to make volume bars occupy ~25% height
+  }
+
   chart = new Chart(canvasEl.value, {
     type: "candlestick",
     data: chartData,
-    options: options,
+    options: chartOptions,
   });
 
   setTimeout(() => {

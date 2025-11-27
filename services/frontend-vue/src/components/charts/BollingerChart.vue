@@ -15,7 +15,7 @@ import {
 import zoomPlugin from "chartjs-plugin-zoom";
 import "chartjs-adapter-date-fns";
 import { useIndicatorsStore } from "@/stores/indicators";
-import { fetchIndicators } from "@/services/markets.api";
+import { fetchBollinger } from "@/services/indicators.api";
 
 Chart.register(
   LineController,
@@ -48,11 +48,24 @@ const bollingerData = ref<
 // Load Bollinger data from API
 async function loadData() {
   try {
-    console.log(`Loading Bollinger data for: ${props.symbol}`);
-    const data = await fetchIndicators(props.symbol, "bollinger");
+    const timeframe = indicatorsStore.selectedTimeframe;
+    console.log(`Loading Bollinger data for: ${props.symbol} (${timeframe})`);
+    const rawData = await fetchBollinger(
+      props.symbol,
+      timeframe,
+      indicatorsStore.bbPeriod,
+      indicatorsStore.bbStd,
+      10000
+    );
 
-    if (data && data.length > 0) {
-      bollingerData.value = data;
+    if (rawData && rawData.length > 0) {
+      // Transform backend format to chart format
+      bollingerData.value = rawData.map((item: any) => ({
+        timestamp: new Date(item.time).getTime(),
+        upper: item.upper_band || 0,
+        middle: item.middle_band || 0,
+        lower: item.lower_band || 0,
+      }));
       console.log(`Loaded ${bollingerData.value.length} Bollinger data points`);
     } else {
       console.warn("No Bollinger data received from API");

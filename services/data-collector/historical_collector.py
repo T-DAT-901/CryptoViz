@@ -395,7 +395,8 @@ class HistoricalCollector:
 
     async def backfill_all(self, symbols: List[str], timeframes: List[str], lookback_days: int = 365):
         # Lance le backfill pour tous les symboles et timeframes
-        end_date = datetime.utcnow() - timedelta(hours=1)
+        # Reduce gap to 5 minutes to minimize time between historical and realtime data
+        end_date = datetime.utcnow() - timedelta(minutes=5)
         start_date = end_date - timedelta(days=lookback_days)
 
         logger.info("=" * 50)
