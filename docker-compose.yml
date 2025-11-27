@@ -23,6 +23,7 @@ services:
       - ./database/setup-tiering.sql:/docker-entrypoint-initdb.d/02-setup-tiering.sql
       - ./database/setup-indicators.sql:/docker-entrypoint-initdb.d/03-setup-indicators.sql
       - ./database/04-backfill-tracking.sql:/docker-entrypoint-initdb.d/04-backfill-tracking.sql
+      - ./database/05-news-dedup.sql:/docker-entrypoint-initdb.d/05-news-dedup.sql
     networks:
       - cryptoviz-network
     restart: unless-stopped
