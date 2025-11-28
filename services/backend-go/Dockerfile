@@ -1,8 +1,8 @@
 # Multi-stage build pour optimiser la taille de l'image
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
-# Installer les dépendances système
-RUN apk add --no-cache git ca-certificates tzdata
+# Installer les dépendances système (including librdkafka for confluent-kafka-go)
+RUN apk add --no-cache git ca-certificates tzdata build-base librdkafka-dev pkgconf
 
 # Définir le répertoire de travail
 WORKDIR /app
@@ -14,14 +14,15 @@ COPY . .
 # Télécharger et nettoyer les dépendances
 RUN go mod tidy
 
-# Compiler l'application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
+# Compiler l'application (CGO_ENABLED=1 required for confluent-kafka-go)
+# Use -tags dynamic to link against system's librdkafka (musl-compatible)
+RUN CGO_ENABLED=1 GOOS=linux go build -tags dynamic -a -o main ./cmd/server
 
 # Image finale légère
 FROM alpine:latest
 
-# Installer ca-certificates pour les connexions HTTPS
-RUN apk --no-cache add ca-certificates tzdata
+# Installer ca-certificates et librdkafka pour confluent-kafka-go
+RUN apk --no-cache add ca-certificates tzdata librdkafka
 
 # Créer un utilisateur non-root
 RUN adduser -D -s /bin/sh appuser

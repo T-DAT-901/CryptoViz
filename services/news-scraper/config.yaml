@@ -1,0 +1,90 @@
+# News Scraper Configuration
+
+# Kafka Configuration
+kafka:
+  brokers: "${KAFKA_BROKERS:-kafka:9092}"
+  topic: "crypto.news"
+
+# Crypto Symbol Detection
+crypto_symbols:
+  - name: "btc"
+    keywords: ["bitcoin", "btc"]
+  - name: "eth"
+    keywords: ["ethereum", "eth", "ether"]
+  - name: "xrp"
+    keywords: ["ripple", "xrp"]
+  - name: "ada"
+    keywords: ["cardano", "ada"]
+  - name: "sol"
+    keywords: ["solana", "sol"]
+  - name: "doge"
+    keywords: ["dogecoin", "doge"]
+  - name: "bnb"
+    keywords: ["binance", "bnb", "binance coin"]
+  - name: "ltc"
+    keywords: ["litecoin", "ltc"]
+
+# Sentiment Analysis
+sentiment:
+  enabled: true
+  provider: "vader"
+
+# News Sources
+sources:
+  # RSS Feeds (Active)
+  - type: "rss"
+    name: "CoinDesk"
+    enabled: true
+    priority: 1
+    days_back: 5
+    user_agent: "Mozilla/5.0 CryptoViz News Scraper/1.0"
+    feeds:
+      - "https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml"
+      - "https://www.coindesk.com/tag/bitcoin/feed/"
+      - "https://www.coindesk.com/tag/ethereum/feed/"
+      - "https://www.coindesk.com/markets/feed/"
+
+  - type: "rss"
+    name: "CoinTelegraph"
+    enabled: true
+    priority: 2
+    days_back: 5
+    user_agent: "Mozilla/5.0 CryptoViz News Scraper/1.0"
+    feeds:
+      - "https://cointelegraph.com/rss"
+      - "https://cointelegraph.com/rss/tag/bitcoin"
+      - "https://cointelegraph.com/rss/tag/ethereum"
+
+  # Social Media (POC Stubs - Disabled)
+  - type: "twitter"
+    name: "Twitter"
+    enabled: false  # POC stub, not implemented
+    priority: 3
+    api_key: "${TWITTER_API_KEY}"
+    accounts: ["coindesk", "cointelegraph", "VitalikButerin", "ethereum"]
+
+  - type: "reddit"
+    name: "Reddit"
+    enabled: false  # POC stub, not implemented
+    priority: 4
+    client_id: "${REDDIT_CLIENT_ID}"
+    client_secret: "${REDDIT_CLIENT_SECRET}"
+    subreddits: ["cryptocurrency", "bitcoin", "ethereum", "CryptoMarkets"]
+
+  # Financial News (POC Stub - Disabled)
+  - type: "bloomberg"
+    name: "Bloomberg"
+    enabled: false  # POC stub, not implemented
+    priority: 5
+    scrape_url: "https://www.bloomberg.com/crypto"
+
+# Scraping Settings
+scraping:
+  interval_seconds: 60  # Fetch every 60 seconds
+  max_articles_per_run: 100
+  timeout_seconds: 10
+
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

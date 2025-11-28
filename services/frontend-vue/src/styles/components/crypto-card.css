@@ -1,0 +1,147 @@
+/* Crypto Card Component Styles */
+
+.crypto-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-card);
+  width: 100%;
+  max-width: 100%;
+  height: fit-content;
+  box-sizing: border-box;
+}
+
+/* Crypto header */
+.crypto-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-xl);
+}
+
+.crypto-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.crypto-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--accent-orange);
+  stroke-width: 2;
+}
+
+.crypto-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.crypto-name {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.crypto-symbol {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.crypto-rank {
+  font-size: 10px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  padding: 2px 6px;
+  border-radius: var(--radius-md);
+  width: fit-content;
+}
+
+.crypto-actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.crypto-action-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.crypto-action-btn:hover {
+  background: var(--bg-interactive);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+.crypto-action-icon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+/* Main price section */
+.crypto-price-section {
+  margin-bottom: var(--space-lg);
+}
+
+.crypto-main-price {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 6px 0;
+  color: var(--text-primary);
+  letter-spacing: -1px;
+  line-height: 1.1;
+}
+
+.crypto-price-change {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.crypto-price-change--positive {
+  color: var(--accent-green);
+}
+
+.crypto-price-change--negative {
+  color: var(--accent-red);
+}
+
+.crypto-trend-icon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+/* Responsive crypto card */
+@media (max-width: 768px) {
+  .crypto-card {
+    padding: var(--space-md);
+  }
+
+  .crypto-main-price {
+    font-size: 24px;
+  }
+
+  .crypto-header {
+    flex-direction: column;
+    gap: var(--space-md);
+    align-items: flex-start;
+  }
+}

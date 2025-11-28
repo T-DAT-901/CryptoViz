@@ -1,0 +1,71 @@
+# =============================================================================
+# CryptoViz - Docker Desktop Override (Mac + Windows/WSL2)
+# =============================================================================
+#
+# This file contains Docker Desktop overrides for docker-compose.yml
+# Both Mac Docker Desktop and Windows Docker Desktop (WSL2) don't support
+# some Linux-specific mount options like rslave bind propagation
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.mac.yml up
+#
+# Or use the Makefile (auto-detects platform):
+#   Mac:     make mac-start / make mac-start-monitoring
+#   Windows: make windows-start / make windows-start-monitoring
+#
+# =============================================================================
+
+services:
+  # Node Exporter - Remove rslave bind propagation
+  # Docker Desktop (Mac/Windows WSL2) doesn't support rslave mount propagation
+  node-exporter:
+    volumes:
+      # Override: Remove rslave (not supported on Docker Desktop)
+      # Original: - /:/host:ro,rslave
+      - /:/host:ro
+
+  # cAdvisor - Simplified volume mounts for Docker Desktop
+  # Some cAdvisor volume mounts can cause issues on Docker Desktop
+  cadvisor:
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      # Removed /dev/disk/ mount - can be problematic on Docker Desktop
+    devices: []  # Clear devices list (kmsg not accessible on Docker Desktop)
+    privileged: false  # Disable privileged mode on Docker Desktop
+
+# =============================================================================
+# Docker Desktop Notes (Mac + Windows/WSL2):
+# =============================================================================
+#
+# 1. Volume Mount Propagation:
+#    - Docker Desktop doesn't support rslave/rshared propagation modes
+#    - All mounts default to rprivate on Docker Desktop
+#
+# 2. Device Access:
+#    - /dev/kmsg and similar devices aren't accessible on Docker Desktop
+#    - cAdvisor runs in non-privileged mode with reduced metrics
+#
+# 3. File System Differences:
+#    - Some Linux paths don't exist or behave differently
+#    - Performance may vary due to filesystem virtualization overhead
+#      (osxfs/virtio-fs on Mac, virtio-fs on WSL2)
+#
+# 4. Known Limitations:
+#    - Node Exporter: Reduced system metrics (no rslave access)
+#    - cAdvisor: Fewer container metrics (no privileged mode)
+#    - Overall: Slightly less detailed metrics than native Linux hosts
+#
+# 5. Docker Network Issues:
+#    - If you see "network not found" errors, run: docker network prune -f
+#    - This cleans up stale network references from previous runs
+#    - Common on Mac and Windows/WSL2 after cleanup operations
+#
+# 6. Platform-Specific Commands:
+#    Mac:         make mac-start, make mac-start-monitoring
+#    Windows/WSL: make windows-start, make windows-start-monitoring
+#    Both:        make help (shows platform-specific examples)
+#
+# =============================================================================

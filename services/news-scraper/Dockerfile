@@ -1,10 +1,11 @@
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 # Installer les dépendances système
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     curl \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Définir le répertoire de travail
@@ -31,4 +32,4 @@ ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
 # Commande par défaut
-CMD ["python", "main.py"]
+CMD ["python", "app.py"]

@@ -1,9 +1,11 @@
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 # Installer les dépendances système
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
+    libsnappy-dev \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Définir le répertoire de travail
