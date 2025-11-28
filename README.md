@@ -175,11 +175,11 @@ Cette architecture permet :
 ### 🚀 Scalabilité Massive
 - Architecture conçue pour **des centaines de cryptomonnaies**
 - Historique supporté : **10+ années de données**
-- Seule limitation : quotas API Binance (tier gratuit = 20 symboles)
+- Seule limitation : quotas API Binance (tier gratuit = 6000 messages/seconde)
 - Hypertables partitionnées (50 chunks) pour requêtes optimisées
 
 ### ⚡ Performance
-- **30k+ messages/minute** capacité théorique avec batch commits
+- **100k+ messages/minute** capacité de consommation des messages kafka
 - **Latence 3-4ms** du trade à l'affichage
 - **0 consumer lag** grâce à confluent-kafka-go + batch commits
 - **Requêtes hot < 50ms** sur données récentes
@@ -475,9 +475,9 @@ ON CONFLICT (time, symbol, timeframe, indicator_type) DO UPDATE SET
 
 | Métrique | Avant | Après | Amélioration |
 |----------|-------|-------|--------------|
-| Kafka round-trips/min | 600+ | 12 | **-99%** |
-| DB transactions/min | 600+ | ~50 | **-92%** |
-| Throughput potentiel | ~630/min | 30k+/min | **~50x** |
+| Kafka round-trips/min | 6k+ | 12 | **-99%** |
+| DB transactions/min | 6k+ | ~50 | **-92%** |
+| Throughput potentiel | ~6k+/min | 100k+/min | **~20x** |
 | Latence max (commit) | Variable | 5s | Prévisible |
 
 > **Note** : Le throughput réel dépend du volume de données entrantes depuis Binance, pas de la capacité du backend.
